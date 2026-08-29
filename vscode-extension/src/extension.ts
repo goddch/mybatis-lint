@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { runAnalyzer } from './analyzerRunner';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
+import { resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { resolveAnalyzerJarPath } from './jarPathResolver';
 
@@ -34,7 +35,11 @@ async function checkWorkspace(
   }
 
   const config = vscode.workspace.getConfiguration('mybatisLint');
-  const javaPath = config.get<string>('javaPath', 'java');
+  const javaPath = resolveJavaPath(
+    config.inspect<string>('javaPath')?.workspaceFolderValue ??
+      config.inspect<string>('javaPath')?.workspaceValue ??
+      config.inspect<string>('javaPath')?.globalValue,
+  );
   const jarPath = resolveAnalyzerJarPath(config.get<string>('analyzerJarPath'), context.extensionPath);
 
   if (!fs.existsSync(jarPath)) {
@@ -84,4 +89,3 @@ async function checkWorkspace(
     void vscode.window.showErrorMessage(message);
   }
 }
-

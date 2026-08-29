@@ -43,7 +43,7 @@
     "watch": "tsc -w -p ./",
     "lint": "eslint src test",
     "pretest": "npm run compile",
-    "test": "node --test \"out/test/*.test.js\""
+    "test": "node --test out/test/*.test.js"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",

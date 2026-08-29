@@ -88,17 +88,23 @@ npm test          # unit tests (node --test), no Extension Host required
 
 1. Build the analyzer jar once: `cd analyzer && ./gradlew jar`.
 2. Open the `vscode-extension/` folder in VS Code.
-3. Set `mybatisLint.analyzerJarPath` in your VS Code settings to the
-   absolute path of `analyzer/build/libs/analyzer.jar` (the jar isn't
-   bundled with the extension yet — see `docs/roadmap.md`).
-4. Press F5 (uses `.vscode/launch.json`) to launch an Extension Development
+3. If needed, set `mybatisLint.analyzerJarPath` in your VS Code settings to the
+   absolute path of `analyzer/build/libs/analyzer.jar` (during development, the
+   extension also tries to auto-detect this sibling jar when it is not bundled
+   yet — see `docs/roadmap.md`).
+4. If `java` is not on your VS Code PATH, the extension also tries `JAVA_HOME`
+   and SDKMAN's current Java automatically; otherwise set
+   `mybatisLint.javaPath` explicitly.
+5. Press F5 (uses `.vscode/launch.json`) to launch an Extension Development
    Host window, open a folder containing mapper XML (e.g. this repo's
    `fixtures/` folder), and run **MyBatis Lint: Check Workspace** from the
    Command Palette.
+
+For a repeatable end-to-end smoke test, see
+[`docs/manual-testing.md`](docs/manual-testing.md).
 
 ## Roadmap
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full list of planned work,
 including Oracle SQL parsing, Java Mapper parameter/resultType validation,
 and dynamic SQL branch expansion.
-
