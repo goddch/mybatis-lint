@@ -77,13 +77,22 @@ public final class MapperXmlAnalyzer {
         final String name;
         final int line;
         final int column;
-        final Map<String, Integer> statementIdOccurrences = new HashMap<>();
+        // Lazily created: only populated for the <mapper> root element, and
+        // only if it directly contains select/insert/update/delete children.
+        private Map<String, Integer> statementIdOccurrences;
         int otherwiseCount = 0;
 
         ElementContext(String name, int line, int column) {
             this.name = name;
             this.line = line;
             this.column = column;
+        }
+
+        Map<String, Integer> statementIdOccurrences() {
+            if (statementIdOccurrences == null) {
+                statementIdOccurrences = new HashMap<>();
+            }
+            return statementIdOccurrences;
         }
     }
 
@@ -126,13 +135,13 @@ public final class MapperXmlAnalyzer {
                 if (MAPPER.equals(parent.name) && STATEMENT_ELEMENTS.contains(qName)) {
                     String id = attributes.getValue("id");
                     if (id != null && !id.isBlank()) {
-                        Integer previousCount = parent.statementIdOccurrences.get(id);
+                        Integer previousCount = parent.statementIdOccurrences().get(id);
                         if (previousCount != null) {
                             diagnostics.add(new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
                                     RuleIds.DUPLICATE_STATEMENT_ID,
                                     "Duplicate statement id '" + id + "' in this mapper file."));
                         }
-                        parent.statementIdOccurrences.merge(id, 1, Integer::sum);
+                        parent.statementIdOccurrences().merge(id, 1, Integer::sum);
                     }
                 } else if (WHEN.equals(qName)) {
                     if (!CHOOSE.equals(parent.name)) {

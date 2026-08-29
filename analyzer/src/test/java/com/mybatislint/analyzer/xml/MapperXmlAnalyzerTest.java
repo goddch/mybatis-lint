@@ -3,6 +3,7 @@ package com.mybatislint.analyzer.xml;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
+import com.mybatislint.analyzer.testutil.TestFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MapperXmlAnalyzerTest {
 
-    private static final Path FIXTURES_ROOT = findFixturesRoot();
+    private static final Path FIXTURES_ROOT = TestFixtures.fixturesRoot();
 
     private final MapperXmlAnalyzer analyzer = new MapperXmlAnalyzer();
 
@@ -74,21 +75,5 @@ class MapperXmlAnalyzerTest {
             sb.append(d.getRuleId()).append('@').append(d.getRange().getStart().getLine()).append(' ');
         }
         return sb.toString();
-    }
-
-    private static Path findFixturesRoot() {
-        // The Gradle project lives at <repo>/analyzer; fixtures live at <repo>/fixtures.
-        Path candidate = Path.of("").toAbsolutePath();
-        for (int i = 0; i < 5; i++) {
-            Path fixtures = candidate.resolve("fixtures");
-            if (java.nio.file.Files.isDirectory(fixtures)) {
-                return fixtures;
-            }
-            candidate = candidate.getParent();
-            if (candidate == null) {
-                break;
-            }
-        }
-        throw new IllegalStateException("Could not locate the 'fixtures' directory from " + Path.of("").toAbsolutePath());
     }
 }
