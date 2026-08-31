@@ -72,12 +72,12 @@ public final class MapperReferenceValidator {
         collectDescendantsByTagName(mapper, "include", includes);
         int searchOffset = 0;
         for (Element include : includes) {
+            int includeStart = findStartOfElement(xml, include, searchOffset);
+            searchOffset = includeStart + "<include".length();
             String refid = include.getAttribute("refid");
             if (refid == null || refid.isBlank()) {
                 continue;
             }
-            int includeStart = findStartOfElement(xml, include, searchOffset);
-            searchOffset = includeStart + "<include".length();
             if (isDynamicRefid(refid)) {
                 // ${...} を含む refid は MyBatis のプロパティ置換で実行時に変わる。
                 // 静的解析で候補を確定できないため、「誤検知を出すくらいなら報告しない」
@@ -291,16 +291,18 @@ public final class MapperReferenceValidator {
     }
 
     private static Position toPosition(String xml, int index) {
+        int safeIndex = Math.max(0, Math.min(index, xml.length()));
         int line = 1;
-        int column = 1;
-        for (int i = 0; i < index && i < xml.length(); i++) {
+        int lastLineStart = 0;
+        for (int i = 0; i < safeIndex; i++) {
             if (xml.charAt(i) == '\n') {
                 line++;
-                column = 1;
-            } else {
-                column++;
+                lastLineStart = i + 1;
             }
         }
+        // column は 1-based。最後に見つけた改行の次の文字を 1 桁目として数えると、
+        // 「改行直後の文字は 1 列目」という editor 表示と同じ定義になる。
+        int column = safeIndex - lastLineStart + 1;
         return new Position(line, column);
     }
 }

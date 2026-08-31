@@ -65,6 +65,31 @@ class MapperReferenceValidatorTest {
     }
 
     @Test
+    void blankIncludeDoesNotShiftLaterIncludeRange(@TempDir Path tempDir) throws IOException {
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/BlankIncludeMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.BlankIncludeMapper">
+                    <select id="findAll">
+                        <include />
+                        <include refid="MissingColumns" />
+                    </select>
+                </mapper>
+                """, StandardCharsets.UTF_8);
+
+        List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString());
+
+        // refid が空の include は検証対象外だが、位置検索のカーソルは進める。
+        // そうしないと、次の include の診断位置が空 include 側へずれてしまう。
+        List<Diagnostic> unresolved = diagnostics.stream()
+                .filter(d -> RuleIds.UNRESOLVED_INCLUDE.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, unresolved.size(), () -> diagnostics.toString());
+        assertEquals(5, unresolved.get(0).getRange().getStart().getLine());
+    }
+
+    @Test
     void acceptsFullyQualifiedRefidInSameMapperWithoutWorkspaceIndex(@TempDir Path tempDir) throws IOException {
         Path xmlFile = tempDir.resolve("src/main/resources/com/example/SameMapper.xml");
         Files.createDirectories(xmlFile.getParent());
