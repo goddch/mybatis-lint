@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.cli;
 
 import com.mybatislint.analyzer.discovery.MapperFileScanner;
+import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
@@ -47,9 +48,10 @@ public final class AnalyzerCli {
 
     public Result run(Path workspaceRoot) {
         List<Diagnostic> diagnostics = new ArrayList<>();
+        JavaMapperIndex javaIndex = JavaMapperIndex.build(workspaceRoot);
         for (Path file : scanner.scan(workspaceRoot)) {
             Path relative = relativize(workspaceRoot, file);
-            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString()));
+            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex));
         }
         return new Result(diagnostics);
     }

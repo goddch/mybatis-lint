@@ -18,6 +18,10 @@ for exactly what is and isn't implemented.
     mapper file
   - duplicate `<otherwise>` inside a `<choose>`
   - `<when>` / `<otherwise>` used outside `<choose>`
+  - definite undefined Java mapper parameter references in resolved mapper
+    methods (for example `#{missing}` or `<if test="status != null">` when
+    the root name is not part of the Java method signature, `@Param` values,
+    generic aliases, `_parameter`, or local `<bind>` / `<foreach>` names)
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -27,10 +31,9 @@ for exactly what is and isn't implemented.
 
 ## What is **not** implemented yet
 
-Oracle SQL syntax validation, Java Mapper parameter resolution, `resultType`
-property validation, and dynamic SQL branch expansion are roadmap items —
-see [`docs/roadmap.md`](docs/roadmap.md). Please don't rely on this tool for
-those checks yet.
+Oracle SQL syntax validation, DTO property validation, and dynamic SQL branch
+expansion are roadmap items — see [`docs/roadmap.md`](docs/roadmap.md).
+Please don't rely on this tool for those checks yet.
 
 ## Repository layout
 

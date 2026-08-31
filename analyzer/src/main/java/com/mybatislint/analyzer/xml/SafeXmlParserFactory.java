@@ -1,6 +1,8 @@
 package com.mybatislint.analyzer.xml;
 
 import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
@@ -37,6 +39,27 @@ public final class SafeXmlParserFactory {
             return parser;
         } catch (ParserConfigurationException | org.xml.sax.SAXException e) {
             throw new IllegalStateException("Failed to configure a safe XML parser", e);
+        }
+    }
+
+    public static DocumentBuilder newDocumentBuilder() {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            factory.setValidating(false);
+            factory.setXIncludeAware(false);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            builder.setEntityResolver((publicId, systemId) ->
+                    new org.xml.sax.InputSource(new java.io.StringReader("")));
+            return builder;
+        } catch (ParserConfigurationException e) {
+            throw new IllegalStateException("Failed to configure a safe DOM parser", e);
         }
     }
 }
