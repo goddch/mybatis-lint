@@ -93,7 +93,9 @@ public final class JavaMapperIndex {
                 }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Unable to read Java source file: " + file, e);
+            // A single unreadable Java source file should never block analysis of
+            // the rest of the workspace; treat it as an empty index entry and move on.
+            return;
         }
     }
 

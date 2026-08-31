@@ -92,7 +92,8 @@ public final class MapperParameterValidator {
                                                   List<Diagnostic> diagnostics) {
         String sqlText = statement.getTextContent();
         Matcher matcher = TEMPLATE_PATTERN.matcher(sqlText);
-        int searchStart = 0;
+        int statementOffset = findStartOfElement(xml, statement, 0);
+        int searchOffset = statementOffset;
         while (matcher.find()) {
             String raw = matcher.group();
             String expression = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
@@ -100,19 +101,22 @@ public final class MapperParameterValidator {
                 continue;
             }
             for (String root : ExpressionRootIdentifierExtractor.extractRoots(expression)) {
-                if (allowedNames.contains(root)) {
+                if (root == null || root.isBlank()) {
                     continue;
                 }
-                if (root == null || root.isBlank()) {
+                if (allowedNames.contains(root)) {
                     continue;
                 }
                 if (root.startsWith("_")) {
                     continue;
                 }
                 diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
-                        raw, statement, searchStart));
+                        raw, searchOffset));
             }
-            searchStart = matcher.end();
+            int nextIndex = xml.indexOf(raw, searchOffset);
+            if (nextIndex >= 0) {
+                searchOffset = nextIndex + raw.length();
+            }
         }
     }
 
@@ -123,6 +127,7 @@ public final class MapperParameterValidator {
                                                Path displayFile,
                                                String uri,
                                                List<Diagnostic> diagnostics) {
+        int lowerBound = findStartOfElement(xml, statement, 0);
         List<Element> elements = new ArrayList<>();
         collectDescendants(statement, elements);
         for (Element element : elements) {
@@ -135,17 +140,17 @@ public final class MapperParameterValidator {
                 continue;
             }
             for (String root : ExpressionRootIdentifierExtractor.extractRoots(expression)) {
-                if (allowedNames.contains(root)) {
+                if (root == null || root.isBlank()) {
                     continue;
                 }
-                if (root == null || root.isBlank()) {
+                if (allowedNames.contains(root)) {
                     continue;
                 }
                 if (root.startsWith("_")) {
                     continue;
                 }
                 diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
-                        expression, element, 0));
+                        expression, lowerBound));
             }
         }
     }
@@ -187,6 +192,7 @@ public final class MapperParameterValidator {
             }
             if (STATEMENT_TAGS.contains(element.getTagName())) {
                 statements.add(element);
+                continue;
             }
             statements.addAll(collectStatements(element));
         }
@@ -211,15 +217,13 @@ public final class MapperParameterValidator {
                                                      MapperMethodInfo method,
                                                      String root,
                                                      String rawSnippet,
-                                                     Element element,
-                                                     int searchOffset) {
-        String snippet = rawSnippet;
-        int positionIndex = xml.indexOf(snippet, searchOffset);
+                                                     int lowerBound) {
+        int positionIndex = xml.indexOf(rawSnippet, lowerBound);
         if (positionIndex < 0) {
-            positionIndex = xml.indexOf(root, findStartOfElement(xml, element));
+            positionIndex = xml.indexOf(root, lowerBound);
         }
         if (positionIndex < 0) {
-            positionIndex = findStartOfElement(xml, element);
+            positionIndex = lowerBound;
         }
         Position pos = toPosition(xml, positionIndex);
         return new Diagnostic(displayFile, uri, Range.at(pos.getLine(), pos.getCharacter()), Severity.ERROR,
@@ -227,25 +231,27 @@ public final class MapperParameterValidator {
                 "Undefined parameter '" + root + "' in mapper method '" + method.getName() + "'.");
     }
 
-    private static Diagnostic diagnosticForExpression(String xml,
-                                                     Path displayFile,
-                                                     String uri,
-                                                     MapperMethodInfo method,
-                                                     String root,
-                                                     String rawSnippet,
-                                                     Node statement,
-                                                     int searchOffset) {
-        return diagnosticForExpression(xml, displayFile, uri, method, root, rawSnippet, (Element) statement, searchOffset);
-    }
-
-    private static int findStartOfElement(String xml, Element element) {
+    private static int findStartOfElement(String xml, Element element, int lowerBound) {
         String tag = element.getTagName();
+        String id = element.getAttribute("id");
         String search = "<" + tag;
-        int index = xml.indexOf(search);
-        if (index < 0) {
-            return 0;
+        if (id == null || id.isBlank()) {
+            int index = xml.indexOf(search, lowerBound);
+            return index >= 0 ? index : lowerBound;
         }
-        return index;
+        String idFragment = "id=\"" + id + "\"";
+        int index = xml.indexOf(search, lowerBound);
+        while (index >= 0) {
+            int close = xml.indexOf('>', index);
+            if (close >= 0) {
+                String snippet = xml.substring(index, close + 1);
+                if (snippet.contains(idFragment) || snippet.contains("id='" + id + "'")) {
+                    return index;
+                }
+            }
+            index = xml.indexOf(search, index + 1);
+        }
+        return lowerBound;
     }
 
     private static Position toPosition(String xml, int index) {
