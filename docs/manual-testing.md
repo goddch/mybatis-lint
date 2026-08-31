@@ -95,6 +95,54 @@ analyzer/build/libs/analyzer.jar
 - Problems パネルが空になります。
 - ひとつ前の `fixtures/invalid` 実行時の診断結果が残っていません。
 
+## スモークテスト C: `<foreach collection>` の未定義パラメータ検証を確認する
+
+`mybatis-lint/undefined-parameter` ルールは `#{...}` / `${...}` / `<if test>` /
+`<when test>` に加えて `<foreach collection="...">` も検証します。
+[`fixtures/parameter-validation/`](../fixtures/parameter-validation/) には
+Java Mapper インターフェースと対応する Mapper XML のペアがあり、
+CLI から直接確認できます。
+
+事前に analyzer jar をビルドしておきます(未実施の場合)。
+
+```sh
+cd analyzer
+./gradlew jar
+```
+
+CLI で確認します。
+
+```sh
+java -jar build/libs/analyzer.jar ../fixtures/parameter-validation
+```
+
+期待結果:
+
+- [`InvalidMapper.xml`](../fixtures/parameter-validation/src/main/resources/com/example/InvalidMapper.xml)
+  の `findByIds` ステートメントで
+  `mybatis-lint/undefined-parameter` 診断が出ます。
+  メッセージは
+  `Undefined parameter 'missingIds' in mapper method 'findByIds'.` です。
+  これは対応する
+  [`InvalidMapper.java`](../fixtures/parameter-validation/src/main/java/com/example/InvalidMapper.java)
+  の引数名が `ids` であるのに対し、XML 側の `<foreach collection="missingIds">`
+  がタイプミスしている(存在しない識別子を参照している)ためです。
+- [`ValidMapper.xml`](../fixtures/parameter-validation/src/main/resources/com/example/ValidMapper.xml)
+  では `<foreach>` に関する診断は一切出ません。
+  - `findByIds` ステートメント: `collection="ids"` が引数名 `ids` と
+    そのまま一致する、単純な参照のケース。
+  - `findByGroups` ステートメント: `collection="request.groups"` という
+    プロパティパス(ルート識別子 `request` だけを検証)と、
+    外側の `<foreach item="group">` の変数を内側の
+    `<foreach collection="group">` から参照する、ネストした `<foreach>` の
+    ケース。どちらも診断は出ません。
+
+VS Code 拡張から確認したい場合は、
+[`fixtures/parameter-validation/`](../fixtures/parameter-validation/) フォルダを
+Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
+実行してください。Problems パネルに `InvalidMapper.xml` の `findByIds` の
+位置に診断が表示されれば成功です。
+
 ## トラブルシューティング
 
 次のメッセージが表示された場合:

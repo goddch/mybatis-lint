@@ -11,4 +11,16 @@
   <select id="findWithMap">
     SELECT * FROM users WHERE name = #{missing}
   </select>
+  <select id="findByIds">
+    SELECT * FROM users WHERE id IN
+    <!--
+      Java 側の引数名は "ids" だが、ここでは "missingIds" とタイプミスしている。
+      foreach の collection 属性のルート識別子(プロパティパスなら先頭部分)が
+      Java Mapper インターフェースの引数・@Param エイリアスのどれとも一致しない
+      ため、mybatis-lint/undefined-parameter 診断が出る。
+    -->
+    <foreach collection="missingIds" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
 </mapper>
