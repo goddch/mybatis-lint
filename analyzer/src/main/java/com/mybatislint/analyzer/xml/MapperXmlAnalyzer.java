@@ -1,5 +1,6 @@
 package com.mybatislint.analyzer.xml;
 
+import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
@@ -46,6 +47,10 @@ public final class MapperXmlAnalyzer {
      * @param uri a stable {@code file://} URI identifying the file
      */
     public List<Diagnostic> analyze(Path actualFile, Path displayFile, String uri) {
+        return analyze(actualFile, displayFile, uri, JavaMapperIndex.empty());
+    }
+
+    public List<Diagnostic> analyze(Path actualFile, Path displayFile, String uri, JavaMapperIndex javaIndex) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         SAXParser parser = SafeXmlParserFactory.newSaxParser();
         Handler handler = new Handler(displayFile, uri, diagnostics);
@@ -55,13 +60,17 @@ public final class MapperXmlAnalyzer {
             parser.parse(source, handler);
         } catch (SAXParseException e) {
             diagnostics.add(malformedXmlDiagnostic(displayFile, uri, e));
+            return diagnostics;
         } catch (SAXException e) {
             diagnostics.add(new Diagnostic(displayFile, uri, Range.at(1, 1), Severity.ERROR,
                     RuleIds.MALFORMED_XML, "Malformed XML: " + e.getMessage()));
+            return diagnostics;
         } catch (IOException e) {
             diagnostics.add(new Diagnostic(displayFile, uri, Range.at(1, 1), Severity.ERROR,
                     RuleIds.MALFORMED_XML, "Unable to read file: " + e.getMessage()));
+            return diagnostics;
         }
+        diagnostics.addAll(new MapperParameterValidator(javaIndex).validate(actualFile, displayFile, uri));
         return diagnostics;
     }
 
