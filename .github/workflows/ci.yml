@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  analyzer:
+    name: Analyzer (Java)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analyzer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+      - name: Build jar
+        run: ./gradlew jar --no-daemon
+      - name: Run analyzer against fixtures
+        # Diagnostics are expected in fixtures/invalid, so a non-zero exit
+        # code here is expected; only fail the step on unexpected errors.
+        run: |
+          set +e
+          java -jar build/libs/analyzer.jar ../fixtures
+          exit_code=$?
+          set -e
+          if [ "$exit_code" -ne 0 ] && [ "$exit_code" -ne 1 ]; then
+            echo "Unexpected analyzer exit code: $exit_code"
+            exit "$exit_code"
+          fi
+
+  vscode-extension:
+    name: VS Code extension (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run lint
+      - run: npm test

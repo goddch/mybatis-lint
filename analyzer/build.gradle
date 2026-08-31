@@ -1,0 +1,38 @@
+plugins {
+    id 'application'
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+application {
+    mainClass = 'com.mybatislint.analyzer.Main'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// A single fat/uber jar isn't needed yet since the analyzer has no
+// third-party runtime dependencies; the plain jar produced by `build` is
+// runnable via `java -jar analyzer/build/libs/analyzer.jar <workspace>` once
+// the manifest main class is set (see `jar` task below), or via
+// `./gradlew run --args=<workspace>` during development.
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.mybatislint.analyzer.Main'
+    }
+}

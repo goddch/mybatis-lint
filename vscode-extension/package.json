@@ -1,0 +1,56 @@
+{
+  "name": "mybatis-lint",
+  "displayName": "MyBatis Lint",
+  "description": "Static analysis diagnostics for MyBatis mapper XML files.",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "goddch",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mybatisLint.checkWorkspace",
+        "title": "MyBatis Lint: Check Workspace"
+      }
+    ],
+    "configuration": {
+      "title": "MyBatis Lint",
+      "properties": {
+        "mybatisLint.analyzerJarPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the mybatis-lint analyzer jar (analyzer/build/libs/analyzer.jar). If empty, the extension looks for a bundled jar next to the extension."
+        },
+        "mybatisLint.javaPath": {
+          "type": "string",
+          "default": "java",
+          "description": "Path to the Java executable used to run the analyzer jar."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "lint": "eslint src test",
+    "pretest": "npm run compile",
+    "test": "node --test out/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^10.0.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -22,3 +22,17 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Gradle
+analyzer/build/
+analyzer/.gradle/
+!analyzer/gradle/wrapper/gradle-wrapper.jar
+
+# Node / TypeScript
+vscode-extension/node_modules/
+vscode-extension/out/
+vscode-extension/*.vsix
+
+# IDE
+.idea/
+*.iml
