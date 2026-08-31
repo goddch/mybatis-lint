@@ -91,6 +91,9 @@ class MapperReferenceValidatorTest {
                 <?xml version="1.0" encoding="UTF-8"?>
                 <mapper namespace="com.example.ResultMapper">
                     <resultMap id="UserResultMap" type="com.example.User" />
+                    <select id="findNames" resultType="java.lang.String">
+                        SELECT name FROM users
+                    </select>
                     <select id="findAll" resultMap="UserResultMap" resultType="com.example.User">
                         SELECT id, name FROM users
                     </select>
@@ -104,6 +107,6 @@ class MapperReferenceValidatorTest {
                 .toList();
         assertEquals(1, warnings.size(), () -> diagnostics.toString());
         assertEquals(Severity.WARNING, warnings.get(0).getSeverity());
-        assertEquals(4, warnings.get(0).getRange().getStart().getLine());
+        assertEquals(7, warnings.get(0).getRange().getStart().getLine());
     }
 }

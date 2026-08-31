@@ -18,6 +18,12 @@ extension descriptions never overstate current capabilities.
   - duplicate `<otherwise>` inside a single `<choose>`
   - `<when>` used outside `<choose>`
   - `<otherwise>` used outside `<choose>`
+  - definite undefined Java mapper parameter references in resolved mapper
+    methods (`#{...}`, `${...}`, `<if test>`, `<when test>`, and
+    `<foreach collection>`)
+  - dangling `<include refid="...">` references, including fully-qualified
+    `namespace.sqlId` refs to SQL fragments in other mapper files
+  - `resultMap` and `resultType` specified together on a statement (warning)
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -32,11 +38,6 @@ working in user-facing docs until they land:
   existing Java SQL parser with Oracle dialect support (e.g. Druid's parser
   or JSqlParser) against real, anonymized mapper SQL before committing to
   one, rather than assuming either is a perfect match up front.
-- **Java Mapper interface parameter resolution.** Cross-checking `#{...}`,
-  `${...}`, `<if test="...">`, `<foreach>`, etc. against the parameters
-  actually declared on the corresponding Java Mapper interface method
-  (including `@Param`, single-parameter implicit binding, nested DTO
-  properties, and OGNL expressions).
 - **`resultType` / `resultMap` property validation.** Checking that SQL
   column aliases in a `<select>` correspond to real properties on the
   configured `resultType`, accounting for `mapUnderscoreToCamelCase`,
@@ -45,9 +46,8 @@ working in user-facing docs until they land:
   of `<if>`/`<choose>`/`<foreach>` branches and validating the resulting SQL,
   with an explicit cap on how many combinations are generated and clear
   reporting of how many branches were (and were not) checked.
-- **Additional mapper-level rules**, e.g. `resultMap`/`resultType` specified
-  together, dangling `<include refid="...">` references, unresolved
-  `typeAlias`es.
+- **Additional mapper-level rules**, e.g. unresolved `typeAlias`es and other
+  cross-reference checks not covered by the current SQL fragment include rule.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out

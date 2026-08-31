@@ -143,6 +143,52 @@ Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
 実行してください。Problems パネルに `InvalidMapper.xml` の `findByIds` の
 位置に診断が表示されれば成功です。
 
+## スモークテスト D: `<include refid>` と `resultMap`/`resultType` 警告を確認する
+
+`mybatis-lint/unresolved-include` ルールは、`<sql id="...">` と
+`<include refid="...">` を突き合わせ、静的に解決できない include を検出します。
+同じ fixture で、`mybatis-lint/result-map-and-type` の warning も確認できます。
+
+事前に analyzer jar をビルドしておきます(未実施の場合)。
+
+```sh
+cd analyzer
+./gradlew jar
+```
+
+CLI で確認します。
+
+```sh
+java -jar build/libs/analyzer.jar ../fixtures/include-validation
+```
+
+期待結果:
+
+- [`IncludeInvalidMapper.xml`](../fixtures/include-validation/src/main/resources/com/example/IncludeInvalidMapper.xml)
+  の `<include refid="MissingColumns">` に
+  `mybatis-lint/unresolved-include` の error が出ます。
+  `MissingColumns` という `<sql id>` が同じ mapper 内にも、完全修飾名として解決できる
+  他 mapper にも存在しないためです。
+- 同じ `IncludeInvalidMapper.xml` の
+  `<select id="findAmbiguousMapping" resultMap="UserResultMap" resultType="com.example.User">`
+  に `mybatis-lint/result-map-and-type` の warning が出ます。
+  `resultMap` と `resultType` はどちらも結果マッピング戦略を表すため、
+  同時に指定すると意図が曖昧になります。
+- [`IncludeValidMapper.xml`](../fixtures/include-validation/src/main/resources/com/example/IncludeValidMapper.xml)
+  では include 診断は出ません。
+  - `refid="ActiveWhere"` は同じ mapper ファイル内の `<sql id="ActiveWhere">`
+    を参照する正常系です。
+  - `refid="com.example.CommonFragments.BaseColumns"` は
+    [`CommonFragments.xml`](../fixtures/include-validation/src/main/resources/com/example/CommonFragments.xml)
+    にある SQL 断片を namespace 付きで参照する正常系です。
+  - `refid="${tenantPrefix}.DynamicColumns"` は実行時に値が変わる動的 refid なので、
+    静的に断定せずフェイルオープンします。
+
+VS Code 拡張から確認したい場合は、
+[`fixtures/include-validation/`](../fixtures/include-validation/) フォルダを
+Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
+実行してください。Problems パネルに error 1 件と warning 1 件が表示されれば成功です。
+
 ## トラブルシューティング
 
 次のメッセージが表示された場合:

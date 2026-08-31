@@ -110,13 +110,13 @@ public final class MapperReferenceValidator {
             if (!STATEMENT_TAGS.contains(element.getTagName())) {
                 continue;
             }
+            int elementStart = findStartOfElement(xml, element, searchOffset);
+            searchOffset = elementStart + ("<" + element.getTagName()).length();
             String resultMap = element.getAttribute("resultMap");
             String resultType = element.getAttribute("resultType");
             if (resultMap == null || resultMap.isBlank() || resultType == null || resultType.isBlank()) {
                 continue;
             }
-            int elementStart = findStartOfElement(xml, element, searchOffset);
-            searchOffset = elementStart + ("<" + element.getTagName()).length();
             // MyBatis の select 系ステートメントでは、結果の変換方法は resultMap か
             // resultType のどちらか一方で表すのが基本。両方を書くと意図が曖昧で、
             // 将来のリファクタリング時にも読み手が迷うため warning として知らせる。
