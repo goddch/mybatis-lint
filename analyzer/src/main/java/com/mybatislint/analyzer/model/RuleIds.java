@@ -9,6 +9,8 @@ public final class RuleIds {
     public static final String WHEN_OUTSIDE_CHOOSE = "mybatis-lint/when-outside-choose";
     public static final String OTHERWISE_OUTSIDE_CHOOSE = "mybatis-lint/otherwise-outside-choose";
     public static final String UNDEFINED_PARAMETER = "mybatis-lint/undefined-parameter";
+    public static final String UNRESOLVED_INCLUDE = "mybatis-lint/unresolved-include";
+    public static final String RESULT_MAP_AND_TYPE = "mybatis-lint/result-map-and-type";
 
     private RuleIds() {
     }
