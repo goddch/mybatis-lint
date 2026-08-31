@@ -69,12 +69,9 @@ public final class MapperReferenceValidator {
                                   String uri,
                                   List<Diagnostic> diagnostics) {
         List<Element> includes = new ArrayList<>();
-        collectDescendants(mapper, includes);
+        collectDescendantsByTagName(mapper, "include", includes);
         int searchOffset = 0;
         for (Element include : includes) {
-            if (!"include".equals(include.getTagName())) {
-                continue;
-            }
             String refid = include.getAttribute("refid");
             if (refid == null || refid.isBlank()) {
                 continue;
@@ -104,12 +101,9 @@ public final class MapperReferenceValidator {
                                           String uri,
                                           List<Diagnostic> diagnostics) {
         List<Element> elements = new ArrayList<>();
-        collectDescendants(mapper, elements);
+        collectStatements(mapper, elements);
         int searchOffset = 0;
         for (Element element : elements) {
-            if (!STATEMENT_TAGS.contains(element.getTagName())) {
-                continue;
-            }
             int elementStart = findStartOfElement(xml, element, searchOffset);
             searchOffset = elementStart + ("<" + element.getTagName()).length();
             String resultMap = element.getAttribute("resultMap");
@@ -162,15 +156,34 @@ public final class MapperReferenceValidator {
         return ids;
     }
 
-    private static void collectDescendants(Element element, List<Element> target) {
+    private static void collectStatements(Element element, List<Element> target) {
         NodeList children = element.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
             Node node = children.item(i);
             if (!(node instanceof Element child)) {
                 continue;
             }
-            target.add(child);
-            collectDescendants(child, target);
+            if (STATEMENT_TAGS.contains(child.getTagName())) {
+                target.add(child);
+            }
+            collectStatements(child, target);
+        }
+    }
+
+    private static void collectDescendantsByTagName(Element element, String tagName, List<Element> target) {
+        // 位置計算では「前に処理した同種タグより後ろ」を検索開始位置にする。
+        // そのため、不要なタグまで混ざったリストではなく、目的のタグだけを
+        // 文書順に集めておくと、同じ include が複数ある場合も診断位置が安定する。
+        NodeList children = element.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (!(node instanceof Element child)) {
+                continue;
+            }
+            if (tagName.equals(child.getTagName())) {
+                target.add(child);
+            }
+            collectDescendantsByTagName(child, tagName, target);
         }
     }
 
@@ -196,7 +209,18 @@ public final class MapperReferenceValidator {
         String startTag = xml.substring(elementStart, tagEnd + 1);
         int attrIndex = startTag.indexOf(attributeName);
         while (attrIndex >= 0) {
+            // 単純な indexOf だけだと、たとえば "id" を探したときに "refid" の
+            // 末尾にも一致してしまう。XML 属性名としての境界を確認し、将来この
+            // helper を別属性へ再利用しても安全な位置を返すようにしている。
+            if (!isAttributeNameBoundaryBefore(startTag, attrIndex)) {
+                attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
+                continue;
+            }
             int cursor = attrIndex + attributeName.length();
+            if (cursor < startTag.length() && isXmlNameChar(startTag.charAt(cursor))) {
+                attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
+                continue;
+            }
             while (cursor < startTag.length() && Character.isWhitespace(startTag.charAt(cursor))) {
                 cursor++;
             }
@@ -217,6 +241,17 @@ public final class MapperReferenceValidator {
             attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
         }
         return -1;
+    }
+
+    private static boolean isAttributeNameBoundaryBefore(String startTag, int attrIndex) {
+        if (attrIndex <= 0) {
+            return true;
+        }
+        return !isXmlNameChar(startTag.charAt(attrIndex - 1));
+    }
+
+    private static boolean isXmlNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':';
     }
 
     private static int findStartTagEnd(String xml, int elementStart) {
@@ -240,7 +275,17 @@ public final class MapperReferenceValidator {
         String tag = element.getTagName();
         String search = "<" + tag;
         int index = xml.indexOf(search, lowerBound);
-        return index >= 0 ? index : lowerBound;
+        while (index >= 0) {
+            // "<select" だけで探すと "<selectKey>" にも一致してしまう。
+            // タグ名の直後が XML 名文字でないことを確認し、実際のタグ境界だけを
+            // 採用することで range が別要素へずれるのを防ぐ。
+            int afterName = index + search.length();
+            if (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName))) {
+                return index;
+            }
+            index = xml.indexOf(search, afterName);
+        }
+        return lowerBound;
     }
 
     private static Position toPosition(String xml, int index) {

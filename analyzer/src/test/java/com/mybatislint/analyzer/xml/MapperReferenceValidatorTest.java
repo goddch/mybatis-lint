@@ -98,6 +98,12 @@ class MapperReferenceValidatorTest {
                     <select id="findNames" resultType="java.lang.String">
                         SELECT name FROM users
                     </select>
+                    <insert id="insertUser">
+                        <selectKey keyProperty="id" resultType="long">
+                            SELECT user_seq.nextval FROM dual
+                        </selectKey>
+                        INSERT INTO users (id, name) VALUES (#{id}, #{name})
+                    </insert>
                     <select id="findAll" resultMap="UserResultMap" resultType="com.example.User">
                         SELECT id, name FROM users
                     </select>
@@ -106,13 +112,14 @@ class MapperReferenceValidatorTest {
 
         List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString());
 
-        // 直前に正常な <select> があっても、診断位置が最初の statement に
-        // 引っ張られず、実際に両属性を書いた statement を指すことも確認する。
+        // 直前に正常な <select> や <selectKey> があっても、診断位置が別の
+        // statement/類似タグに引っ張られず、実際に両属性を書いた statement を
+        // 指すことも確認する。
         List<Diagnostic> warnings = diagnostics.stream()
                 .filter(d -> RuleIds.RESULT_MAP_AND_TYPE.equals(d.getRuleId()))
                 .toList();
         assertEquals(1, warnings.size(), () -> diagnostics.toString());
         assertEquals(Severity.WARNING, warnings.get(0).getSeverity());
-        assertEquals(7, warnings.get(0).getRange().getStart().getLine());
+        assertEquals(13, warnings.get(0).getRange().getStart().getLine());
     }
 }
