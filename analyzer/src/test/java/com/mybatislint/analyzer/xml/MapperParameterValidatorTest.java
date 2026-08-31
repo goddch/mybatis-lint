@@ -123,6 +123,118 @@ class MapperParameterValidatorTest {
     }
 
     @Test
+    void reportsUndefinedForeachCollectionRoot(@TempDir Path tempDir) throws IOException {
+        Path javaFile = tempDir.resolve("src/main/java/com/example/BatchMapper.java");
+        Files.createDirectories(javaFile.getParent());
+        Files.writeString(javaFile, """
+                package com.example;
+
+                public interface BatchMapper {
+                    java.util.List<String> findByIds(java.util.List<Long> ids);
+                }
+                """, StandardCharsets.UTF_8);
+
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/BatchMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.BatchMapper">
+                    <select id="findByIds">
+                        SELECT * FROM users WHERE id IN
+                        <foreach collection="missingIds" item="id" open="(" separator="," close=")">
+                            #{id}
+                        </foreach>
+                    </select>
+                </mapper>
+                """, StandardCharsets.UTF_8);
+
+        JavaMapperIndex index = JavaMapperIndex.build(tempDir);
+        List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index);
+
+        List<Diagnostic> undefined = diagnostics.stream()
+                .filter(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, undefined.size(), () -> diagnostics.toString());
+        assertTrue(undefined.get(0).getMessage().contains("missingIds"));
+        assertTrue(undefined.get(0).getMessage().contains("findByIds"));
+        assertTrue(undefined.get(0).getRange().getStart().getLine() > 0);
+    }
+
+    @Test
+    void acceptsForeachCollectionPropertyPathAndOuterForeachVariables(@TempDir Path tempDir) throws IOException {
+        Path javaFile = tempDir.resolve("src/main/java/com/example/NestedMapper.java");
+        Files.createDirectories(javaFile.getParent());
+        Files.writeString(javaFile, """
+                package com.example;
+
+                public interface NestedMapper {
+                    java.util.List<String> findByRequest(BatchRequest request);
+                }
+
+                class BatchRequest {
+                    private java.util.List<Group> groups;
+                }
+
+                class Group {
+                    private java.util.List<Long> ids;
+                }
+                """, StandardCharsets.UTF_8);
+
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/NestedMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.NestedMapper">
+                    <select id="findByRequest">
+                        SELECT * FROM users WHERE id IN
+                        <foreach collection="request.groups" item="group" index="groupIdx">
+                            <foreach collection="group.ids" item="id" open="(" separator="," close=")">
+                                #{id}
+                            </foreach>
+                        </foreach>
+                    </select>
+                </mapper>
+                """, StandardCharsets.UTF_8);
+
+        JavaMapperIndex index = JavaMapperIndex.build(tempDir);
+        List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index);
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void ignoresForeachCollectionWhenParameterIsMapLike(@TempDir Path tempDir) throws IOException {
+        Path javaFile = tempDir.resolve("src/main/java/com/example/MapBatchMapper.java");
+        Files.createDirectories(javaFile.getParent());
+        Files.writeString(javaFile, """
+                package com.example;
+
+                public interface MapBatchMapper {
+                    java.util.List<String> findByIds(java.util.Map<String, Object> params);
+                }
+                """, StandardCharsets.UTF_8);
+
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/MapBatchMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.MapBatchMapper">
+                    <select id="findByIds">
+                        SELECT * FROM users WHERE id IN
+                        <foreach collection="ids" item="id" open="(" separator="," close=")">
+                            #{id}
+                        </foreach>
+                    </select>
+                </mapper>
+                """, StandardCharsets.UTF_8);
+
+        JavaMapperIndex index = JavaMapperIndex.build(tempDir);
+        List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index);
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
     void ignoresAmbiguousAndUnresolvedMapperReferences(@TempDir Path tempDir) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/OtherMapper.java");
         Files.createDirectories(javaFile.getParent());
