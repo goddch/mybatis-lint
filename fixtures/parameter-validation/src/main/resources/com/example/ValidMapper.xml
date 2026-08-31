@@ -14,4 +14,30 @@
   <select id="findByItems">
     <foreach collection="items" item="item" index="idx">#{item}</foreach>
   </select>
+  <select id="findByIds">
+    SELECT * FROM users WHERE id IN
+    <!--
+      collection="ids" は Java 側の引数名 "ids" とそのまま一致するため、
+      mybatis-lint/undefined-parameter 診断は出ない。
+    -->
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+  <select id="findByGroups">
+    SELECT * FROM users WHERE id IN
+    <!--
+      collection="request.groups" はプロパティパスなので、ルート識別子である
+      "request"(Java 側の引数名)だけを検証し、"groups" が実在するかは見ない。
+      さらに、外側の foreach の item="group" は、本アナライザーではステート
+      メント全体でフラットに許可されたスコープ変数として扱われるため、
+      内側の foreach の collection="group" 参照(ネストした foreach)も
+      診断されない。
+    -->
+    <foreach collection="request.groups" item="group" index="groupIdx" open="(" separator=") OR id IN (" close=")">
+      <foreach collection="group" item="id" separator=",">
+        #{id}
+      </foreach>
+    </foreach>
+  </select>
 </mapper>
