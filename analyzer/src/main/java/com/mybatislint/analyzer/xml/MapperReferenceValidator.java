@@ -191,8 +191,10 @@ public final class MapperReferenceValidator {
                                                 Element element,
                                                 String attributeName,
                                                 String attributeValue,
-                                                int lowerBound) {
-        int elementStart = findStartOfElement(xml, element, lowerBound);
+                                                int elementStart) {
+        // 呼び出し側では、同名タグが複数あっても正しい要素を指せるように
+        // 文書順の searchOffset を使って開始位置を確定済み。ここで再検索すると
+        // 意図が読みにくくなるため、受け取った開始位置から属性値だけを探す。
         int valueStart = findAttributeValueStart(xml, elementStart, attributeName, attributeValue);
         if (valueStart < 0) {
             valueStart = elementStart;
