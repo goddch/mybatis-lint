@@ -50,6 +50,8 @@ class MapperReferenceValidatorTest {
         List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(
                 userXml, userXml.getFileName(), userXml.toUri().toString(), JavaMapperIndex.empty(), sqlIndex);
 
+        // 正常系(local/FQN)とフェイルオープン系(${...})は除外され、
+        // 静的に「存在しない」と言い切れる refid だけが残ることを確認する。
         List<Diagnostic> unresolved = diagnostics.stream()
                 .filter(d -> RuleIds.UNRESOLVED_INCLUDE.equals(d.getRuleId()))
                 .toList();
@@ -79,6 +81,8 @@ class MapperReferenceValidatorTest {
 
         List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString());
 
+        // 単一ファイル解析でも、現在の namespace で完全修飾された refid は
+        // 同じ mapper 内の <sql id> へ戻して解決できるようにしている。
         assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNRESOLVED_INCLUDE.equals(d.getRuleId())),
                 () -> diagnostics.toString());
     }
@@ -102,6 +106,8 @@ class MapperReferenceValidatorTest {
 
         List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString());
 
+        // 直前に正常な <select> があっても、診断位置が最初の statement に
+        // 引っ張られず、実際に両属性を書いた statement を指すことも確認する。
         List<Diagnostic> warnings = diagnostics.stream()
                 .filter(d -> RuleIds.RESULT_MAP_AND_TYPE.equals(d.getRuleId()))
                 .toList();

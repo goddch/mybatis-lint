@@ -9,7 +9,11 @@ public final class RuleIds {
     public static final String WHEN_OUTSIDE_CHOOSE = "mybatis-lint/when-outside-choose";
     public static final String OTHERWISE_OUTSIDE_CHOOSE = "mybatis-lint/otherwise-outside-choose";
     public static final String UNDEFINED_PARAMETER = "mybatis-lint/undefined-parameter";
+    // <include refid> は MyBatis の SQL 断片再利用で頻出するため、
+    // 参照先が静的に見つからないケースを専用 ruleId として区別する。
     public static final String UNRESOLVED_INCLUDE = "mybatis-lint/unresolved-include";
+    // resultMap/resultType の同時指定は「壊れている」と断定せず warning にするが、
+    // 利用者が意図を整理できるよう専用 ruleId を持たせる。
     public static final String RESULT_MAP_AND_TYPE = "mybatis-lint/result-map-and-type";
 
     private RuleIds() {
