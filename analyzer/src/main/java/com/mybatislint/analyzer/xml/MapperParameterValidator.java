@@ -76,6 +76,7 @@ public final class MapperParameterValidator {
                 addScopedNames(statement, statementScope);
                 validateIfAndWhenTests(statement, statementScope, method, xml, displayFile, uri, diagnostics);
                 validateTemplateReferences(statement, statementScope, method, xml, displayFile, uri, diagnostics);
+                validateForeachCollections(statement, statementScope, method, xml, displayFile, uri, diagnostics);
             }
             return diagnostics;
         } catch (Exception e) {
@@ -152,6 +153,70 @@ public final class MapperParameterValidator {
                 diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
                         expression, lowerBound));
             }
+        }
+    }
+
+    /**
+     * {@code <foreach collection="...">} の collection 属性を検証する。
+     *
+     * なぜ collection 属性を見るのか:
+     *   MyBatis は collection 属性を「実行時パラメータオブジェクトに対する OGNL 式」として
+     *   解決する。よく使われるのは単純な識別子(例: "list", "array", パラメータ名そのもの)だが、
+     *   "request.items" のようにプロパティを辿るケースもある。#{...} や test 属性と同様に、
+     *   ここでも「ルート識別子」だけを見れば、mapper メソッドの引数として存在しない名前を
+     *   参照している(タイプミス・リファクタリング漏れ等)ケースを保守的に検出できる。
+     *
+     * スコープ変数(bind/foreach の item・index)の扱いについて:
+     *   本来 MyBatis の OGNL 評価は入れ子構造に従うため、ある <foreach> の item/index は
+     *   その <foreach> 配下でしか参照できず、自分自身の collection 属性の評価時にはまだ
+     *   定義されていない。しかし本アナライザーは既存の addScopedNames と同じく、
+     *   ステートメント全体で bind/foreach の変数名をフラットに集約したスコープ
+     *   (statementScope)を使う設計にしている。厳密なネスト解析は複雑になり誤検知の
+     *   リスクが増すため、「多少緩くても false positive を出さない」ことを優先した
+     *   フェイルオープン戦略の一部である。
+     */
+    private static void validateForeachCollections(Element statement,
+                                                    Set<String> allowedNames,
+                                                    MapperMethodInfo method,
+                                                    String xml,
+                                                    Path displayFile,
+                                                    String uri,
+                                                    List<Diagnostic> diagnostics) {
+        int statementStart = findStartOfElement(xml, statement, 0);
+        List<Element> elements = new ArrayList<>();
+        collectDescendants(statement, elements);
+        // 同じステートメント内に <foreach collection="ids"> が複数回登場するケース
+        // (例: 複数の IN 句を持つバッチ SQL)では、常に statementStart から検索すると
+        // 常に最初の一致に位置が引っ張られてしまう。そのため要素ごとの開始位置を
+        // 求め、search 済みの範囲より後ろだけを検索対象にすることで、診断位置が
+        // 実際にタイプミスがある <foreach> に近づくようにしている。
+        int searchOffset = statementStart;
+        for (Element element : elements) {
+            if (!"foreach".equals(element.getTagName())) {
+                continue;
+            }
+            String expression = element.getAttribute("collection");
+            if (expression == null || expression.isBlank()) {
+                continue;
+            }
+            int elementStart = findStartOfElement(xml, element, searchOffset);
+            for (String root : ExpressionRootIdentifierExtractor.extractRoots(expression)) {
+                if (root == null || root.isBlank()) {
+                    continue;
+                }
+                if (allowedNames.contains(root)) {
+                    continue;
+                }
+                // _parameter や _databaseId など、MyBatis が暗黙に提供する組み込み変数は
+                // "_" で始まる名前として扱われる。既存の #{...} / test 属性検証と同じ
+                // ルールで許可し、誤検知を避ける。
+                if (root.startsWith("_")) {
+                    continue;
+                }
+                diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
+                        expression, elementStart));
+            }
+            searchOffset = elementStart + "<foreach".length();
         }
     }
 
