@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.example.TypeAliasValidMapper">
+    <!--
+      "User" は同じワークスペースの User.java と simple name が一致するため、
+      mybatis-lint/unresolved-type-alias は報告されない(正常系)。
+    -->
+    <resultMap id="UserResultMap" type="User" />
+
+    <select id="findById" parameterType="long" resultMap="UserResultMap">
+        SELECT id, name FROM users WHERE id = #{id}
+    </select>
+
+    <!--
+      完全修飾クラス名(ドットを含む)は typeAlias 解決の対象外として扱う。
+      com.example.User という実クラスが実在するかどうかに関わらず、
+      このルールでは判定しないフェイルオープン方針。
+    -->
+    <select id="findAll" resultType="com.example.User">
+        SELECT id, name FROM users
+    </select>
+
+    <!--
+      MyBatis 組み込みの typeAlias(string, map, int など)は、
+      ワークスペースに対応する Java クラスが無くても正当に解決できるため
+      フェイルオープンする。
+    -->
+    <select id="countAll" resultType="int">
+        SELECT count(*) FROM users
+    </select>
+    <select id="findAsMap" parameterType="string" resultType="map">
+        SELECT id, name FROM users WHERE name = #{name}
+    </select>
+
+    <!--
+      先頭が小文字の値は、mybatis-config.xml の <typeAliases> や
+      Spring Boot の mybatis.type-aliases-package などフレームワーク側の設定で
+      個別登録されている可能性を否定できないため、誤検知を避けてフェイルオープンする。
+    -->
+    <select id="findWithCustomAlias" resultType="userSummary">
+        SELECT id, name FROM users
+    </select>
+
+    <!--
+      ${...} を含む値は実行時のプロパティ置換で決まるため、
+      <include refid> と同じ理由で静的には判断できずフェイルオープンする。
+    -->
+    <select id="findWithDynamicAlias" resultType="${resultTypeAlias}">
+        SELECT id, name FROM users
+    </select>
+</mapper>

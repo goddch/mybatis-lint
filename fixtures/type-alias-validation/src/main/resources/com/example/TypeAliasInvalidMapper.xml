@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.example.TypeAliasInvalidMapper">
+    <!--
+      "UserAlias" という simple name のクラスはこの fixture のワークスペースに
+      存在しない。先頭が大文字の DTO/Entity らしい名前で、workspace 内にも
+      組み込み alias 一覧にも見つからないため、有力な未解決候補として
+      mybatis-lint/unresolved-type-alias(warning)が報告される。
+    -->
+    <resultMap id="UserAliasResultMap" type="UserAlias" />
+
+    <!--
+      "SearchCriteria" も同様に workspace 内に対応クラスが見つからないため、
+      未解決候補として報告される。
+    -->
+    <select id="findByCriteria" parameterType="SearchCriteria" resultMap="UserAliasResultMap">
+        SELECT id, name FROM users
+    </select>
+
+    <!--
+      "UserAlias" が resultType にも出てくる。type/parameterType/resultType の
+      それぞれで独立に検証されることを確認するためのサンプル。
+    -->
+    <select id="findAliased" resultType="UserAlias">
+        SELECT id, name FROM users
+    </select>
+</mapper>
