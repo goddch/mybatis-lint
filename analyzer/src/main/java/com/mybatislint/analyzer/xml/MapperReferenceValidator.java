@@ -38,6 +38,12 @@ public final class MapperReferenceValidator {
     // 誤検知を避けるために「解決済み」として扱う(フェイルオープン)。
     // 大文字/小文字は区別されない(MyBatis 内部でも小文字化して比較している)ため、
     // このセットもすべて小文字で保持する。
+    //
+    // このリストは mybatis-3 系(org.apache.ibatis.type.TypeAliasRegistry)の
+    // デフォルト登録内容をもとに手動で書き起こしたものであり、将来 MyBatis 側で
+    // 組み込み alias が追加/削除された場合、このリストは自動追従しない。
+    // 実害は「フェイルオープンし損ねて稀に誤検知が増える」程度に留まる設計だが、
+    // MyBatis のメジャーバージョンを上げる際はこのリストも見直すことが望ましい。
     private static final Set<String> BUILTIN_TYPE_ALIASES = Set.of(
             "string", "byte", "long", "short", "int", "integer", "double", "float", "boolean",
             "date", "decimal", "bigdecimal", "biginteger", "object", "date[]", "byte[]",

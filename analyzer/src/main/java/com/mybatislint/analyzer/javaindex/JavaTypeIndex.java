@@ -93,8 +93,8 @@ public final class JavaTypeIndex {
             // ClassOrInterfaceDeclaration には含まれない別ノード種別なので、
             // 見落とすと record ベースの DTO で誤検知(false positive)になるため
             // 明示的に拾っておく。
-            for (RecordDeclaration record : unit.findAll(RecordDeclaration.class)) {
-                simpleNamesLowerCase.add(record.getNameAsString().toLowerCase(Locale.ROOT));
+            for (RecordDeclaration recordDeclaration : unit.findAll(RecordDeclaration.class)) {
+                simpleNamesLowerCase.add(recordDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
             }
         } catch (IOException e) {
             // 1 ファイル読めないだけでワークスペース全体の索引作りを止めたくないため、
