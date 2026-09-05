@@ -15,6 +15,9 @@ public final class RuleIds {
     // resultMap/resultType の同時指定は「壊れている」と断定せず warning にするが、
     // 利用者が意図を整理できるよう専用 ruleId を持たせる。
     public static final String RESULT_MAP_AND_TYPE = "mybatis-lint/result-map-and-type";
+    // typeAlias はワークスペース内の情報だけでは完全解決できないため、
+    // あくまで「有力な未解決候補」を warning として知らせる専用 ruleId にしている。
+    public static final String UNRESOLVED_TYPE_ALIAS = "mybatis-lint/unresolved-type-alias";
 
     private RuleIds() {
     }

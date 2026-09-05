@@ -1,5 +1,6 @@
 package com.mybatislint.analyzer.xml;
 
+import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Position;
 import com.mybatislint.analyzer.model.Range;
@@ -17,6 +18,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -31,10 +33,29 @@ public final class MapperReferenceValidator {
 
     private static final Set<String> STATEMENT_TAGS = Set.of("select", "insert", "update", "delete");
 
+    // MyBatis がデフォルトで登録する組み込み typeAlias(TypeAliasRegistry 由来)。
+    // これらは Java クラスとして workspace 内に存在しなくても正当に解決できるため、
+    // 誤検知を避けるために「解決済み」として扱う(フェイルオープン)。
+    // 大文字/小文字は区別されない(MyBatis 内部でも小文字化して比較している)ため、
+    // このセットもすべて小文字で保持する。
+    private static final Set<String> BUILTIN_TYPE_ALIASES = Set.of(
+            "string", "byte", "long", "short", "int", "integer", "double", "float", "boolean",
+            "date", "decimal", "bigdecimal", "biginteger", "object", "date[]", "byte[]",
+            "map", "hashmap", "list", "arraylist", "collection", "iterator", "iterable",
+            "set", "hashset", "linkedhashmap", "linkedhashset", "treemap", "treeset",
+            "cursor", "resultset", "char", "character",
+            "_byte", "_long", "_short", "_int", "_integer", "_double", "_float", "_boolean", "_char");
+
     private final MapperSqlFragmentIndex sqlFragmentIndex;
+    private final JavaTypeIndex typeIndex;
 
     public MapperReferenceValidator(MapperSqlFragmentIndex sqlFragmentIndex) {
+        this(sqlFragmentIndex, JavaTypeIndex.empty());
+    }
+
+    public MapperReferenceValidator(MapperSqlFragmentIndex sqlFragmentIndex, JavaTypeIndex typeIndex) {
         this.sqlFragmentIndex = sqlFragmentIndex == null ? MapperSqlFragmentIndex.empty() : sqlFragmentIndex;
+        this.typeIndex = typeIndex == null ? JavaTypeIndex.empty() : typeIndex;
     }
 
     public List<Diagnostic> validate(Path actualFile, Path displayFile, String uri) {
@@ -52,6 +73,7 @@ public final class MapperReferenceValidator {
             Set<String> localSqlIds = collectLocalSqlIds(mapper);
             validateIncludes(mapper, namespace, localSqlIds, xml, displayFile, uri, diagnostics);
             validateResultMapAndType(mapper, xml, displayFile, uri, diagnostics);
+            validateTypeAliases(mapper, xml, displayFile, uri, diagnostics);
             return diagnostics;
         } catch (Exception e) {
             // XML の壊れ方や読み込み失敗は MapperXmlAnalyzer 側の SAX パースで診断する。
@@ -120,6 +142,92 @@ public final class MapperReferenceValidator {
                     RuleIds.RESULT_MAP_AND_TYPE,
                     "Statement specifies both resultMap and resultType; use only one result mapping strategy."));
         }
+    }
+
+    private void validateTypeAliases(Element mapper,
+                                     String xml,
+                                     Path displayFile,
+                                     String uri,
+                                     List<Diagnostic> diagnostics) {
+        // <resultMap type="..."> と、statement の parameterType/resultType の
+        // 3 箇所だけを対象にする。スコープを広げすぎると誤検知が増えるため、
+        // まずはこの 3 パターンから小さく始める(要件どおりの方針)。
+        List<Element> resultMaps = new ArrayList<>();
+        collectDescendantsByTagName(mapper, "resultMap", resultMaps);
+        int resultMapSearchOffset = 0;
+        for (Element resultMap : resultMaps) {
+            int elementStart = findStartOfElement(xml, resultMap, resultMapSearchOffset);
+            resultMapSearchOffset = elementStart + "<resultMap".length();
+            reportIfUnresolvedTypeAlias(resultMap, "type", xml, elementStart, displayFile, uri, diagnostics);
+        }
+
+        List<Element> statements = new ArrayList<>();
+        collectStatements(mapper, statements);
+        int statementSearchOffset = 0;
+        for (Element statement : statements) {
+            int elementStart = findStartOfElement(xml, statement, statementSearchOffset);
+            statementSearchOffset = elementStart + ("<" + statement.getTagName()).length();
+            reportIfUnresolvedTypeAlias(statement, "parameterType", xml, elementStart, displayFile, uri, diagnostics);
+            reportIfUnresolvedTypeAlias(statement, "resultType", xml, elementStart, displayFile, uri, diagnostics);
+        }
+    }
+
+    private void reportIfUnresolvedTypeAlias(Element element,
+                                             String attributeName,
+                                             String xml,
+                                             int elementStart,
+                                             Path displayFile,
+                                             String uri,
+                                             List<Diagnostic> diagnostics) {
+        String value = element.getAttribute(attributeName);
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (isLikelyFullyQualifiedClassName(trimmed)) {
+            // "com.example.User" のようにドットを含む値は完全修飾クラス名とみなし、
+            // typeAlias の解決対象から外す。FQCN かどうかは Java の
+            // classpath を読まないと厳密には判定できないが、mapper XML の
+            // 実務上ではドット入りの値はほぼ FQCN(または存在しないなら別の
+            // 診断=malformed 相当)なので、ここでは簡易ヒューリスティックで十分。
+            return;
+        }
+        if (value.contains("${")) {
+            // ${...} を含む値は実行時のプロパティ置換で決まるため、
+            // <include refid> と同じ理由で静的には判断できずフェイルオープンする。
+            return;
+        }
+        if (BUILTIN_TYPE_ALIASES.contains(trimmed.toLowerCase(Locale.ROOT))) {
+            // MyBatis 組み込み alias(string, map, list など)は
+            // Java クラスとしてワークスペースに存在しなくても正当に解決できる。
+            return;
+        }
+        if (!Character.isUpperCase(trimmed.charAt(0))) {
+            // 先頭が小文字の値は、既存の組み込み alias 一覧に載っていなくても、
+            // mybatis-config.xml の <typeAliases> やフレームワーク側の設定
+            // (例: Spring Boot の mybatis.type-aliases-package)で
+            // 小文字 alias として個別登録されている可能性を否定できない。
+            // ここで断定的に error を出すと、実際には正しく動いている設定を
+            // 誤検知してしまうため、「大文字始まりの DTO/Entity らしい名前」
+            // だけを候補として扱うフェイルオープン方針にしている。
+            return;
+        }
+        if (typeIndex.containsSimpleName(trimmed)) {
+            // ワークスペース内に同名の class/interface が見つかった。
+            // MyBatis はデフォルトで simple name をそのまま alias として使うため、
+            // これは解決済みとみなしてよい。
+            return;
+        }
+        diagnostics.add(new Diagnostic(displayFile, uri,
+                rangeForAttributeValue(xml, element, attributeName, value, elementStart),
+                Severity.WARNING,
+                RuleIds.UNRESOLVED_TYPE_ALIAS,
+                "Unresolved typeAlias candidate '" + value + "' for attribute '" + attributeName
+                        + "'; no matching Java class/interface simple name was found in the workspace."));
+    }
+
+    private static boolean isLikelyFullyQualifiedClassName(String value) {
+        return value.contains(".");
     }
 
     private boolean isResolved(String refid, String namespace, Set<String> localSqlIds) {

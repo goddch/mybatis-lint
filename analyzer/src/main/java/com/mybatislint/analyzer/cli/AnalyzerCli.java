@@ -2,6 +2,7 @@ package com.mybatislint.analyzer.cli;
 
 import com.mybatislint.analyzer.discovery.MapperFileScanner;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
+import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperSqlFragmentIndex;
@@ -50,6 +51,10 @@ public final class AnalyzerCli {
     public Result run(Path workspaceRoot) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         JavaMapperIndex javaIndex = JavaMapperIndex.build(workspaceRoot);
+        // typeAlias 検証(未解決候補の検出)は、Mapper インターフェースだけでなく
+        // ワークスペース内の Java クラス/インターフェース全般の simple name を
+        // 知る必要があるため、専用の索引を別途作る。
+        JavaTypeIndex typeIndex = JavaTypeIndex.build(workspaceRoot);
         List<Path> mapperFiles = scanner.scan(workspaceRoot);
         // <include refid="namespace.sqlId"> は別ファイルの <sql id> を参照できる。
         // そのため、各ファイルを個別に解析する前にワークスペース内の SQL fragment を
@@ -57,7 +62,8 @@ public final class AnalyzerCli {
         MapperSqlFragmentIndex sqlFragmentIndex = MapperSqlFragmentIndex.build(mapperFiles);
         for (Path file : mapperFiles) {
             Path relative = relativize(workspaceRoot, file);
-            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex, sqlFragmentIndex));
+            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex, sqlFragmentIndex,
+                    typeIndex));
         }
         return new Result(diagnostics);
     }

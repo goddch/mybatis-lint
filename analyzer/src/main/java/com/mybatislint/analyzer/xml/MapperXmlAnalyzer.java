@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
+import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
@@ -47,11 +48,12 @@ public final class MapperXmlAnalyzer {
      * @param uri a stable {@code file://} URI identifying the file
      */
     public List<Diagnostic> analyze(Path actualFile, Path displayFile, String uri) {
-        return analyze(actualFile, displayFile, uri, JavaMapperIndex.empty(), MapperSqlFragmentIndex.empty());
+        return analyze(actualFile, displayFile, uri, JavaMapperIndex.empty(), MapperSqlFragmentIndex.empty(),
+                JavaTypeIndex.empty());
     }
 
     public List<Diagnostic> analyze(Path actualFile, Path displayFile, String uri, JavaMapperIndex javaIndex) {
-        return analyze(actualFile, displayFile, uri, javaIndex, MapperSqlFragmentIndex.empty());
+        return analyze(actualFile, displayFile, uri, javaIndex, MapperSqlFragmentIndex.empty(), JavaTypeIndex.empty());
     }
 
     public List<Diagnostic> analyze(Path actualFile,
@@ -59,6 +61,15 @@ public final class MapperXmlAnalyzer {
                                     String uri,
                                     JavaMapperIndex javaIndex,
                                     MapperSqlFragmentIndex sqlFragmentIndex) {
+        return analyze(actualFile, displayFile, uri, javaIndex, sqlFragmentIndex, JavaTypeIndex.empty());
+    }
+
+    public List<Diagnostic> analyze(Path actualFile,
+                                    Path displayFile,
+                                    String uri,
+                                    JavaMapperIndex javaIndex,
+                                    MapperSqlFragmentIndex sqlFragmentIndex,
+                                    JavaTypeIndex typeIndex) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         SAXParser parser = SafeXmlParserFactory.newSaxParser();
         Handler handler = new Handler(displayFile, uri, diagnostics);
@@ -81,7 +92,7 @@ public final class MapperXmlAnalyzer {
         // SAX の基本構造チェックが通ったファイルだけ、DOM ベースの追加検証へ進める。
         // include 参照や Java Mapper パラメータ検証は属性値やテキストの位置を探すために
         // 元 XML 文字列も使うので、責務を小さな validator に分けている。
-        diagnostics.addAll(new MapperReferenceValidator(sqlFragmentIndex).validate(actualFile, displayFile, uri));
+        diagnostics.addAll(new MapperReferenceValidator(sqlFragmentIndex, typeIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterValidator(javaIndex).validate(actualFile, displayFile, uri));
         return diagnostics;
     }
