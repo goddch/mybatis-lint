@@ -22,6 +22,10 @@ for exactly what is and isn't implemented.
     methods (for example `#{missing}` or `<if test="status != null">` when
     the root name is not part of the Java method signature, `@Param` values,
     generic aliases, `_parameter`, or local `<bind>` / `<foreach>` names)
+  - unresolved `<include refid="...">` references, including
+    workspace-wide resolution for fully-qualified `namespace.sqlId` refs
+    (dynamic `${...}` refids are intentionally ignored to avoid false positives)
+  - statements that specify both `resultMap` and `resultType` (warning)
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -109,5 +113,5 @@ For a repeatable end-to-end smoke test, see
 ## Roadmap
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full list of planned work,
-including Oracle SQL parsing, Java Mapper parameter/resultType validation,
-and dynamic SQL branch expansion.
+including Oracle SQL parsing, deeper resultType property validation, and
+dynamic SQL branch expansion.

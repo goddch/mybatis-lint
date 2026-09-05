@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.example.IncludeValidMapper">
+    <!--
+      同じ mapper ファイル内にある <sql id="ActiveWhere"> は、短い refid
+      "ActiveWhere" だけで解決できる。MyBatis では同一 namespace 内の SQL 断片を
+      短い名前で参照できるため、この include は診断されない。
+    -->
+    <sql id="ActiveWhere">WHERE deleted = 0</sql>
+
+    <select id="findAll" resultType="com.example.User">
+        SELECT
+        <!--
+          namespace.sqlId 形式の完全修飾 refid は、ワークスペース内の別 mapper
+          ファイルにある <sql id> も解決対象になるため、ここも正常系。
+        -->
+        <include refid="com.example.CommonFragments.BaseColumns" />
+        FROM users
+        <include refid="ActiveWhere" />
+    </select>
+
+    <select id="findDynamic" resultType="com.example.User">
+        SELECT
+        <!--
+          ${...} を含む refid は実行時のプロパティ置換で値が変わる。
+          静的には安全に解決できないため、誤検知を避ける目的でフェイルオープンし、
+          診断を出さないことを確認するサンプル。
+        -->
+        <include refid="${tenantPrefix}.DynamicColumns" />
+        FROM users
+    </select>
+</mapper>

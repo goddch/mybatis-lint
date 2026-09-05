@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.example.CommonFragments">
+    <!--
+      別 mapper から完全修飾 refid
+      (com.example.CommonFragments.BaseColumns) で参照される正常系の SQL 断片。
+      namespace と id を組み合わせると、別ファイルにある <sql> も解決できることを
+      手動確認するために置いている。
+    -->
+    <sql id="BaseColumns">id, name, created_at</sql>
+</mapper>

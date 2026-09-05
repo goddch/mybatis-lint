@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.discovery.MapperFileScanner;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
+import com.mybatislint.analyzer.xml.MapperSqlFragmentIndex;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
 
 import java.nio.file.Path;
@@ -49,9 +50,14 @@ public final class AnalyzerCli {
     public Result run(Path workspaceRoot) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         JavaMapperIndex javaIndex = JavaMapperIndex.build(workspaceRoot);
-        for (Path file : scanner.scan(workspaceRoot)) {
+        List<Path> mapperFiles = scanner.scan(workspaceRoot);
+        // <include refid="namespace.sqlId"> は別ファイルの <sql id> を参照できる。
+        // そのため、各ファイルを個別に解析する前にワークスペース内の SQL fragment を
+        // 一度だけ索引化し、全ファイルの解析で共有する。
+        MapperSqlFragmentIndex sqlFragmentIndex = MapperSqlFragmentIndex.build(mapperFiles);
+        for (Path file : mapperFiles) {
             Path relative = relativize(workspaceRoot, file);
-            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex));
+            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex, sqlFragmentIndex));
         }
         return new Result(diagnostics);
     }

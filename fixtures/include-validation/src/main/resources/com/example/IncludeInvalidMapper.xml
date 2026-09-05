@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.example.IncludeInvalidMapper">
+    <sql id="KnownColumns">id, name</sql>
+
+    <select id="findBroken" resultType="com.example.User">
+        SELECT
+        <!--
+          KnownColumns はこの mapper 内に存在するが、MissingColumns という id は
+          どこにも定義していない。短い refid は同一 mapper 内だけを探すため、
+          mybatis-lint/unresolved-include 診断が出る。
+        -->
+        <include refid="MissingColumns" />
+        FROM users
+    </select>
+
+    <!--
+      resultMap と resultType はどちらも「検索結果を Java オブジェクトへどう写すか」
+      を指定する属性。両方を同時に書くと意図が曖昧になるため、
+      mybatis-lint/result-map-and-type の warning が出る。
+    -->
+    <resultMap id="UserResultMap" type="com.example.User" />
+    <select id="findAmbiguousMapping" resultMap="UserResultMap" resultType="com.example.User">
+        SELECT id, name FROM users
+    </select>
+</mapper>
