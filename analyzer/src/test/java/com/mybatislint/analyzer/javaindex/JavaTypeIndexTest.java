@@ -39,6 +39,22 @@ class JavaTypeIndexTest {
     }
 
     @Test
+    void collectsRecordSimpleNames(@TempDir Path tempDir) throws IOException {
+        // record は DTO/Entity としてよく使われるため、ClassOrInterfaceDeclaration
+        // だけを見ていると見落として誤検知(false positive)につながる。
+        writeJavaFile(tempDir, "com/example/UserSummary.java", """
+                package com.example;
+
+                public record UserSummary(Long id, String name) {
+                }
+                """);
+
+        JavaTypeIndex index = JavaTypeIndex.build(tempDir);
+
+        assertTrue(index.containsSimpleName("UserSummary"));
+    }
+
+    @Test
     void emptyIndexContainsNothing() {
         JavaTypeIndex index = JavaTypeIndex.empty();
         assertTrue(index.isEmpty());

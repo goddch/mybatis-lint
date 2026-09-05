@@ -2,8 +2,10 @@ package com.mybatislint.analyzer.javaindex;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.RecordDeclaration;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
 import java.io.IOException;
@@ -34,6 +36,12 @@ import java.util.Set;
  * 断定はしない設計にしている。</p>
  */
 public final class JavaTypeIndex {
+
+    // JavaParser のデフォルト言語レベルは record 宣言(Java 14+)を解析できない。
+    // このプロジェクトは Java 17 を前提にしているため(README/roadmap 参照)、
+    // record ベースの DTO を見落とさないよう明示的に JAVA_17 を指定する。
+    private static final ParserConfiguration PARSER_CONFIGURATION =
+            new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
 
     // 大文字/小文字の揺れを吸収するため、小文字化して保持する。
     // MyBatis の TypeAliasRegistry も内部的には alias 文字列を小文字化して
@@ -70,7 +78,7 @@ public final class JavaTypeIndex {
     private void indexJavaFile(Path file) {
         try {
             String source = Files.readString(file, StandardCharsets.UTF_8);
-            ParseResult<CompilationUnit> parseResult = new JavaParser().parse(source);
+            ParseResult<CompilationUnit> parseResult = new JavaParser(PARSER_CONFIGURATION).parse(source);
             if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
                 return;
             }
@@ -80,6 +88,13 @@ public final class JavaTypeIndex {
             // (enum は今回のスコープでは対象外。まずは小さく始める方針のため)。
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
+            }
+            // record も DTO/Entity の定義によく使われる(Java 16+)。
+            // ClassOrInterfaceDeclaration には含まれない別ノード種別なので、
+            // 見落とすと record ベースの DTO で誤検知(false positive)になるため
+            // 明示的に拾っておく。
+            for (RecordDeclaration record : unit.findAll(RecordDeclaration.class)) {
+                simpleNamesLowerCase.add(record.getNameAsString().toLowerCase(Locale.ROOT));
             }
         } catch (IOException e) {
             // 1 ファイル読めないだけでワークスペース全体の索引作りを止めたくないため、
