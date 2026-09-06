@@ -118,21 +118,32 @@ warning を出してしまい、「誤検知を出すくらいなら報告しな
 そのようなクラスが本当に `List` を実装しているかどうかを判定する手段が
 無い。
 
-そこで、このルールは次のように非対称にしている。
+そこで、このルールは alias を `MAP`/`LIST`/`SET`/`COLLECTION`/
+`ITERATOR`/`ITERABLE`/`CURSOR`/`RESULTSET` という「ファミリー」に分類した
+上で、次のように非対称にしている。
 
-- **一致は緩く認める**: simple name が `Map`/`List`/`Set`/`Collection`
-  で終わる、または `Iterator`/`Iterable`/`Cursor`/`ResultSet` と完全一致
-  する場合は一致とみなす。命名規則に従っている限り、ほとんどの実務コードを
-  カバーできる。
-- **不一致は厳しく絞る**: Java 側の型が `String`/`Date`/`BigDecimal`/
-  `BigInteger`/primitive/boxed 型のような、**確実にコレクションではない**
-  既知の型である場合だけ不一致と判定する。それ以外の未知の simple name
-  (ワークスペース固有の DTO/カスタムコレクションなど)は、
-  `MatchResult.UNKNOWN` として何も報告しない。
+- **一致は緩く認めるが、ファミリーは区別する**: simple name が
+  `Map`/`List`/`Set`/`Collection` で終わる場合、alias と **同じファミリー**
+  のときだけ一致とみなす(`parameterType="map"` は末尾が "Map" の型とだけ
+  一致し、"List"/"Set" 系とは一致させない)。`collection` alias だけは
+  `java.util.Collection` が List/Set 共通の親インターフェースであることを
+  踏まえ、List 系・Set 系のどちらの命名にも一致させる。
+  `Iterator`/`Iterable`/`Cursor`/`ResultSet` は完全一致のみを認める。
+- **既知の別ファミリーとの取り違えは不一致として報告する**: simple name の
+  末尾が `Map`/`List`/`Set` のいずれかだと判別できるのに、alias が期待する
+  ファミリーと異なる場合(例: `parameterType="map"` に対して `ArrayList`
+  を渡している)は、コレクション同士の明確な取り違えとして
+  `mybatis-lint/parameter-type-mismatch` を報告する。
+- **不一致は Java 側が primitive/boxed/String のような、コレクションでは
+  あり得ないことが確実な型のときも報告する**。
+- それ以外(命名規則に従わないワークスペース固有の DTO/カスタム
+  コレクション実装など)は、ユーザー定義のコレクション実装かもしれないため
+  断定を避けてフェイルオープンする。
 
 この設計により、「本当に明らかな不一致(コレクション alias に対して
-スカラー値を渡している)」だけを拾い、命名規則に従わないカスタム
-コレクション実装を誤って警告してしまうリスクを避けている。
+スカラー値を渡している、または別のコレクション種別を渡している)」だけを
+拾い、命名規則に従わないカスタムコレクション実装を誤って警告してしまう
+リスクを避けている。
 
 ## 誤検知(false positive)と見逃し(false negative)のトレードオフ
 

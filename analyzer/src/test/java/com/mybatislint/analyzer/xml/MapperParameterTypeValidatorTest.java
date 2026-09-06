@@ -413,6 +413,39 @@ class MapperParameterTypeValidatorTest {
                 () -> diagnostics.toString());
     }
 
+    @Test
+    void reportsMismatchedMapAliasAgainstListParameter(@TempDir Path tempDir) throws IOException {
+        // Code review で指摘された観点: コレクションっぽい alias 全般を
+        // ひとまとめに判定すると、parameterType="map" と ArrayList のような
+        // 「別ファミリーのコレクション」の食い違いを見逃してしまう。
+        // ファミリーを区別して、この明確な取り違えは報告されることを確認する。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    java.util.List<User> findByIds(java.util.ArrayList<Long> ids);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findByIds" parameterType="map">
+                        SELECT * FROM users WHERE id IN
+                        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+                    </select>
+                </mapper>
+                """);
+
+        List<Diagnostic> mismatches = diagnostics.stream()
+                .filter(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, mismatches.size(), () -> diagnostics.toString());
+    }
+
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
         Files.createDirectories(javaFile.getParent());

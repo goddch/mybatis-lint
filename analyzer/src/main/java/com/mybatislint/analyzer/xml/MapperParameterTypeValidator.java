@@ -104,16 +104,34 @@ public final class MapperParameterTypeValidator {
     // 受け入れられるため、比較の意味がない(フェイルオープン=常に一致扱い)。
     private static final String OBJECT_ALIAS = "object";
 
-    // Map 系 / Collection 系 / その他コレクション由来 alias。
+    // Map 系 / List 系 / Set 系 / Collection 系 / その他コレクション由来 alias。
     // これらは exact match ではなく collectionLikeMatch() 側の非対称ルールで判定する。
-    private static final Set<String> MAP_LIKE_ALIASES =
-            Set.of("map", "hashmap", "linkedhashmap", "treemap");
-    private static final Set<String> LIST_LIKE_ALIASES = Set.of("list", "arraylist");
-    private static final Set<String> SET_LIKE_ALIASES =
-            Set.of("set", "hashset", "linkedhashset", "treeset");
-    private static final Set<String> COLLECTION_ALIAS = Set.of("collection");
-    private static final Set<String> OTHER_COLLECTION_LIKE_ALIASES =
-            Set.of("iterator", "iterable", "cursor", "resultset");
+    //
+    // 設計判断: 当初は「コレクションっぽい alias 全部をひとまとめ」に判定して
+    // いたが、これだと parameterType="map" に対して Java 引数が ArrayList
+    // (List 系)であっても "コレクションっぽいから一致" と誤って判定してしまう
+    // (map と list は全く別物なのに見逃す)。そのため alias を
+    // MAP/LIST/SET/COLLECTION/その他 の「ファミリー」に分類し、
+    // Java 側の simple name が **同じファミリー** のときだけ一致とみなすように
+    // 修正した。
+    private static final Map<String, CollectionFamily> COLLECTION_LIKE_ALIASES = Map.ofEntries(
+            Map.entry("map", CollectionFamily.MAP),
+            Map.entry("hashmap", CollectionFamily.MAP),
+            Map.entry("linkedhashmap", CollectionFamily.MAP),
+            Map.entry("treemap", CollectionFamily.MAP),
+            Map.entry("list", CollectionFamily.LIST),
+            Map.entry("arraylist", CollectionFamily.LIST),
+            Map.entry("set", CollectionFamily.SET),
+            Map.entry("hashset", CollectionFamily.SET),
+            Map.entry("linkedhashset", CollectionFamily.SET),
+            Map.entry("treeset", CollectionFamily.SET),
+            // "collection" alias は List/Set のどちらであっても許容される、
+            // より広いファミリーとして扱う(java.util.Collection は List/Set の親)。
+            Map.entry("collection", CollectionFamily.COLLECTION),
+            Map.entry("iterator", CollectionFamily.ITERATOR),
+            Map.entry("iterable", CollectionFamily.ITERABLE),
+            Map.entry("cursor", CollectionFamily.CURSOR),
+            Map.entry("resultset", CollectionFamily.RESULTSET));
 
     private final JavaMapperIndex index;
 
@@ -210,6 +228,11 @@ public final class MapperParameterTypeValidator {
         UNKNOWN
     }
 
+    /** map/list/set/collection 系 alias の「ファミリー」分類。 */
+    private enum CollectionFamily {
+        MAP, LIST, SET, COLLECTION, ITERATOR, ITERABLE, CURSOR, RESULTSET
+    }
+
     /**
      * XML 側の parameterType 文字列と、Java 側の宣言型文字列(ソースの見た目)を
      * 比較する。判定方針は要件どおり 3 段階:
@@ -246,8 +269,9 @@ public final class MapperParameterTypeValidator {
         if (exactCandidates != null) {
             return exactCandidates.contains(javaType.simpleName) ? MatchResult.MATCH : MatchResult.MISMATCH;
         }
-        if (isCollectionLikeAlias(aliasLower)) {
-            return collectionLikeMatch(javaType);
+        CollectionFamily family = COLLECTION_LIKE_ALIASES.get(aliasLower);
+        if (family != null) {
+            return collectionLikeMatch(family, javaType);
         }
 
         // ここまで来た値は、typeAlias 一覧に無い「simple name 風」の文字列。
@@ -263,33 +287,78 @@ public final class MapperParameterTypeValidator {
         return MatchResult.MISMATCH;
     }
 
-    private static boolean isCollectionLikeAlias(String aliasLower) {
-        return MAP_LIKE_ALIASES.contains(aliasLower) || LIST_LIKE_ALIASES.contains(aliasLower)
-                || SET_LIKE_ALIASES.contains(aliasLower) || COLLECTION_ALIAS.contains(aliasLower)
-                || OTHER_COLLECTION_LIKE_ALIASES.contains(aliasLower);
-    }
-
     /**
      * map/list/set/collection 系 alias 専用の、非対称な判定。
      *
-     * <p>「一致」は simple name の末尾や既知の JDK コレクション名から
-     * 積極的に認める一方、「不一致」は Java 側が primitive/boxed/String
-     * のような、コレクションではあり得ないことが確実な型のときだけ報告する。
-     * それ以外(ワークスペース固有の DTO クラス名など)は、ユーザー定義の
-     * コレクション実装かもしれないため断定を避けてフェイルオープンする。</p>
+     * <p>「一致」は simple name の末尾や既知の JDK コレクション名から、
+     * **alias と同じファミリーのときだけ** 積極的に認める(例:
+     * {@code parameterType="map"} は末尾が "Map" の型とだけ一致し、
+     * "List"/"Set" 系とは一致させない。誤って別のコレクション種別を
+     * 見逃さないための必須の区別)。ただし {@code COLLECTION} ファミリー
+     * ({@code parameterType="collection"})だけは java.util.Collection が
+     * List/Set 双方の親インターフェースであるという Java の型階層を踏まえ、
+     * List 系・Set 系のどちらの命名にも一致させる。
+     * 「不一致」は Java 側が primitive/boxed/String のような、コレクションでは
+     * あり得ないことが確実な型のときだけ報告する。それ以外(ワークスペース
+     * 固有の DTO クラス名など)は、ユーザー定義のコレクション実装かもしれない
+     * ため断定を避けてフェイルオープンする。</p>
      */
-    private static MatchResult collectionLikeMatch(JavaTypeShape javaType) {
+    private static MatchResult collectionLikeMatch(CollectionFamily family, JavaTypeShape javaType) {
         String simpleName = javaType.simpleName;
-        if (simpleName.endsWith("Map") || simpleName.endsWith("List") || simpleName.endsWith("Set")
-                || simpleName.endsWith("Collection") || "Iterator".equals(simpleName)
-                || "Iterable".equals(simpleName) || "Cursor".equals(simpleName)
-                || "ResultSet".equals(simpleName)) {
+        boolean matches = switch (family) {
+            case MAP -> simpleName.endsWith("Map");
+            case LIST -> simpleName.endsWith("List");
+            case SET -> simpleName.endsWith("Set");
+            case COLLECTION -> simpleName.endsWith("List") || simpleName.endsWith("Set")
+                    || simpleName.endsWith("Collection");
+            case ITERATOR -> "Iterator".equals(simpleName);
+            case ITERABLE -> "Iterable".equals(simpleName);
+            case CURSOR -> "Cursor".equals(simpleName);
+            case RESULTSET -> "ResultSet".equals(simpleName);
+        };
+        if (matches) {
             return MatchResult.MATCH;
         }
         if (isDefinitelyNotCollectionLike(simpleName)) {
             return MatchResult.MISMATCH;
         }
+        if (isRecognizableButDifferentFamily(family, simpleName)) {
+            // simple name の末尾が "Map"/"List"/"Set" など、別の既知
+            // ファミリーだと判別できるのに、alias が期待するファミリーと
+            // 食い違っている(例: parameterType="map" に対して ArrayList を
+            // 渡している)。この場合はコレクション同士の取り違えが明確なので、
+            // フェイルオープンせず不一致として報告する。
+            return MatchResult.MISMATCH;
+        }
         return MatchResult.UNKNOWN;
+    }
+
+    /**
+     * simple name の命名から「別の既知コレクションファミリー」だと判別できるが、
+     * alias が期待するファミリーとは異なるケースを検出する。
+     * 末尾が Map/List/Set のいずれにも当てはまらない未知の命名(ワークスペース
+     * 固有のクラス名など)は判断材料にせず false を返す(呼び出し側で
+     * フェイルオープンする)。
+     */
+    private static boolean isRecognizableButDifferentFamily(CollectionFamily family, String simpleName) {
+        boolean isMapLike = simpleName.endsWith("Map");
+        boolean isListLike = simpleName.endsWith("List");
+        boolean isSetLike = simpleName.endsWith("Set");
+        if (!isMapLike && !isListLike && !isSetLike) {
+            return false;
+        }
+        return switch (family) {
+            case MAP -> !isMapLike;
+            case LIST -> !isListLike;
+            case SET -> !isSetLike;
+            // "collection" alias は List/Set のどちらとも一致させる方針
+            // (java.util.Collection は List/Set 共通の親)なので、
+            // Map 系の命名だけが明確な不一致になる。
+            case COLLECTION -> isMapLike;
+            // iterator/iterable/cursor/resultset は Map/List/Set のいずれとも
+            // 別物なので、これらの命名が見えた時点で不一致が確定する。
+            case ITERATOR, ITERABLE, CURSOR, RESULTSET -> true;
+        };
     }
 
     private static boolean isDefinitelyNotCollectionLike(String javaSimpleName) {
