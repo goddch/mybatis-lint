@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ParameterTypeValidMapper">
+  <!--
+    "User" は同じワークスペースの User.java と simple name が一致するため、
+    mybatis-lint/parameter-type-mismatch は報告されない(正常系)。
+  -->
+  <select id="findByUser" parameterType="User">
+    SELECT * FROM users WHERE id = #{user.id}
+  </select>
+
+  <!--
+    完全修飾クラス名(ドットを含む)の末尾 simple name が、Java 側引数の
+    simple name と一致する正常系。
+  -->
+  <select id="findByFqcn" parameterType="com.example.User">
+    SELECT * FROM users WHERE id = #{user.id}
+  </select>
+
+  <!--
+    組み込み alias "long" は Java の primitive long と自然に対応する。
+  -->
+  <select id="findByPrimitiveLong" parameterType="long">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <!--
+    組み込み alias "long" は boxed Long とも一致とみなす設計判断
+    (ParameterTypeValidMapper.java の findByBoxedLong のコメントを参照)。
+  -->
+  <select id="findByBoxedLong" parameterType="long">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <!--
+    組み込み alias "map" は java.util.Map と自然に対応する。
+  -->
+  <select id="findByParamsMap" parameterType="map">
+    SELECT * FROM users WHERE name = #{name}
+  </select>
+
+  <!--
+    組み込み alias "list" は java.util.List と自然に対応する。
+  -->
+  <select id="findByIds" parameterType="list">
+    SELECT * FROM users WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+</mapper>

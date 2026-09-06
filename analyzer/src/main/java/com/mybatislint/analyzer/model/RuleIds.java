@@ -18,6 +18,13 @@ public final class RuleIds {
     // typeAlias はワークスペース内の情報だけでは完全解決できないため、
     // あくまで「有力な未解決候補」を warning として知らせる専用 ruleId にしている。
     public static final String UNRESOLVED_TYPE_ALIAS = "mybatis-lint/unresolved-type-alias";
+    // Java Mapper メソッドの実引数型と、mapper XML 側の parameterType 宣言の
+    // ズレを検出する専用 ruleId。unresolved-type-alias が「文字列として怪しい
+    // alias 候補か」を見るのに対し、こちらは「Java 側で実際に解決できた引数型と
+    // 食い違っていないか」を見る点で責務が異なる(役割分担は
+    // MapperParameterTypeValidator のクラス javadoc を参照)。静的解析だけでは
+    // 断定しづらいケースが多いため severity は warning にとどめている。
+    public static final String PARAMETER_TYPE_MISMATCH = "mybatis-lint/parameter-type-mismatch";
 
     private RuleIds() {
     }
