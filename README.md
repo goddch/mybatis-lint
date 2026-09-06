@@ -36,6 +36,11 @@ for exactly what is and isn't implemented.
     primitive/boxed/String/Map/List mapping (warning, single-argument
     methods only, fail-open otherwise; see
     [`docs/parameter-type-validation.md`](docs/parameter-type-validation.md))
+  - mismatched `resultType="..."` on a `<select>` that has no `resultMap`,
+    against a uniquely resolved Java mapper method's return type — only
+    when the return type is a single object type or a simple `List<T>`
+    (warning; deliberately narrow scope, fail-open on `Map`/`Cursor`/`void`/
+    nested generics/arrays/built-in aliases/`${...}`)
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.

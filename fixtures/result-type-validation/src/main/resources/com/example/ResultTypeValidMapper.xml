@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ResultTypeValidMapper">
+  <!--
+    "User" は同じワークスペースの User.java と simple name が一致するため、
+    mybatis-lint/result-type-mismatch は報告されない(正常系)。
+  -->
+  <select id="findById" resultType="User">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <!--
+    完全修飾クラス名(ドットを含む)の末尾 simple name が、Java 側戻り値の
+    simple name と一致する正常系。
+  -->
+  <select id="findByFqcn" resultType="com.example.User">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <!--
+    Java 側の戻り値 List<User> の要素型と resultType="User" が一致する正常系。
+  -->
+  <select id="findAll" resultType="User">
+    SELECT * FROM users
+  </select>
+</mapper>
