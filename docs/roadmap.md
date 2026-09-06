@@ -28,6 +28,12 @@ extension descriptions never overstate current capabilities.
     `parameterType="..."`, and `resultType="..."` (warning; a workspace-wide
     heuristic, not a guaranteed-correct resolution — see
     [`docs/type-alias-validation.md`](type-alias-validation.md))
+  - `parameterType="..."` on a statement that doesn't match the single
+    argument type of a uniquely resolved Java mapper method (warning;
+    single-argument methods only, fail-open on ambiguous/unresolved methods,
+    0 or 2+ arguments, `${...}` dynamic values, and low-confidence Java type
+    shapes such as generics/type-variables — see
+    [`docs/parameter-type-validation.md`](parameter-type-validation.md))
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.

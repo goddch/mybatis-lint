@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ParameterTypeInvalidMapper">
+  <!--
+    "Order" という simple name は、この findByUser メソッドの引数型 User と
+    一致しない。単一引数メソッドが一意に解決できているため、明らかな不一致
+    として mybatis-lint/parameter-type-mismatch(warning)が報告される。
+  -->
+  <select id="findByUser" parameterType="Order">
+    SELECT * FROM users WHERE id = #{user.id}
+  </select>
+
+  <!--
+    組み込み alias "string" は String を期待するが、この引数の型は User。
+    primitive/boxed/String の対応表に含まれない明らかな不一致として報告される。
+  -->
+  <select id="findByObject" parameterType="string">
+    SELECT * FROM users WHERE id = #{user.id}
+  </select>
+
+  <!--
+    複数引数メソッドはこのルールのスコープ外(フェイルオープン)。
+    parameterType="Order" が実際に何と対応するかは、@Param 付きの
+    複合パラメータ(暗黙的に Map 相当)になるため判定できない。
+  -->
+  <select id="findByNameAndStatus" parameterType="Order">
+    SELECT * FROM users WHERE name = #{param1} AND status = #{param2}
+  </select>
+
+  <!--
+    ${...} を含む値は実行時のプロパティ置換で決まるため、
+    <include refid> や typeAlias 検証と同じ理由で静的には判断できず
+    フェイルオープンする。
+  -->
+  <select id="findWithDynamicAlias" parameterType="${parameterTypeAlias}">
+    SELECT * FROM users WHERE id = #{user.id}
+  </select>
+</mapper>

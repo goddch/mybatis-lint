@@ -150,17 +150,26 @@ public final class JavaMapperIndex {
         private final List<String> parameterTypes;
         private final List<String> paramAliases;
         private final boolean mapLikeParameter;
+        // 単一引数が可変長引数(vararg, 例: `User... users`)かどうか。
+        // vararg は実質「配列」であり、typeAsString() は "User" のように
+        // 要素型だけを返してしまうため、そのまま simple name 比較すると
+        // 「User という単一オブジェクト」と誤認して誤検知(false positive)を
+        // 生みかねない。parameterType 突き合わせ側ではこのフラグを見て
+        // 素直にフェイルオープンする。
+        private final boolean singleParameterIsVarArgs;
 
         private MapperMethodInfo(String name,
                                  List<String> parameterNames,
                                  List<String> parameterTypes,
                                  List<String> paramAliases,
-                                 boolean mapLikeParameter) {
+                                 boolean mapLikeParameter,
+                                 boolean singleParameterIsVarArgs) {
             this.name = name;
             this.parameterNames = Collections.unmodifiableList(new ArrayList<>(parameterNames));
             this.parameterTypes = Collections.unmodifiableList(new ArrayList<>(parameterTypes));
             this.paramAliases = Collections.unmodifiableList(new ArrayList<>(paramAliases));
             this.mapLikeParameter = mapLikeParameter;
+            this.singleParameterIsVarArgs = singleParameterIsVarArgs;
         }
 
         public static MapperMethodInfo from(MethodDeclaration method) {
@@ -171,6 +180,7 @@ public final class JavaMapperIndex {
             List<String> paramTypes = new ArrayList<>();
             List<String> aliases = new ArrayList<>();
             boolean mapLike = false;
+            boolean varArgs = false;
             for (Parameter parameter : method.getParameters()) {
                 String paramName = parameter.getNameAsString();
                 String paramType = parameter.getTypeAsString();
@@ -178,6 +188,9 @@ public final class JavaMapperIndex {
                 paramTypes.add(paramType);
                 if ("Map".equals(paramType) || paramType.endsWith(".Map") || paramType.contains("Map<")) {
                     mapLike = true;
+                }
+                if (parameter.isVarArgs()) {
+                    varArgs = true;
                 }
                 String alias = findParamAlias(parameter);
                 if (alias != null && !alias.isBlank()) {
@@ -187,7 +200,7 @@ public final class JavaMapperIndex {
             if (paramNames.isEmpty()) {
                 return null;
             }
-            return new MapperMethodInfo(method.getNameAsString(), paramNames, paramTypes, aliases, mapLike);
+            return new MapperMethodInfo(method.getNameAsString(), paramNames, paramTypes, aliases, mapLike, varArgs);
         }
 
         private static String findParamAlias(Parameter parameter) {
@@ -231,6 +244,33 @@ public final class JavaMapperIndex {
 
         public boolean hasMapLikeParameter() {
             return mapLikeParameter;
+        }
+
+        public int getParameterCount() {
+            return parameterNames.size();
+        }
+
+        /**
+         * 引数の宣言型を、ソースコードに書かれたそのままの文字列で返す
+         * (例: {@code "User"}, {@code "long"}, {@code "java.util.List<User>"})。
+         *
+         * <p>このアナライザーは Java のシンボル解決(import 解決やクラスパス解析)を
+         * 行っていないため、ここで返す文字列は「ソース上の見た目」でしかない。
+         * {@code MapperParameterTypeValidator} 側では、この前提を踏まえて
+         * 「確信を持てる比較だけ行い、怪しい場合はフェイルオープンする」設計にしている。</p>
+         */
+        public List<String> getParameterTypes() {
+            return parameterTypes;
+        }
+
+        /**
+         * 唯一の引数が可変長引数({@code User... users} のような vararg)かどうか。
+         * vararg は実質「配列」なので、宣言型の文字列だけを見て単一オブジェクトとして
+         * parameterType と比較すると誤検知になりかねない。呼び出し側はこのフラグが
+         * true のとき、parameterType 比較そのものをスキップする。
+         */
+        public boolean isSingleParameterVarArgs() {
+            return singleParameterIsVarArgs;
         }
 
         public Set<String> availableNames() {

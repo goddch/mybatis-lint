@@ -244,6 +244,55 @@ VS Code 拡張から確認したい場合は、
 Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
 実行してください。Problems パネルに warning 3 件が表示されれば成功です。
 
+## スモークテスト F: `parameterType` と Java 引数型の不一致を確認する
+
+`mybatis-lint/parameter-type-mismatch` ルールは、単一引数の Java Mapper
+メソッドが一意に解決できたとき、対応する statement (`<select>`/`<insert>`/
+`<update>`/`<delete>`) の `parameterType="..."` が、その引数の型と明らかに
+食い違っていないかを検証します。[`fixtures/parameter-type-validation/`](../fixtures/parameter-type-validation/)
+には正常系・異常系・フェイルオープン系をまとめたサンプルがあります。
+
+事前に analyzer jar をビルドしておきます(未実施の場合)。
+
+```sh
+cd analyzer
+./gradlew jar
+```
+
+CLI で確認します。
+
+```sh
+java -jar build/libs/analyzer.jar ../fixtures/parameter-type-validation
+```
+
+期待結果:
+
+- [`ParameterTypeInvalidMapper.xml`](../fixtures/parameter-type-validation/src/main/resources/com/example/ParameterTypeInvalidMapper.xml)
+  で `mybatis-lint/parameter-type-mismatch` の warning が **2 件** 出ます。
+  - `findByUser` ステートメント: `parameterType="Order"` に対し、
+    [`ParameterTypeInvalidMapper.java`](../fixtures/parameter-type-validation/src/main/java/com/example/ParameterTypeInvalidMapper.java)
+    の引数型は `User`。simple name が一致しない明らかな不一致です。
+  - `findByObject` ステートメント: `parameterType="string"`(組み込み alias)
+    に対し引数型は `User`。String と対応しない明らかな不一致です。
+  - 同じファイルの `findByNameAndStatus`(複数引数)と
+    `findWithDynamicAlias`(`parameterType="${parameterTypeAlias}"`)は
+    フェイルオープン方針により報告されません。
+- [`ParameterTypeValidMapper.xml`](../fixtures/parameter-type-validation/src/main/resources/com/example/ParameterTypeValidMapper.xml)
+  では `mybatis-lint/parameter-type-mismatch` は一切出ません。
+  - `parameterType="User"` / `parameterType="com.example.User"` は、対応する
+    [`ParameterTypeValidMapper.java`](../fixtures/parameter-type-validation/src/main/java/com/example/ParameterTypeValidMapper.java)
+    の引数型 `User` と simple name が一致する正常系です。
+  - `parameterType="long"` は `long` 引数にも `Long` 引数にも一致します
+    (boxed/primitive の違いを区別しない設計判断。詳細は
+    [`docs/parameter-type-validation.md`](parameter-type-validation.md) を参照)。
+  - `parameterType="map"` / `parameterType="list"` は、それぞれ
+    `java.util.Map` / `java.util.List` 引数と自然に対応します。
+
+VS Code 拡張から確認したい場合は、
+[`fixtures/parameter-type-validation/`](../fixtures/parameter-type-validation/) フォルダを
+Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
+実行してください。Problems パネルに warning 2 件が表示されれば成功です。
+
 ## トラブルシューティング
 
 次のメッセージが表示された場合:

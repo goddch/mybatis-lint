@@ -30,6 +30,12 @@ for exactly what is and isn't implemented.
     `parameterType="..."`, and `resultType="..."` — a workspace-wide,
     fail-open heuristic based on matching Java class/interface simple names
     (warning; see [`docs/type-alias-validation.md`](docs/type-alias-validation.md))
+  - mismatched `parameterType="..."` on `<select>/<insert>/<update>/<delete>`
+    against the single-argument type of a uniquely resolved Java mapper
+    method — FQCN/simple-name matching plus a curated built-in alias ↔
+    primitive/boxed/String/Map/List mapping (warning, single-argument
+    methods only, fail-open otherwise; see
+    [`docs/parameter-type-validation.md`](docs/parameter-type-validation.md))
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
