@@ -252,6 +252,11 @@ public final class JavaMapperIndex {
          * (例: {@code "User"}, {@code "List<User>"}, {@code "void"})。
          * {@code getParameterTypes()} と同様、シンボル解決はしていないので
          * 見た目だけの文字列である点に注意(呼び出し側で確信を持てる範囲だけ比較する)。
+         * 値は {@code MethodDeclaration.getType().asString()} が返すソース上の
+         * 見た目そのものであり、どんな型宣言でも例外を投げず文字列として返る
+         * (JavaParser は構文解析のみでシンボル解決はしないため)。ただし
+         * 配列/nested generics/型変数などパース結果を安全に解釈できない場合は
+         * 呼び出し側(例: {@code MapperResultTypeValidator}) が判断してフェイルオープンする。
          */
         public String getReturnType() {
             return returnType;

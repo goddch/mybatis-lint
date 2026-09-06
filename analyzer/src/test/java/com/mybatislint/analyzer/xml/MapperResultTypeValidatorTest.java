@@ -163,6 +163,32 @@ class MapperResultTypeValidatorTest {
                 () -> diagnostics.toString());
     }
 
+    @Test
+    void skipsPrimitiveReturnType(@TempDir Path tempDir) throws IOException {
+        // int/long などの primitive 戻り値は MyBatis 側で自動的に boxed 型へ
+        // 変換されるため、resultType の simple name とそのまま比較すると
+        // 誤検知になる。フェイルオープンすることを確認する回帰テスト。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    int count();
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="count" resultType="Integer">
+                        SELECT COUNT(*) FROM users
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
         Files.createDirectories(javaFile.getParent());

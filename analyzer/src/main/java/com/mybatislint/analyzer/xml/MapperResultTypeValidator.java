@@ -171,9 +171,19 @@ public final class MapperResultTypeValidator {
             return elementShape(inner);
         }
 
+        private static final java.util.Set<String> PRIMITIVE_TYPE_NAMES = java.util.Set.of(
+                "int", "long", "short", "byte", "double", "float", "boolean", "char");
+
         private static ReturnShape elementShape(String type) {
             String simple = simpleNameOf(type);
             if (simple.isEmpty() || "Map".equals(simple) || "Cursor".equals(simple)) {
+                return null;
+            }
+            if (PRIMITIVE_TYPE_NAMES.contains(simple)) {
+                // primitive の戻り値(int count() など)は MyBatis 側で自動的に
+                // boxed 型(Integer など)へ変換されるため、XML の resultType
+                // (通常はクラス名や built-in alias)と単純な simple name 比較を
+                // すると誤検知になりやすい。今回のスコープでは扱わずフェイルオープンする。
                 return null;
             }
             if (looksLikeGenericTypeVariable(simple)) {
