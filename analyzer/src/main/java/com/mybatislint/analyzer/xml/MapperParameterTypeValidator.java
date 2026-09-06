@@ -344,19 +344,25 @@ public final class MapperParameterTypeValidator {
         boolean isMapLike = simpleName.endsWith("Map");
         boolean isListLike = simpleName.endsWith("List");
         boolean isSetLike = simpleName.endsWith("Set");
-        if (!isMapLike && !isListLike && !isSetLike) {
+        // "Collection" 接尾辞も collectionLikeMatch() の COLLECTION ファミリーが
+        // 一致対象として扱っているため、ここでも既知ファミリーとして扱わないと
+        // 例えば parameterType="map" に対する Java 引数名が "UserCollection" の
+        // ようなケースで、本来は不一致にできるはずなのに UNKNOWN へ
+        // フェイルオープンしてしまう(collectionLikeMatch 側との整合性が崩れる)。
+        boolean isCollectionLike = simpleName.endsWith("Collection");
+        if (!isMapLike && !isListLike && !isSetLike && !isCollectionLike) {
             return false;
         }
         return switch (family) {
             case MAP -> !isMapLike;
             case LIST -> !isListLike;
             case SET -> !isSetLike;
-            // "collection" alias は List/Set のどちらとも一致させる方針
-            // (java.util.Collection は List/Set 共通の親)なので、
+            // "collection" alias は List/Set/Collection のいずれとも一致させる
+            // 方針(java.util.Collection は List/Set 共通の親)なので、
             // Map 系の命名だけが明確な不一致になる。
             case COLLECTION -> isMapLike;
-            // iterator/iterable/cursor/resultset は Map/List/Set のいずれとも
-            // 別物なので、これらの命名が見えた時点で不一致が確定する。
+            // iterator/iterable/cursor/resultset は Map/List/Set/Collection の
+            // いずれとも別物なので、これらの命名が見えた時点で不一致が確定する。
             case ITERATOR, ITERABLE, CURSOR, RESULTSET -> true;
         };
     }

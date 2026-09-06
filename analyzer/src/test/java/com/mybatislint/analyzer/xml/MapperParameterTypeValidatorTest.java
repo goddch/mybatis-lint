@@ -446,6 +446,211 @@ class MapperParameterTypeValidatorTest {
         assertEquals(1, mismatches.size(), () -> diagnostics.toString());
     }
 
+    @Test
+    void acceptsCollectionAliasMatchingListOrSetParameter(@TempDir Path tempDir) throws IOException {
+        // "collection" alias は java.util.Collection の子である List/Set の
+        // どちらとも一致させる、より広いファミリーであることを確認する。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    java.util.List<User> findByIds(java.util.Set<Long> ids);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findByIds" parameterType="collection">
+                        SELECT * FROM users WHERE id IN
+                        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsMismatchedCollectionAliasAgainstMapParameter(@TempDir Path tempDir) throws IOException {
+        // "collection" alias は Map 系とは明確に別物なので、Map が渡された
+        // ケースは不一致として報告されることを確認する。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    java.util.List<User> findByIds(java.util.HashMap<String, Long> ids);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findByIds" parameterType="collection">
+                        SELECT * FROM users WHERE id IN #{ids}
+                    </select>
+                </mapper>
+                """);
+
+        List<Diagnostic> mismatches = diagnostics.stream()
+                .filter(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, mismatches.size(), () -> diagnostics.toString());
+    }
+
+    @Test
+    void acceptsIteratorAliasMatchingIteratorParameter(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    java.util.List<User> findByIds(java.util.Iterator<Long> ids);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findByIds" parameterType="iterator">
+                        SELECT * FROM users WHERE id IN #{ids}
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsMismatchedIterableAliasAgainstListParameter(@TempDir Path tempDir) throws IOException {
+        // iterator/iterable/cursor/resultset は Map/List/Set/Collection の
+        // いずれとも別物として扱う方針なので、List が渡された場合は
+        // 不一致として報告されることを確認する。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    java.util.List<User> findByIds(java.util.ArrayList<Long> ids);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findByIds" parameterType="iterable">
+                        SELECT * FROM users WHERE id IN #{ids}
+                    </select>
+                </mapper>
+                """);
+
+        List<Diagnostic> mismatches = diagnostics.stream()
+                .filter(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, mismatches.size(), () -> diagnostics.toString());
+    }
+
+    @Test
+    void acceptsCursorAliasMatchingCursorParameter(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    User find(Cursor ids);
+                }
+
+                class User {
+                }
+
+                class Cursor {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="find" parameterType="cursor">
+                        SELECT * FROM users WHERE id IN #{ids}
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void acceptsResultSetAliasMatchingResultSetParameter(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    User find(java.sql.ResultSet ids);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="find" parameterType="resultset">
+                        SELECT * FROM users WHERE id IN #{ids}
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsMismatchedMapAliasAgainstCollectionSuffixedParameter(@TempDir Path tempDir) throws IOException {
+        // isRecognizableButDifferentFamily() が "Collection" 接尾辞も
+        // 既知ファミリーとして認識し、collectionLikeMatch() 側の判定と
+        // 整合性が取れていることを確認する回帰テスト。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    User find(IdCollection ids);
+                }
+
+                class User {
+                }
+
+                class IdCollection {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="find" parameterType="map">
+                        SELECT * FROM users WHERE id IN #{ids}
+                    </select>
+                </mapper>
+                """);
+
+        List<Diagnostic> mismatches = diagnostics.stream()
+                .filter(d -> RuleIds.PARAMETER_TYPE_MISMATCH.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, mismatches.size(), () -> diagnostics.toString());
+    }
+
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
         Files.createDirectories(javaFile.getParent());
