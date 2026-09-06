@@ -26,6 +26,10 @@ for exactly what is and isn't implemented.
     workspace-wide resolution for fully-qualified `namespace.sqlId` refs
     (dynamic `${...}` refids are intentionally ignored to avoid false positives)
   - statements that specify both `resultMap` and `resultType` (warning)
+  - unresolved `typeAlias` candidates for `<resultMap type="...">`,
+    `parameterType="..."`, and `resultType="..."` — a workspace-wide,
+    fail-open heuristic based on matching Java class/interface simple names
+    (warning; see [`docs/type-alias-validation.md`](docs/type-alias-validation.md))
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.

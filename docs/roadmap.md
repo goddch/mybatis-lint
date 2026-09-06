@@ -24,6 +24,10 @@ extension descriptions never overstate current capabilities.
   - dangling `<include refid="...">` references, including fully-qualified
     `namespace.sqlId` refs to SQL fragments in other mapper files
   - `resultMap` and `resultType` specified together on a statement (warning)
+  - unresolved `typeAlias` candidates in `<resultMap type="...">`,
+    `parameterType="..."`, and `resultType="..."` (warning; a workspace-wide
+    heuristic, not a guaranteed-correct resolution — see
+    [`docs/type-alias-validation.md`](type-alias-validation.md))
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -46,8 +50,10 @@ working in user-facing docs until they land:
   of `<if>`/`<choose>`/`<foreach>` branches and validating the resulting SQL,
   with an explicit cap on how many combinations are generated and clear
   reporting of how many branches were (and were not) checked.
-- **Additional mapper-level rules**, e.g. unresolved `typeAlias`es and other
-  cross-reference checks not covered by the current SQL fragment include rule.
+- **Additional mapper-level rules**, e.g. other cross-reference checks not
+  covered by the current SQL fragment include rule or the typeAlias
+  heuristic (for example validating `<association>`/`<collection>` nested
+  result mappings).
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out

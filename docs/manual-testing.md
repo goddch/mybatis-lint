@@ -189,6 +189,61 @@ VS Code 拡張から確認したい場合は、
 Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
 実行してください。Problems パネルに error 1 件と warning 1 件が表示されれば成功です。
 
+## スモークテスト E: 未解決 `typeAlias` の warning を確認する
+
+`mybatis-lint/unresolved-type-alias` ルールは、`<resultMap type="...">` と
+statement の `parameterType="..."` / `resultType="..."` に書かれた値を、
+ワークスペース内の Java クラス/インターフェースの simple name(パッケージなしの
+名前)と突き合わせ、対応するクラスが見つからない「大文字始まりの DTO/Entity
+らしい値」を未解決候補として warning で報告します。
+
+typeAlias は mybatis-config.xml 側の設定や `TypeAliasRegistry` への明示登録が
+あって初めて実行時に確定するため、mapper XML と Java ソースだけを見る本アナライザーは
+100% 正確に解決することが原理的にできません。そのため、このルールは
+「誤検知よりも見逃しを許容する」フェイルオープン方針を多数採用しています
+(詳しくは [`docs/type-alias-validation.md`](type-alias-validation.md) を参照)。
+
+事前に analyzer jar をビルドしておきます(未実施の場合)。
+
+```sh
+cd analyzer
+./gradlew jar
+```
+
+CLI で確認します。
+
+```sh
+java -jar build/libs/analyzer.jar ../fixtures/type-alias-validation
+```
+
+期待結果:
+
+- [`TypeAliasInvalidMapper.xml`](../fixtures/type-alias-validation/src/main/resources/com/example/TypeAliasInvalidMapper.xml)
+  で `mybatis-lint/unresolved-type-alias` の warning が **3 件** 出ます。
+  - `<resultMap type="UserAlias">` の `UserAlias`
+  - `<select parameterType="SearchCriteria">` の `SearchCriteria`
+  - `<select resultType="UserAlias">` の `UserAlias`
+
+  いずれも `UserAlias` や `SearchCriteria` という simple name のクラスが
+  ワークスペース内に存在しないためです。
+- [`TypeAliasValidMapper.xml`](../fixtures/type-alias-validation/src/main/resources/com/example/TypeAliasValidMapper.xml)
+  では `mybatis-lint/unresolved-type-alias` は一切出ません。
+  - `type="User"` は同じワークスペースの
+    [`User.java`](../fixtures/type-alias-validation/src/main/java/com/example/User.java)
+    と simple name が一致する正常系です。
+  - `resultType="com.example.User"` は完全修飾クラス名(ドットを含む)なので
+    typeAlias 解決の対象外としてフェイルオープンします。
+  - `resultType="int"` / `parameterType="string"` / `resultType="map"` は
+    MyBatis 組み込み alias なのでフェイルオープンします。
+  - `resultType="userSummary"` は先頭が小文字なので、個別登録された alias の
+    可能性を否定できずフェイルオープンします。
+  - `resultType="${resultTypeAlias}"` は動的な値なのでフェイルオープンします。
+
+VS Code 拡張から確認したい場合は、
+[`fixtures/type-alias-validation/`](../fixtures/type-alias-validation/) フォルダを
+Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
+実行してください。Problems パネルに warning 3 件が表示されれば成功です。
+
 ## トラブルシューティング
 
 次のメッセージが表示された場合:
