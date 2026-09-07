@@ -263,4 +263,79 @@ class MapperParameterValidatorTest {
         assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId())),
                 () -> diagnostics.toString());
     }
+
+    @Test
+    void reportsUndefinedParametersForZeroArgumentMethods(@TempDir Path tempDir) throws IOException {
+        // 回帰テスト: resultType 検証を追加した際に JavaMapperIndex から
+        // 「引数 0 個のメソッドはインデックスしない」という制限を撤廃した。
+        // 引数無しメソッドが index に入るようになっても、既存の undefined-parameter
+        // 検証が壊れていない(未定義参照は引き続き検出され、無関係な参照は
+        // 誤検知しない)ことを確認する。
+        Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
+        Files.createDirectories(javaFile.getParent());
+        Files.writeString(javaFile, """
+                package com.example;
+
+                import java.util.List;
+
+                public interface UserMapper {
+                    List<User> findAll();
+                }
+
+                class User {
+                }
+                """, StandardCharsets.UTF_8);
+
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/UserMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findAll">
+                        SELECT * FROM users WHERE id = #{id}
+                    </select>
+                </mapper>
+                """, StandardCharsets.UTF_8);
+
+        JavaMapperIndex index = JavaMapperIndex.build(tempDir);
+        List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index);
+        List<Diagnostic> undefined = diagnostics.stream()
+                .filter(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId()))
+                .toList();
+        assertEquals(1, undefined.size(), () -> diagnostics.toString());
+    }
+
+    @Test
+    void doesNotReportUndefinedParametersForZeroArgumentMethodsWithoutReferences(@TempDir Path tempDir) throws IOException {
+        Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
+        Files.createDirectories(javaFile.getParent());
+        Files.writeString(javaFile, """
+                package com.example;
+
+                import java.util.List;
+
+                public interface UserMapper {
+                    List<User> findAll();
+                }
+
+                class User {
+                }
+                """, StandardCharsets.UTF_8);
+
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/UserMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findAll">
+                        SELECT * FROM users
+                    </select>
+                </mapper>
+                """, StandardCharsets.UTF_8);
+
+        JavaMapperIndex index = JavaMapperIndex.build(tempDir);
+        List<Diagnostic> diagnostics = new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index);
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
 }

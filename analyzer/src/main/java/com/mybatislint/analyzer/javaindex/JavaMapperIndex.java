@@ -146,6 +146,7 @@ public final class JavaMapperIndex {
 
     public static final class MapperMethodInfo {
         private final String name;
+        private final String returnType;
         private final List<String> parameterNames;
         private final List<String> parameterTypes;
         private final List<String> paramAliases;
@@ -159,12 +160,14 @@ public final class JavaMapperIndex {
         private final boolean singleParameterIsVarArgs;
 
         private MapperMethodInfo(String name,
+                                 String returnType,
                                  List<String> parameterNames,
                                  List<String> parameterTypes,
                                  List<String> paramAliases,
                                  boolean mapLikeParameter,
                                  boolean singleParameterIsVarArgs) {
             this.name = name;
+            this.returnType = returnType;
             this.parameterNames = Collections.unmodifiableList(new ArrayList<>(parameterNames));
             this.parameterTypes = Collections.unmodifiableList(new ArrayList<>(parameterTypes));
             this.paramAliases = Collections.unmodifiableList(new ArrayList<>(paramAliases));
@@ -197,10 +200,12 @@ public final class JavaMapperIndex {
                     aliases.add(alias);
                 }
             }
-            if (paramNames.isEmpty()) {
-                return null;
-            }
-            return new MapperMethodInfo(method.getNameAsString(), paramNames, paramTypes, aliases, mapLike, varArgs);
+            // 従来はパラメータ 0 個のメソッドをインデックス対象外にしていたが、
+            // `findAll()` のような引数なし select も resultType 突き合わせの
+            // 対象にしたいため、戻り値型を追加した際にこの制限を撤廃した。
+            String returnType = method.getType().asString();
+            return new MapperMethodInfo(method.getNameAsString(), returnType, paramNames, paramTypes, aliases,
+                    mapLike, varArgs);
         }
 
         private static String findParamAlias(Parameter parameter) {
@@ -240,6 +245,21 @@ public final class JavaMapperIndex {
 
         public String getName() {
             return name;
+        }
+
+        /**
+         * 戻り値の宣言型を、ソースコードに書かれたそのままの文字列で返す
+         * (例: {@code "User"}, {@code "List<User>"}, {@code "void"})。
+         * {@code getParameterTypes()} と同様、シンボル解決はしていないので
+         * 見た目だけの文字列である点に注意(呼び出し側で確信を持てる範囲だけ比較する)。
+         * 値は {@code MethodDeclaration.getType().asString()} が返すソース上の
+         * 見た目そのものであり、どんな型宣言でも例外を投げず文字列として返る
+         * (JavaParser は構文解析のみでシンボル解決はしないため)。ただし
+         * 配列/nested generics/型変数などパース結果を安全に解釈できない場合は
+         * 呼び出し側(例: {@code MapperResultTypeValidator}) が判断してフェイルオープンする。
+         */
+        public String getReturnType() {
+            return returnType;
         }
 
         public boolean hasMapLikeParameter() {

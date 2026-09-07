@@ -25,6 +25,12 @@ public final class RuleIds {
     // MapperParameterTypeValidator のクラス javadoc を参照)。静的解析だけでは
     // 断定しづらいケースが多いため severity は warning にとどめている。
     public static final String PARAMETER_TYPE_MISMATCH = "mybatis-lint/parameter-type-mismatch";
+    // parameter-type-mismatch の対になるルール。resultMap を使わない <select
+    // resultType="..."> だけを対象に、一意に解決できた Java Mapper メソッドの
+    // 戻り値型(単一オブジェクト or 単純な List<T>)と食い違っていないかを見る。
+    // クレジット節約のため、今回はこの極めて狭いケースだけに絞っている
+    // (詳細は MapperResultTypeValidator のクラス javadoc を参照)。
+    public static final String RESULT_TYPE_MISMATCH = "mybatis-lint/result-type-mismatch";
 
     private RuleIds() {
     }

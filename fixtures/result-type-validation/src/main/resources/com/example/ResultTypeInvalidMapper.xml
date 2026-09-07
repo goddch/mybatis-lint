@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ResultTypeInvalidMapper">
+  <!--
+    "Order" という simple name は、この findById メソッドの戻り値型 User と
+    一致しない。一意に解決できているため、明らかな不一致として
+    mybatis-lint/result-type-mismatch(warning)が報告される。
+  -->
+  <select id="findById" resultType="Order">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <!--
+    List<User> の要素型 User と resultType="Order" が一致しない不一致ケース。
+  -->
+  <select id="findAllOrders" resultType="Order">
+    SELECT * FROM users
+  </select>
+
+  <!--
+    resultMap がある select はこのルールのスコープ外(フェイルオープン)。
+  -->
+  <resultMap id="userMap" type="User">
+    <id property="id" column="id"/>
+  </resultMap>
+  <select id="findWithResultMap" resultMap="userMap" resultType="Order">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <!--
+    ${...} を含む値は実行時のプロパティ置換で決まるため、静的には判断できず
+    フェイルオープンする。
+  -->
+  <select id="findWithDynamicAlias" resultType="${resultTypeAlias}">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+</mapper>
