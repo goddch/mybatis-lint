@@ -20,6 +20,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * {@code <select resultType="...">} と、一意に解決できた Java Mapper メソッドの
@@ -37,6 +40,32 @@ import java.util.List;
  * していない。</p>
  */
 public final class MapperResultTypeValidator {
+
+    private static final Map<String, Set<String>> BUILTIN_ALIAS_JAVA_TYPES = Map.ofEntries(
+            Map.entry("string", Set.of("String")),
+            Map.entry("byte", Set.of("byte", "Byte")),
+            Map.entry("_byte", Set.of("byte", "Byte")),
+            Map.entry("long", Set.of("long", "Long")),
+            Map.entry("_long", Set.of("long", "Long")),
+            Map.entry("short", Set.of("short", "Short")),
+            Map.entry("_short", Set.of("short", "Short")),
+            Map.entry("int", Set.of("int", "Integer")),
+            Map.entry("_int", Set.of("int", "Integer")),
+            Map.entry("integer", Set.of("int", "Integer")),
+            Map.entry("_integer", Set.of("int", "Integer")),
+            Map.entry("double", Set.of("double", "Double")),
+            Map.entry("_double", Set.of("double", "Double")),
+            Map.entry("float", Set.of("float", "Float")),
+            Map.entry("_float", Set.of("float", "Float")),
+            Map.entry("boolean", Set.of("boolean", "Boolean")),
+            Map.entry("_boolean", Set.of("boolean", "Boolean")),
+            Map.entry("char", Set.of("char", "Character")),
+            Map.entry("_char", Set.of("char", "Character")),
+            Map.entry("character", Set.of("char", "Character")),
+            Map.entry("date", Set.of("Date")),
+            Map.entry("decimal", Set.of("BigDecimal")),
+            Map.entry("bigdecimal", Set.of("BigDecimal")),
+            Map.entry("biginteger", Set.of("BigInteger")));
 
     private final JavaMapperIndex index;
 
@@ -123,9 +152,14 @@ public final class MapperResultTypeValidator {
 
     /**
      * XML 側 resultType の文字列を、Java 側の戻り値の要素 simple name と比較する。
-     * built-in alias(先頭小文字)は個別登録の可能性を否定できないためフェイルオープン。
+     * 既知の built-in alias は対応する Java 型と比較し、未知の小文字 alias は
+     * 個別登録の可能性を否定できないためフェイルオープン。
      */
     private static boolean matches(String xmlValue, ReturnShape javaShape) {
+        Set<String> aliasTypes = BUILTIN_ALIAS_JAVA_TYPES.get(xmlValue.toLowerCase(Locale.ROOT));
+        if (aliasTypes != null) {
+            return aliasTypes.contains(javaShape.elementSimpleName);
+        }
         if (!Character.isUpperCase(xmlValue.charAt(0))) {
             return true;
         }
@@ -171,19 +205,9 @@ public final class MapperResultTypeValidator {
             return elementShape(inner);
         }
 
-        private static final java.util.Set<String> PRIMITIVE_TYPE_NAMES = java.util.Set.of(
-                "int", "long", "short", "byte", "double", "float", "boolean", "char");
-
         private static ReturnShape elementShape(String type) {
             String simple = simpleNameOf(type);
             if (simple.isEmpty() || "Map".equals(simple) || "Cursor".equals(simple)) {
-                return null;
-            }
-            if (PRIMITIVE_TYPE_NAMES.contains(simple)) {
-                // primitive の戻り値(int count() など)は MyBatis 側で自動的に
-                // boxed 型(Integer など)へ変換されるため、XML の resultType
-                // (通常はクラス名や built-in alias)と単純な simple name 比較を
-                // すると誤検知になりやすい。今回のスコープでは扱わずフェイルオープンする。
                 return null;
             }
             if (looksLikeGenericTypeVariable(simple)) {
