@@ -36,10 +36,11 @@ extension descriptions never overstate current capabilities.
     [`docs/parameter-type-validation.md`](parameter-type-validation.md))
   - `resultType="..."` on a `<select>` without `resultMap` that doesn't match
     a uniquely resolved Java mapper method's return type (warning; only
-    when the return type is a single object type or a simple `List<T>`,
-    fail-open on `resultMap`, `Map`/`Cursor`/`void`, nested generics, arrays,
-    built-in aliases, and `${...}` dynamic values — scope intentionally kept
-    very small)
+    when the return type is a single object type, a primitive/boxed type with
+    its corresponding built-in alias, or a simple `List<T>`, fail-open on
+    `resultMap`, `Map`/`Cursor`/
+    `void`, nested generics, arrays, unknown aliases, and `${...}` dynamic
+    values — scope intentionally kept very small)
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.

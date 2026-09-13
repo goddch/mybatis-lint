@@ -164,10 +164,7 @@ class MapperResultTypeValidatorTest {
     }
 
     @Test
-    void skipsPrimitiveReturnType(@TempDir Path tempDir) throws IOException {
-        // int/long などの primitive 戻り値は MyBatis 側で自動的に boxed 型へ
-        // 変換されるため、resultType の simple name とそのまま比較すると
-        // 誤検知になる。フェイルオープンすることを確認する回帰テスト。
+    void acceptsMatchingBuiltInAliasForPrimitiveReturnType(@TempDir Path tempDir) throws IOException {
         writeJavaMapper(tempDir, """
                 package com.example;
 
@@ -179,7 +176,7 @@ class MapperResultTypeValidatorTest {
         List<Diagnostic> diagnostics = analyze(tempDir, """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <mapper namespace="com.example.UserMapper">
-                    <select id="count" resultType="Integer">
+                    <select id="count" resultType="integer">
                         SELECT COUNT(*) FROM users
                     </select>
                 </mapper>
@@ -187,6 +184,56 @@ class MapperResultTypeValidatorTest {
 
         assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
                 () -> diagnostics.toString());
+    }
+
+    @Test
+    void acceptsMatchingBuiltInAliasForBoxedReturnType(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    Long getId();
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="getId" resultType="long">
+                        SELECT id FROM users
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsMismatchedBuiltInAlias(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    User findById(Long id);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findById" resultType="int">
+                        SELECT * FROM users WHERE id = #{id}
+                    </select>
+                </mapper>
+                """);
+
+        assertEquals(1, diagnostics.stream()
+                .filter(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId()))
+                .count(), () -> diagnostics.toString());
     }
 
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
