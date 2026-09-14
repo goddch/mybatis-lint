@@ -33,11 +33,11 @@ import java.util.Set;
  * <p>{@code parameterType} 側({@link MapperParameterTypeValidator})と違い、
  * resultType は {@code List<T>}/{@code Map}/{@code Cursor}/nested generics など
  * MyBatis 特有の表現の幅が広く、誤検知のリスクが高い。今回はクレジット節約も兼ねて、
- * 「Java 側の戻り値が単一オブジェクト型、または要素がシンプルな
- * {@code List<T>}」という最も安全に断定できるケースだけに絞り、それ以外は
- * すべてフェイルオープンする。{@link MapperParameterTypeValidator} と設計は似て
- * いるが、比較対象(引数 vs 戻り値)も判定できる範囲も異なるため、無理に共通化は
- * していない。</p>
+ * 「Java 側の戻り値が単一オブジェクト型、要素がシンプルな {@code List<T>}、
+ * またはシンプルな {@code Map<K, V>}」という最も安全に断定できるケースだけに
+ * 絞り、それ以外はすべてフェイルオープンする。{@link MapperParameterTypeValidator}
+ * と設計は似ているが、比較対象(引数 vs 戻り値)も判定できる範囲も異なるため、
+ * 無理に共通化はしていない。</p>
  */
 public final class MapperResultTypeValidator {
 
@@ -130,7 +130,7 @@ public final class MapperResultTypeValidator {
 
                 ReturnShape javaShape = ReturnShape.parse(method.getReturnType());
                 if (javaShape == null) {
-                    // void/Map/Cursor/nested generics/array/型変数など、安全に
+                    // void/Cursor/nested generics/array/型変数など、安全に
                     // 断定できない戻り値型はすべてフェイルオープンする。
                     continue;
                 }
