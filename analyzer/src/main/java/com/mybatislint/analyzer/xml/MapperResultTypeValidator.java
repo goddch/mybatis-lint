@@ -201,6 +201,11 @@ public final class MapperResultTypeValidator {
                     // Map<String, List<User>> のような nested generics は対象外。
                     return null;
                 }
+                String[] args = mapTypeArgs.split(",", -1);
+                if (args.length != 2 || args[0].trim().isEmpty() || args[1].trim().isEmpty()) {
+                    // Map<K, V> の形に限定する(欠落した型引数や片側のみは対象外)。
+                    return null;
+                }
                 return elementShape(outerSimple);
             }
             if (!"List".equals(outerSimple)) {
