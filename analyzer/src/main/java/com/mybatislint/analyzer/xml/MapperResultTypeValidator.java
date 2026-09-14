@@ -196,6 +196,11 @@ public final class MapperResultTypeValidator {
             String outer = type.substring(0, genericStart).trim();
             String outerSimple = simpleNameOf(outer);
             if ("Map".equals(outerSimple)) {
+                String mapTypeArgs = type.substring(genericStart + 1, type.length() - 1).trim();
+                if (mapTypeArgs.contains("<") || mapTypeArgs.contains(">")) {
+                    // Map<String, List<User>> のような nested generics は対象外。
+                    return null;
+                }
                 return elementShape(outerSimple);
             }
             if (!"List".equals(outerSimple)) {
