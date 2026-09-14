@@ -42,6 +42,7 @@ import java.util.Set;
 public final class MapperResultTypeValidator {
 
     private static final Map<String, Set<String>> BUILTIN_ALIAS_JAVA_TYPES = Map.ofEntries(
+            Map.entry("map", Set.of("Map")),
             Map.entry("string", Set.of("String")),
             Map.entry("byte", Set.of("byte", "Byte")),
             Map.entry("_byte", Set.of("byte", "Byte")),
@@ -193,8 +194,12 @@ public final class MapperResultTypeValidator {
                 return null;
             }
             String outer = type.substring(0, genericStart).trim();
-            if (!"List".equals(simpleNameOf(outer))) {
-                // Map<K,V>/Cursor<T>/Set<T> など、List 以外のジェネリクスは対象外。
+            String outerSimple = simpleNameOf(outer);
+            if ("Map".equals(outerSimple)) {
+                return elementShape(outerSimple);
+            }
+            if (!"List".equals(outerSimple)) {
+                // Cursor<T>/Set<T> など、List/Map 以外のジェネリクスは対象外。
                 return null;
             }
             String inner = type.substring(genericStart + 1, type.length() - 1).trim();
@@ -207,7 +212,7 @@ public final class MapperResultTypeValidator {
 
         private static ReturnShape elementShape(String type) {
             String simple = simpleNameOf(type);
-            if (simple.isEmpty() || "Map".equals(simple) || "Cursor".equals(simple)) {
+            if (simple.isEmpty() || "Cursor".equals(simple)) {
                 return null;
             }
             if (looksLikeGenericTypeVariable(simple)) {

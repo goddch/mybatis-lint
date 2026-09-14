@@ -37,8 +37,9 @@ extension descriptions never overstate current capabilities.
   - `resultType="..."` on a `<select>` without `resultMap` that doesn't match
     a uniquely resolved Java mapper method's return type (warning; only
     when the return type is a single object type, a primitive/boxed type with
-    its corresponding built-in alias, or a simple `List<T>`, fail-open on
-    `resultMap`, `Map`/`Cursor`/
+    its corresponding built-in alias, built-in `map` alias with `Map<K, V>`,
+    or a simple `List<T>`, fail-open on
+    `resultMap`, `Cursor`/
     `void`, nested generics, arrays, unknown aliases, and `${...}` dynamic
     values — scope intentionally kept very small)
 - Deterministic JSON output on stdout, non-zero exit code on errors.

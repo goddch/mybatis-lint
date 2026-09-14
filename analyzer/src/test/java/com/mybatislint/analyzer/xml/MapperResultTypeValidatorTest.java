@@ -236,6 +236,58 @@ class MapperResultTypeValidatorTest {
                 .count(), () -> diagnostics.toString());
     }
 
+    @Test
+    void acceptsMatchingBuiltInMapAliasForMapReturnType(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                import java.util.Map;
+
+                public interface UserMapper {
+                    Map<String, Object> findAsMap(Long id);
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findAsMap" resultType="map">
+                        SELECT id, name FROM users WHERE id = #{id}
+                    </select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsMismatchedBuiltInMapAlias(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    User findById(Long id);
+                }
+
+                class User {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findById" resultType="map">
+                        SELECT * FROM users WHERE id = #{id}
+                    </select>
+                </mapper>
+                """);
+
+        assertEquals(1, diagnostics.stream()
+                .filter(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId()))
+                .count(), () -> diagnostics.toString());
+    }
+
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
         Files.createDirectories(javaFile.getParent());
