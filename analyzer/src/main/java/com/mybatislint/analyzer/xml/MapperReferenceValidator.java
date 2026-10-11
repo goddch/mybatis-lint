@@ -539,16 +539,34 @@ public final class MapperReferenceValidator {
     private static int findStartOfElement(String xml, Element element, int lowerBound) {
         String tag = element.getTagName();
         String search = "<" + tag;
-        int index = xml.indexOf(search, lowerBound);
+        int index = xml.indexOf('<');
         while (index >= 0) {
+            // DOM が除外するコメント・CDATA・処理命令や属性値内の文字列は、
+            // 実際の開始タグとして位置検索に使わない。
+            String terminator = xml.startsWith("<!--", index) ? "-->"
+                    : xml.startsWith("<![CDATA[", index) ? "]]>"
+                    : xml.startsWith("<?", index) ? "?>" : null;
+            if (terminator != null) {
+                int end = xml.indexOf(terminator, index);
+                if (end < 0) {
+                    return lowerBound;
+                }
+                index = xml.indexOf('<', end + terminator.length());
+                continue;
+            }
             // "<select" だけで探すと "<selectKey>" にも一致してしまう。
             // タグ名の直後が XML 名文字でないことを確認し、実際のタグ境界だけを
             // 採用することで range が別要素へずれるのを防ぐ。
             int afterName = index + search.length();
-            if (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName))) {
+            if (index >= lowerBound && xml.startsWith(search, index)
+                    && (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName)))) {
                 return index;
             }
-            index = xml.indexOf(search, afterName);
+            int end = findStartTagEnd(xml, index);
+            if (end < 0) {
+                return lowerBound;
+            }
+            index = xml.indexOf('<', end + 1);
         }
         return lowerBound;
     }

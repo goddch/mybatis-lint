@@ -52,6 +52,28 @@ class MapperDuplicateResultMapIdValidationTest {
     }
 
     @Test
+    void ignoresCommentCdataAndProcessingInstructionTextWhenLocatingDeclarations() throws IOException {
+        Path file = write("Mapper.xml", """
+                <mapper namespace="example.Mapper">
+                    <!-- <resultMap id="Base" type="map"/> -->
+                    <sql id="fragment"><![CDATA[<resultMap id="Base" type="map"/>]]></sql>
+                    <?example <resultMap id="Base" type="map"/> ?>
+                    <resultMap id="Base" type="map"/>
+                    <!-- <resultMap id="Base" type="map"/> -->
+                    <resultMap id="Base" type="map"/>
+                </mapper>
+                """);
+        List<Diagnostic> diagnostics = duplicates(new MapperXmlAnalyzer()
+                .analyze(file, file.getFileName(), file.toUri().toString()));
+        assertEquals(List.of(5, 7), diagnostics.stream()
+                .map(d -> d.getRange().getStart().getLine()).toList());
+        for (Diagnostic diagnostic : diagnostics) {
+            String line = Files.readAllLines(file).get(diagnostic.getRange().getStart().getLine() - 1);
+            assertEquals(line.indexOf("Base") + 1, diagnostic.getRange().getStart().getCharacter());
+        }
+    }
+
+    @Test
     void detectsSameNamespaceDuplicatesAcrossFilesWithoutBreakingReferences() throws IOException {
         write("First.xml", """
                 <mapper namespace="example.Mapper">
