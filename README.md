@@ -43,6 +43,10 @@ for exactly what is and isn't implemented.
     or a simple `List<T>`
     (warning; deliberately narrow scope, fail-open on `Cursor`/`void`/
     nested generics/arrays/unknown aliases/`${...}`)
+  - unknown direct `<id property="...">` / `<result property="...">` in a
+    top-level `<resultMap type="fully.qualified.Class">`, when no field or
+    setter exists on the uniquely resolved workspace Java class
+    (`mybatis-lint/unknown-result-property`, warning)
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -50,10 +54,27 @@ for exactly what is and isn't implemented.
   **`MyBatis Lint: Check Workspace`** command (`mybatisLint.checkWorkspace`)
   that runs the analyzer and publishes results to the Problems panel.
 
+### Explicit resultMap property validation
+
+For example, `<resultMap type="com.example.User">` with
+`<result column="name" property="naem"/>` produces a warning if the workspace
+class `com.example.User` has neither a `naem` field nor a `setNaem(...)` method.
+Private fields are supported, and property names are case-sensitive.
+
+This is a conservative first step toward result mapping validation, not SQL
+column validation. It skips aliases (including simple class names), unresolved
+or duplicate Java types, interfaces, abstract/generic/nested classes, records,
+classes with inheritance or annotations (including annotated members and
+Lombok), `resultMap extends`, resultMaps containing discriminators,
+blank/dynamic/nested/indexed properties,
+constructors, and nested `<association>` / `<collection>` mappings. No MyBatis
+configuration or compiled classpath is loaded.
+
 ## What is **not** implemented yet
 
-Oracle SQL syntax validation, DTO property validation, and dynamic SQL branch
-expansion are roadmap items — see [`docs/roadmap.md`](docs/roadmap.md).
+Oracle SQL syntax validation, SQL-column-to-DTO property validation, and
+dynamic SQL branch expansion are roadmap items — see
+[`docs/roadmap.md`](docs/roadmap.md).
 Please don't rely on this tool for those checks yet.
 
 ## Repository layout

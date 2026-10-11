@@ -24,9 +24,9 @@ import java.util.Set;
 /**
  * Java メソッドの情報を必要としない、Mapper XML 内の参照関係を検証する。
  *
- * <p>現時点では {@code <include refid="...">} と {@code resultMap/resultType}
- * の同時指定を扱う。どちらも XML 単体、またはワークスペース内の
- * {@link MapperSqlFragmentIndex} だけで判断できるため、Java Mapper パラメータ
+ * <p>{@code <include refid="...">}、{@code resultMap/resultType} の同時指定、
+ * typeAlias 候補と明示的な resultMap プロパティを扱う。XML とワークスペース内の
+ * {@link MapperSqlFragmentIndex}/{@link JavaTypeIndex} で判断できるため、Java Mapper パラメータ
  * 検証とは分けておくと、責務が読み取りやすくなる。</p>
  */
 public final class MapperReferenceValidator {
@@ -80,6 +80,7 @@ public final class MapperReferenceValidator {
             validateIncludes(mapper, namespace, localSqlIds, xml, displayFile, uri, diagnostics);
             validateResultMapAndType(mapper, xml, displayFile, uri, diagnostics);
             validateTypeAliases(mapper, xml, displayFile, uri, diagnostics);
+            validateResultProperties(mapper, xml, displayFile, uri, diagnostics);
             return diagnostics;
         } catch (Exception e) {
             // XML の壊れ方や読み込み失敗は MapperXmlAnalyzer 側の SAX パースで診断する。
@@ -234,6 +235,48 @@ public final class MapperReferenceValidator {
 
     private static boolean isLikelyFullyQualifiedClassName(String value) {
         return value.contains(".");
+    }
+
+    private void validateResultProperties(Element mapper,
+                                         String xml,
+                                         Path displayFile,
+                                         String uri,
+                                         List<Diagnostic> diagnostics) {
+        int searchOffset = 0;
+        NodeList mappings = mapper.getElementsByTagName("*");
+        for (int i = 0; i < mappings.getLength(); i++) {
+            Element mapping = (Element) mappings.item(i);
+            if (!"id".equals(mapping.getTagName()) && !"result".equals(mapping.getTagName())) {
+                continue;
+            }
+            int mappingStart = findStartOfElement(xml, mapping, searchOffset);
+            searchOffset = mappingStart + ("<" + mapping.getTagName()).length();
+            // ネストした mapping も位置検索は進めるが、今回の検証対象には含めない。
+            if (!(mapping.getParentNode() instanceof Element resultMap)
+                    || !"resultMap".equals(resultMap.getTagName()) || resultMap.getParentNode() != mapper) {
+                continue;
+            }
+            String type = resultMap.getAttribute("type").trim();
+            if (!type.contains(".") || type.contains("${") || resultMap.hasAttribute("extends")
+                    || resultMap.getElementsByTagName("discriminator").getLength() > 0) {
+                continue;
+            }
+            Set<String> properties = typeIndex.findResultProperties(type);
+            if (properties == null) {
+                continue;
+            }
+            String property = mapping.getAttribute("property");
+            if (property.isBlank() || property.contains("${") || property.contains(".")
+                    || property.contains("[") || property.contains("]") || properties.contains(property)) {
+                continue;
+            }
+            diagnostics.add(new Diagnostic(displayFile, uri,
+                    rangeForAttributeValue(xml, mapping, "property", property, mappingStart),
+                    Severity.WARNING,
+                    RuleIds.UNKNOWN_RESULT_PROPERTY,
+                    "Unknown resultMap property '" + property + "' on Java type '" + type
+                            + "'; no matching field or setter was found."));
+        }
     }
 
     private boolean isResolved(String refid, String namespace, Set<String> localSqlIds) {
