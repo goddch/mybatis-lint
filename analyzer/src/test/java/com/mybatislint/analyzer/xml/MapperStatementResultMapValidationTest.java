@@ -102,7 +102,7 @@ class MapperStatementResultMapValidationTest {
     }
 
     @Test
-    void skipsBlankDynamicAndNestedReferences() throws IOException {
+    void skipsBlankAndDynamicReferencesAndDoesNotCheckNestedReferencesAsStatements() throws IOException {
         write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
                     <select id="absent">select 1</select>
@@ -116,7 +116,7 @@ class MapperStatementResultMapValidationTest {
                     <sql id="fragment"><select id="nested" resultMap="Missing"/></sql>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(statementDiagnostics(new AnalyzerCli().run(workspace)).isEmpty());
     }
 
     @Test

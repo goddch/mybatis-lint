@@ -55,6 +55,10 @@ for exactly what is and isn't implemented.
   - unresolved `resultMap="..."` references on top-level statements
     (`mybatis-lint/unresolved-statement-result-map`, warning), including
     cross-file resolution (comma-separated references are skipped)
+  - unresolved `resultMap="..."` references on `<association>` /
+    `<collection>` elements inside top-level resultMaps
+    (`mybatis-lint/unresolved-nested-result-map`, warning), including
+    cross-file resolution
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -117,6 +121,20 @@ A type alias such as
 Externally registered resultMaps may produce warnings because configuration,
 annotations, and dependencies are not loaded. Warnings do not change the CLI
 exit code.
+
+### Nested resultMap references
+
+`<association>` and `<collection>` elements inside a top-level `<resultMap>`
+are checked when they specify `resultMap="..."`. An unresolved reference produces
+`UNRESOLVED_NESTED_RESULT_MAP`
+(`mybatis-lint/unresolved-nested-result-map`, WARNING). Local, fully-qualified,
+forward, and same-namespace cross-file references are supported.
+
+Blank/dynamic (`${...}`) and comma-separated values, or missing/dynamic
+namespaces, are skipped. Inline nested `<resultMap>` declarations are not
+interpreted as references. Because configuration, annotations, and dependencies
+are not loaded, externally registered resultMaps may produce warnings; warnings
+do not change the CLI exit code.
 
 ### Duplicate resultMap IDs
 
