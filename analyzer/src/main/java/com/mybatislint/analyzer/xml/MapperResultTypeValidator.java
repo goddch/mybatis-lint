@@ -33,15 +33,16 @@ import java.util.Set;
  * <p>{@code parameterType} 側({@link MapperParameterTypeValidator})と違い、
  * resultType は {@code List<T>}/{@code Map}/{@code Cursor}/nested generics など
  * MyBatis 特有の表現の幅が広く、誤検知のリスクが高い。今回はクレジット節約も兼ねて、
- * 「Java 側の戻り値が単一オブジェクト型、または要素がシンプルな
- * {@code List<T>}」という最も安全に断定できるケースだけに絞り、それ以外は
- * すべてフェイルオープンする。{@link MapperParameterTypeValidator} と設計は似て
- * いるが、比較対象(引数 vs 戻り値)も判定できる範囲も異なるため、無理に共通化は
- * していない。</p>
+ * 「Java 側の戻り値が単一オブジェクト型、要素がシンプルな {@code List<T>}、
+ * またはシンプルな {@code Map<K, V>}」という最も安全に断定できるケースだけに
+ * 絞り、それ以外はすべてフェイルオープンする。{@link MapperParameterTypeValidator}
+ * と設計は似ているが、比較対象(引数 vs 戻り値)も判定できる範囲も異なるため、
+ * 無理に共通化はしていない。</p>
  */
 public final class MapperResultTypeValidator {
 
     private static final Map<String, Set<String>> BUILTIN_ALIAS_JAVA_TYPES = Map.ofEntries(
+            Map.entry("map", Set.of("Map")),
             Map.entry("string", Set.of("String")),
             Map.entry("byte", Set.of("byte", "Byte")),
             Map.entry("_byte", Set.of("byte", "Byte")),
@@ -129,7 +130,7 @@ public final class MapperResultTypeValidator {
 
                 ReturnShape javaShape = ReturnShape.parse(method.getReturnType());
                 if (javaShape == null) {
-                    // void/Map/Cursor/nested generics/array/型変数など、安全に
+                    // void/Cursor/nested generics/array/型変数など、安全に
                     // 断定できない戻り値型はすべてフェイルオープンする。
                     continue;
                 }
@@ -193,8 +194,22 @@ public final class MapperResultTypeValidator {
                 return null;
             }
             String outer = type.substring(0, genericStart).trim();
-            if (!"List".equals(simpleNameOf(outer))) {
-                // Map<K,V>/Cursor<T>/Set<T> など、List 以外のジェネリクスは対象外。
+            String outerSimple = simpleNameOf(outer);
+            if ("Map".equals(outerSimple)) {
+                String mapTypeArgs = type.substring(genericStart + 1, type.length() - 1).trim();
+                if (mapTypeArgs.contains("<") || mapTypeArgs.contains(">")) {
+                    // Map<String, List<User>> のような nested generics は対象外。
+                    return null;
+                }
+                String[] args = mapTypeArgs.split(",", -1);
+                if (args.length != 2 || args[0].trim().isEmpty() || args[1].trim().isEmpty()) {
+                    // Map<K, V> の形に限定する(欠落した型引数や片側のみは対象外)。
+                    return null;
+                }
+                return elementShape(outerSimple);
+            }
+            if (!"List".equals(outerSimple)) {
+                // Cursor<T>/Set<T> など、List/Map 以外のジェネリクスは対象外。
                 return null;
             }
             String inner = type.substring(genericStart + 1, type.length() - 1).trim();
@@ -207,7 +222,7 @@ public final class MapperResultTypeValidator {
 
         private static ReturnShape elementShape(String type) {
             String simple = simpleNameOf(type);
-            if (simple.isEmpty() || "Map".equals(simple) || "Cursor".equals(simple)) {
+            if (simple.isEmpty() || "Cursor".equals(simple)) {
                 return null;
             }
             if (looksLikeGenericTypeVariable(simple)) {

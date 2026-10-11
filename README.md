@@ -39,8 +39,9 @@ for exactly what is and isn't implemented.
   - mismatched `resultType="..."` on a `<select>` that has no `resultMap`,
     against a uniquely resolved Java mapper method's return type — only
     when the return type is a single object type, a primitive/boxed type with
-    its corresponding built-in alias, or a simple `List<T>`
-    (warning; deliberately narrow scope, fail-open on `Map`/`Cursor`/`void`/
+    its corresponding built-in alias, a built-in `map` alias with `Map<K, V>`,
+    or a simple `List<T>`
+    (warning; deliberately narrow scope, fail-open on `Cursor`/`void`/
     nested generics/arrays/unknown aliases/`${...}`)
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
