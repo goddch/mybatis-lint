@@ -49,6 +49,7 @@ extension descriptions never overstate current capabilities.
     on uniquely resolved, unannotated, non-generic concrete workspace classes
     with no superclass/interfaces. Aliases, duplicate/unresolved types,
     records, nested classes/mappings, constructor mappings, `resultMap extends`,
+    resultMaps containing discriminators,
     and blank/dynamic/nested/indexed properties remain fail-open.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer

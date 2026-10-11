@@ -161,6 +161,27 @@ class MapperResultPropertyValidationTest {
     }
 
     @Test
+    void skipsResultMapsWithDiscriminatorsSelectingSubtypeProperties(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Person.java"), """
+                package com.example;
+                class Person extends User { private String personName; }
+                """, StandardCharsets.UTF_8);
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="com.example.UserMapper">
+                    <resultMap id="UserMap" type="com.example.User">
+                        <result column="name" property="personName"/>
+                        <discriminator column="kind" javaType="string">
+                            <case value="person" resultType="com.example.Person"/>
+                        </discriminator>
+                    </resultMap>
+                </mapper>
+                """);
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+    }
+
+    @Test
     void skipsMalformedAndNonMapperXml(@TempDir Path tempDir) throws IOException {
         writeJavaType(tempDir);
         Path xmlFile = writeMapper(tempDir, """

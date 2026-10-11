@@ -65,7 +65,8 @@ This is a conservative first step toward result mapping validation, not SQL
 column validation. It skips aliases (including simple class names), unresolved
 or duplicate Java types, interfaces, abstract/generic/nested classes, records,
 classes with inheritance or annotations (including annotated members and
-Lombok), `resultMap extends`, blank/dynamic/nested/indexed properties,
+Lombok), `resultMap extends`, resultMaps containing discriminators,
+blank/dynamic/nested/indexed properties,
 constructors, and nested `<association>` / `<collection>` mappings. No MyBatis
 configuration or compiled classpath is loaded.
 

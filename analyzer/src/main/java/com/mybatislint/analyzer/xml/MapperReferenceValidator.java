@@ -257,7 +257,8 @@ public final class MapperReferenceValidator {
                 continue;
             }
             String type = resultMap.getAttribute("type").trim();
-            if (!type.contains(".") || type.contains("${") || resultMap.hasAttribute("extends")) {
+            if (!type.contains(".") || type.contains("${") || resultMap.hasAttribute("extends")
+                    || resultMap.getElementsByTagName("discriminator").getLength() > 0) {
                 continue;
             }
             Set<String> properties = typeIndex.findResultProperties(type);
