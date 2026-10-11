@@ -42,6 +42,14 @@ extension descriptions never overstate current capabilities.
     `resultMap`, `Cursor`/
     `void`, nested generics, arrays, unknown aliases, and `${...}` dynamic
     values — scope intentionally kept very small)
+  - unknown direct `<id>` / `<result>` properties on a top-level
+    `<resultMap type="fully.qualified.Class">` (warning;
+    `mybatis-lint/unknown-result-property`). This first property-validation
+    slice checks fields (including private fields) and one-argument setters
+    on uniquely resolved, unannotated, non-generic concrete workspace classes
+    with no superclass/interfaces. Aliases, duplicate/unresolved types,
+    records, nested classes/mappings, constructor mappings, `resultMap extends`,
+    and blank/dynamic/nested/indexed properties remain fail-open.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -56,7 +64,9 @@ working in user-facing docs until they land:
   existing Java SQL parser with Oracle dialect support (e.g. Druid's parser
   or JSqlParser) against real, anonymized mapper SQL before committing to
   one, rather than assuming either is a perfect match up front.
-- **`resultType` / `resultMap` property validation.** Checking that SQL
+- **Broader `resultType` / `resultMap` property validation.** Explicit, direct
+  `resultMap` properties on plain FQCN-specified classes are now checked.
+  Remaining work includes checking that SQL
   column aliases in a `<select>` correspond to real properties on the
   configured `resultType`, accounting for `mapUnderscoreToCamelCase`,
   Lombok-generated accessors, records, and `resultMap`-based mappings.

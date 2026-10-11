@@ -6,19 +6,22 @@ import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.RecordDeclaration;
+import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * ワークスペース内にある Java クラス/インターフェース宣言の「simple name」だけを
- * 集めた、軽量な索引。
+ * ワークスペース内にある Java 型の simple name と、通常クラスの
+ * 明示的な resultMap プロパティ検証に使うフィールド/setter を集めた軽量な索引。
  *
  * <p>MyBatis の {@code typeAlias} は、設定ファイル(mybatis-config.xml)側の
  * {@code <typeAliases>} や {@code typeAliasesPackage}、あるいは
@@ -47,6 +50,7 @@ public final class JavaTypeIndex {
     // MyBatis の TypeAliasRegistry も内部的には alias 文字列を小文字化して
     // 管理しているため、この索引の比較方法を合わせておくと自然な挙動になる。
     private final Set<String> simpleNamesLowerCase = new HashSet<>();
+    private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
 
     public static JavaTypeIndex empty() {
         return new JavaTypeIndex();
@@ -75,6 +79,11 @@ public final class JavaTypeIndex {
         return simpleNamesLowerCase.isEmpty();
     }
 
+    /** FQCN で一意に解決できた通常クラスのプロパティ。判断できない型は null。 */
+    public Set<String> findResultProperties(String qualifiedName) {
+        return resultPropertiesByQualifiedName.get(qualifiedName);
+    }
+
     private void indexJavaFile(Path file) {
         try {
             String source = Files.readString(file, StandardCharsets.UTF_8);
@@ -88,6 +97,16 @@ public final class JavaTypeIndex {
             // (enum は今回のスコープでは対象外。まずは小さく始める方針のため)。
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
+                if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
+                    type.getFullyQualifiedName().ifPresent(name -> {
+                        // 同じ FQCN が複数のソースルートにある場合も決め打ちしない。
+                        if (resultPropertiesByQualifiedName.containsKey(name)) {
+                            resultPropertiesByQualifiedName.put(name, null);
+                        } else {
+                            resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
+                        }
+                    });
+                }
             }
             // record も DTO/Entity の定義によく使われる(Java 16+)。
             // ClassOrInterfaceDeclaration には含まれない別ノード種別なので、
@@ -95,10 +114,39 @@ public final class JavaTypeIndex {
             // 明示的に拾っておく。
             for (RecordDeclaration recordDeclaration : unit.findAll(RecordDeclaration.class)) {
                 simpleNamesLowerCase.add(recordDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
+                if (recordDeclaration.getParentNode().orElse(null) instanceof CompilationUnit) {
+                    recordDeclaration.getFullyQualifiedName()
+                            .ifPresent(name -> resultPropertiesByQualifiedName.put(name, null));
+                }
             }
         } catch (IOException e) {
             // 1 ファイル読めないだけでワークスペース全体の索引作りを止めたくないため、
             // このファイルの分は諦めて次のファイルに進むフェイルオープン方針。
         }
+    }
+
+    private static Set<String> collectResultProperties(ClassOrInterfaceDeclaration type) {
+        if (type.isInterface() || type.isAbstract()
+                || !type.getExtendedTypes().isEmpty() || !type.getImplementedTypes().isEmpty()
+                || !type.getTypeParameters().isEmpty() || !type.findAll(AnnotationExpr.class).isEmpty()) {
+            // 継承やコード生成で追加されるプロパティはソース単体では断定できない。
+            return null;
+        }
+        Set<String> properties = new HashSet<>();
+        for (var field : type.getFields()) {
+            // MyBatis は private フィールドにも直接アクセスできる。
+            field.getVariables().forEach(variable -> properties.add(variable.getNameAsString()));
+        }
+        for (var method : type.getMethods()) {
+            String name = method.getNameAsString();
+            if (name.startsWith("set") && name.length() > 3 && method.getParameters().size() == 1) {
+                String property = name.substring(3);
+                if (property.length() == 1 || !Character.isUpperCase(property.charAt(1))) {
+                    property = Character.toLowerCase(property.charAt(0)) + property.substring(1);
+                }
+                properties.add(property);
+            }
+        }
+        return Set.copyOf(properties);
     }
 }
