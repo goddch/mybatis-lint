@@ -338,7 +338,7 @@ public final class MapperReferenceValidator {
                     || !statement.getAttribute("resultType").isBlank()) {
                 continue;
             }
-            if (isResultMapResolved(value, namespace, localIds)) {
+            if (isResultMapResolved(value.trim(), namespace, localIds)) {
                 continue;
             }
             diagnostics.add(new Diagnostic(displayFile, uri,

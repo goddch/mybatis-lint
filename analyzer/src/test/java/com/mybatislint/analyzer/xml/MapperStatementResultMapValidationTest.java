@@ -27,6 +27,8 @@ class MapperStatementResultMapValidationTest {
                 <mapper namespace="example.Mapper">
                     <select id="local" resultMap="Base">select 1</select>
                     <select id="qualified" resultMap="example.Mapper.Base">select 1</select>
+                    <select id="padded" resultMap=" Base ">select 1</select>
+                    <select id="paddedQualified" resultMap=" example.Mapper.Base ">select 1</select>
                     <resultMap id="example.Mapper.Base" type="map"/>
                 </mapper>
                 """);
