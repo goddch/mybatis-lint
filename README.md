@@ -94,18 +94,22 @@ may produce a warning; warnings do not change the CLI exit code.
 ### Statement resultMap references
 
 `<select id="find" resultMap="UserMap"/>` produces
-`mybatis-lint/unresolved-statement-result-map` if `UserMap` is not declared as a
+`UNRESOLVED_STATEMENT_RESULT_MAP` (`mybatis-lint/unresolved-statement-result-map`,
+WARNING) if `UserMap` is not declared as a
 top-level resultMap in the current namespace anywhere in the scanned workspace.
 The same check applies to top-level `<insert>`, `<update>`, and `<delete>`.
-Fully-qualified `namespace.resultMapId` references, forward declarations, and
-comma-separated lists are supported. As in MyBatis, the whole attribute is
-namespace-qualified if it contains no dot, then split and trimmed per ID.
-Unqualified entries remaining after splitting use workspace-wide short-ID lookup.
-Each missing ID produces a warning at the `resultMap` attribute value.
+Fully-qualified `namespace.resultMapId` references and forward declarations are
+supported. A missing ID produces a warning at the `resultMap` attribute value.
+Duplicate local IDs are collapsed to a single entry; later declarations do not
+affect this existence check.
 
-Blank values/list entries after qualification, attributes containing `${...}`, and missing/dynamic
-namespaces are skipped. This validates existence only, not mapping compatibility;
-nested mappings, duplicate IDs, and ambiguous short-ID detection remain out of scope.
+Fail-open: blank values, attributes containing `${...}` or a comma
+(multiple resultMaps), and missing/dynamic namespaces are skipped.
+A nonblank `resultType` also skips this check to avoid duplicating the existing
+`RESULT_MAP_AND_TYPE` warning. Malformed/unreadable mapper XML is handled by the
+normal XML analysis, not reported again by this rule.
+This validates existence only, not mapping compatibility;
+nested mappings and duplicate ID diagnostics remain out of scope.
 A type alias such as
 `map` is not a resultMap reference unless a resultMap with that ID is declared.
 Externally registered resultMaps may produce warnings because configuration,

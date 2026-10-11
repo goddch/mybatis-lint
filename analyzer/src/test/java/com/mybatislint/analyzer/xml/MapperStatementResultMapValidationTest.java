@@ -27,7 +27,8 @@ class MapperStatementResultMapValidationTest {
                 <mapper namespace="example.Mapper">
                     <select id="local" resultMap="Base">select 1</select>
                     <select id="qualified" resultMap="example.Mapper.Base">select 1</select>
-                    <select id="multiple" resultMap=" Base, example.Mapper.Base ">select 1</select>
+                    <select id="padded" resultMap=" Base ">select 1</select>
+                    <select id="paddedQualified" resultMap=" example.Mapper.Base ">select 1</select>
                     <resultMap id="example.Mapper.Base" type="map"/>
                 </mapper>
                 """);
@@ -48,7 +49,8 @@ class MapperStatementResultMapValidationTest {
                 """);
         write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
-                    <select id="find" resultMap="Shared, other.Mapper.Base">select 1</select>
+                    <select id="shared" resultMap="Shared">select 1</select>
+                    <select id="find" resultMap="other.Mapper.Base">select 1</select>
                 </mapper>
                 """);
         assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
@@ -59,33 +61,33 @@ class MapperStatementResultMapValidationTest {
         Path file = write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
                     <resultMap id="Base" type="map"/>
-                    <select id="find" resultMap='Base, Missing, other.Mapper.Missing'>select 1</select>
+                    <select id="find" resultMap='Missing'>select 1</select>
+                    <select id="remote" resultMap="other.Mapper.Missing">select 1</select>
                     <select id="next" resultMap="NextMissing">select 1</select>
                 </mapper>
                 """);
         AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
         List<Diagnostic> warnings = statementDiagnostics(result);
         assertEquals(3, warnings.size());
-        assertEquals(List.of(3, 3, 4), warnings.stream()
+        assertEquals(List.of(3, 4, 5), warnings.stream()
                 .map(d -> d.getRange().getStart().getLine()).toList());
         String line = Files.readAllLines(file).get(2);
-        assertEquals(line.indexOf("Base, Missing") + 1, warnings.get(0).getRange().getStart().getCharacter());
-        assertEquals(warnings.get(0).getRange().getStart().getCharacter(),
-                warnings.get(1).getRange().getStart().getCharacter());
+        assertEquals(line.indexOf("Missing") + 1, warnings.get(0).getRange().getStart().getCharacter());
         assertEquals("Mapper.xml", warnings.get(0).getFile().toString());
         assertEquals(file.toUri().toString(), warnings.get(0).getUri());
         assertTrue(warnings.get(0).getMessage().contains("'Missing'"));
         assertTrue(warnings.get(1).getMessage().contains("'other.Mapper.Missing'"));
-        assertTrue(warnings.get(2).getMessage().contains("'example.Mapper.NextMissing'"));
+        assertTrue(warnings.get(2).getMessage().contains("'NextMissing'"));
         assertTrue(warnings.stream().allMatch(d -> d.getSeverity() == Severity.WARNING));
         assertFalse(result.hasErrors());
     }
 
     @Test
-    void checksAllTopLevelStatementKindsAndCoexistsWithResultTypeWarning() throws IOException {
+    void checksAllTopLevelStatementKindsWithoutDuplicatingResultTypeWarning() throws IOException {
         write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
-                    <select id="find" resultMap="Missing" resultType="map">select 1</select>
+                    <select id="find" resultMap="Missing">select 1</select>
+                    <select id="both" resultMap="Missing" resultType="map">select 1</select>
                     <insert id="add" resultMap="Missing">insert</insert>
                     <update id="change" resultMap="Missing">update</update>
                     <delete id="remove" resultMap="Missing">delete</delete>
@@ -93,6 +95,8 @@ class MapperStatementResultMapValidationTest {
                 """);
         AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
         assertEquals(4, statementDiagnostics(result).size());
+        assertEquals(List.of(2, 4, 5, 6), statementDiagnostics(result).stream()
+                .map(d -> d.getRange().getStart().getLine()).toList());
         assertEquals(1, result.getDiagnostics().stream()
                 .filter(d -> RuleIds.RESULT_MAP_AND_TYPE.equals(d.getRuleId())).count());
     }
@@ -128,7 +132,9 @@ class MapperStatementResultMapValidationTest {
                     <resultMap id="Outer" type="map">
                         <collection property="items"><resultMap id="Nested" type="map"/></collection>
                     </resultMap>
-                    <select id="find" resultMap="map, Columns, Nested">select 1</select>
+                    <select id="alias" resultMap="map">select 1</select>
+                    <select id="fragment" resultMap="Columns">select 1</select>
+                    <select id="nestedMap" resultMap="Nested">select 1</select>
                     <select id="short" resultMap="Base">select 1</select>
                 </mapper>
                 """);
@@ -136,25 +142,32 @@ class MapperStatementResultMapValidationTest {
     }
 
     @Test
-    void qualifiesTheWholeListBeforeResolvingGlobalShortIds() throws IOException {
-        write("Other.xml", """
-                <mapper namespace="other.Mapper">
-                    <resultMap id="Base" type="map"/>
-                    <resultMap id="Remote" type="map"/>
-                </mapper>
-                """);
+    void skipsCommaSeparatedListsIncludingMissingReferences() throws IOException {
         write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
                     <resultMap id="Local" type="map"/>
                     <select id="localFirst" resultMap="Local, Remote"/>
                     <select id="qualifiedFirst" resultMap="other.Mapper.Base, Remote"/>
                     <select id="qualifiedLater" resultMap="Remote, other.Mapper.Base"/>
-                    <select id="single" resultMap="Remote"/>
+                    <select id="emptyEntries" resultMap=","/>
+                    <select id="trailingComma" resultMap="Missing,"/>
                 </mapper>
                 """);
-        List<Diagnostic> warnings = statementDiagnostics(new AnalyzerCli().run(workspace));
-        assertEquals(1, warnings.size());
-        assertTrue(warnings.get(0).getMessage().contains("'example.Mapper.Remote'"));
+        assertTrue(statementDiagnostics(new AnalyzerCli().run(workspace)).isEmpty());
+    }
+
+    @Test
+    void duplicateLocalIdsStillResolveToTheFirstDeclaration() throws IOException {
+        Path file = write("Mapper.xml", """
+                <mapper namespace="example.Mapper">
+                    <select id="find" resultMap="Base"/>
+                    <select id="qualified" resultMap="example.Mapper.Base"/>
+                    <resultMap id="Base" type="map"/>
+                    <resultMap id="Base" type="string"/>
+                </mapper>
+                """);
+        assertTrue(new MapperXmlAnalyzer().analyze(file, file.getFileName(), file.toUri().toString()).isEmpty());
+        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test

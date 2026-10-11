@@ -59,15 +59,17 @@ extension descriptions never overstate current capabilities.
     This checks existence only, not cycles or inherited properties; externally
     registered parents are not indexed and may produce warnings.
    - unresolved `resultMap` references on top-level
-    `<select>`/`<insert>`/`<update>`/`<delete>` statements
-    (`mybatis-lint/unresolved-statement-result-map`, warning). Local IDs resolve
-    within the current namespace across workspace files; fully-qualified
-    references, forward declarations, and comma-separated lists are supported
-    (namespace qualification precedes splitting, as in MyBatis; remaining
-    short IDs use workspace-wide existence lookup, not ambiguity detection).
-    Blank values/list entries after qualification, dynamic attributes, and missing/dynamic namespaces
-    are skipped. This checks existence only; externally registered resultMaps
-    may produce warnings, and nested mapping references are not checked.
+     `<select>`/`<insert>`/`<update>`/`<delete>` statements
+     (`UNRESOLVED_STATEMENT_RESULT_MAP`,
+     `mybatis-lint/unresolved-statement-result-map`, WARNING). Local IDs resolve
+     within the current namespace across workspace files; fully-qualified
+     references and forward declarations are supported. Duplicate local IDs
+     collapse to one entry. Fail-open on blank/dynamic attributes, comma-separated
+     lists, missing/dynamic namespaces, and nonblank `resultType` (already reported
+     by `RESULT_MAP_AND_TYPE`). Malformed/unreadable XML is handled by normal XML
+     analysis without duplicate reporting. This checks existence only; externally
+     registered resultMaps may produce warnings, and nested mapping references
+     are not checked.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
