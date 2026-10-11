@@ -6,6 +6,7 @@ import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperSqlFragmentIndex;
+import com.mybatislint.analyzer.xml.MapperResultMapIndex;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
 
 import java.nio.file.Path;
@@ -60,10 +61,11 @@ public final class AnalyzerCli {
         // そのため、各ファイルを個別に解析する前にワークスペース内の SQL fragment を
         // 一度だけ索引化し、全ファイルの解析で共有する。
         MapperSqlFragmentIndex sqlFragmentIndex = MapperSqlFragmentIndex.build(mapperFiles);
+        MapperResultMapIndex resultMapIndex = MapperResultMapIndex.build(mapperFiles);
         for (Path file : mapperFiles) {
             Path relative = relativize(workspaceRoot, file);
             diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex, sqlFragmentIndex,
-                    typeIndex));
+                    typeIndex, resultMapIndex));
         }
         return new Result(diagnostics);
     }

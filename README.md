@@ -47,6 +47,9 @@ for exactly what is and isn't implemented.
     top-level `<resultMap type="fully.qualified.Class">`, when no field or
     setter exists on the uniquely resolved workspace Java class
     (`mybatis-lint/unknown-result-property`, warning)
+  - unresolved `extends="..."` parents on top-level `<resultMap>` declarations
+    (`mybatis-lint/unresolved-result-map-extends`, warning), resolving local IDs
+    and fully-qualified `namespace.resultMapId` references across mapper files
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -69,6 +72,21 @@ Lombok), `resultMap extends`, resultMaps containing discriminators,
 blank/dynamic/nested/indexed properties,
 constructors, and nested `<association>` / `<collection>` mappings. No MyBatis
 configuration or compiled classpath is loaded.
+
+### resultMap inheritance references
+
+`<resultMap id="UserDetails" type="map" extends="BaseUser"/>` produces
+`mybatis-lint/unresolved-result-map-extends` if `BaseUser` is not declared as a
+top-level resultMap in the same namespace anywhere in the scanned workspace.
+Fully-qualified parents such as `com.example.OtherMapper.BaseUser` are also
+resolved across files, including forward references.
+
+This checks parent existence at each link, not inheritance cycles or inherited
+properties. Blank/dynamic (`${...}`) parents and missing/dynamic namespaces are
+skipped. Nested mappings, statement `resultMap` references, and duplicate
+resultMap IDs are not checked by this rule. MyBatis configuration, annotations,
+and external dependencies are not loaded, so an externally registered parent
+may produce a warning; warnings do not change the CLI exit code.
 
 ## What is **not** implemented yet
 

@@ -51,6 +51,13 @@ extension descriptions never overstate current capabilities.
     records, nested classes/mappings, constructor mappings, `resultMap extends`,
     resultMaps containing discriminators,
     and blank/dynamic/nested/indexed properties remain fail-open.
+  - unresolved `extends` parents on top-level resultMaps
+    (`mybatis-lint/unresolved-result-map-extends`, warning). Local IDs resolve
+    within the current namespace across workspace files; fully-qualified
+    `namespace.resultMapId` parents and forward references are supported.
+    Blank/dynamic parents and missing/dynamic namespaces are skipped.
+    This checks existence only, not cycles or inherited properties; externally
+    registered parents are not indexed and may produce warnings.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -78,7 +85,9 @@ working in user-facing docs until they land:
 - **Additional mapper-level rules**, e.g. other cross-reference checks not
   covered by the current SQL fragment include rule or the typeAlias
   heuristic (for example validating `<association>`/`<collection>` nested
-  result mappings).
+  result mappings, statement `resultMap` references, duplicate resultMap IDs,
+  and resultMap inheritance cycles). Parent existence for `resultMap extends`
+  is now checked, but inherited property validation remains fail-open.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out

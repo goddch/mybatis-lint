@@ -25,8 +25,8 @@ import java.util.Set;
  * Java メソッドの情報を必要としない、Mapper XML 内の参照関係を検証する。
  *
  * <p>{@code <include refid="...">}、{@code resultMap/resultType} の同時指定、
- * typeAlias 候補と明示的な resultMap プロパティを扱う。XML とワークスペース内の
- * {@link MapperSqlFragmentIndex}/{@link JavaTypeIndex} で判断できるため、Java Mapper パラメータ
+ * typeAlias 候補、明示的な resultMap プロパティ、extends 参照を扱う。XML とワークスペース内の
+ * {@link MapperSqlFragmentIndex}/{@link MapperResultMapIndex}/{@link JavaTypeIndex} で判断できるため、Java Mapper パラメータ
  * 検証とは分けておくと、責務が読み取りやすくなる。</p>
  */
 public final class MapperReferenceValidator {
@@ -54,14 +54,21 @@ public final class MapperReferenceValidator {
 
     private final MapperSqlFragmentIndex sqlFragmentIndex;
     private final JavaTypeIndex typeIndex;
+    private final MapperResultMapIndex resultMapIndex;
 
     public MapperReferenceValidator(MapperSqlFragmentIndex sqlFragmentIndex) {
         this(sqlFragmentIndex, JavaTypeIndex.empty());
     }
 
     public MapperReferenceValidator(MapperSqlFragmentIndex sqlFragmentIndex, JavaTypeIndex typeIndex) {
+        this(sqlFragmentIndex, typeIndex, MapperResultMapIndex.empty());
+    }
+
+    public MapperReferenceValidator(MapperSqlFragmentIndex sqlFragmentIndex, JavaTypeIndex typeIndex,
+                                    MapperResultMapIndex resultMapIndex) {
         this.sqlFragmentIndex = sqlFragmentIndex == null ? MapperSqlFragmentIndex.empty() : sqlFragmentIndex;
         this.typeIndex = typeIndex == null ? JavaTypeIndex.empty() : typeIndex;
+        this.resultMapIndex = resultMapIndex == null ? MapperResultMapIndex.empty() : resultMapIndex;
     }
 
     public List<Diagnostic> validate(Path actualFile, Path displayFile, String uri) {
@@ -81,6 +88,7 @@ public final class MapperReferenceValidator {
             validateResultMapAndType(mapper, xml, displayFile, uri, diagnostics);
             validateTypeAliases(mapper, xml, displayFile, uri, diagnostics);
             validateResultProperties(mapper, xml, displayFile, uri, diagnostics);
+            validateResultMapExtends(mapper, namespace, xml, displayFile, uri, diagnostics);
             return diagnostics;
         } catch (Exception e) {
             // XML の壊れ方や読み込み失敗は MapperXmlAnalyzer 側の SAX パースで診断する。
@@ -276,6 +284,39 @@ public final class MapperReferenceValidator {
                     RuleIds.UNKNOWN_RESULT_PROPERTY,
                     "Unknown resultMap property '" + property + "' on Java type '" + type
                             + "'; no matching field or setter was found."));
+        }
+    }
+
+    private void validateResultMapExtends(Element mapper, String namespace, String xml,
+                                          Path displayFile, String uri, List<Diagnostic> diagnostics) {
+        if (namespace.isBlank() || namespace.contains("${")) {
+            return;
+        }
+        Set<String> localIds = MapperResultMapIndex.collectLocalIds(mapper);
+        List<Element> resultMaps = new ArrayList<>();
+        collectDescendantsByTagName(mapper, "resultMap", resultMaps);
+        int searchOffset = 0;
+        for (Element resultMap : resultMaps) {
+            int elementStart = findStartOfElement(xml, resultMap, searchOffset);
+            searchOffset = elementStart + "<resultMap".length();
+            if (resultMap.getParentNode() != mapper) {
+                continue;
+            }
+            String parent = resultMap.getAttribute("extends");
+            if (parent.isBlank() || parent.contains("${")) {
+                continue;
+            }
+            String qualifiedId = parent.contains(".") ? parent : namespace + "." + parent;
+            String prefix = namespace + ".";
+            if ((qualifiedId.startsWith(prefix) && localIds.contains(qualifiedId.substring(prefix.length())))
+                    || resultMapIndex.contains(qualifiedId)) {
+                continue;
+            }
+            diagnostics.add(new Diagnostic(displayFile, uri,
+                    rangeForAttributeValue(xml, resultMap, "extends", parent, elementStart),
+                    Severity.WARNING, RuleIds.UNRESOLVED_RESULT_MAP_EXTENDS,
+                    "Unresolved resultMap extends '" + parent
+                            + "'; no matching top-level resultMap was found in the workspace."));
         }
     }
 
