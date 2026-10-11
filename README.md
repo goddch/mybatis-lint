@@ -98,12 +98,15 @@ may produce a warning; warnings do not change the CLI exit code.
 top-level resultMap in the current namespace anywhere in the scanned workspace.
 The same check applies to top-level `<insert>`, `<update>`, and `<delete>`.
 Fully-qualified `namespace.resultMapId` references, forward declarations, and
-comma-separated lists (with surrounding whitespace trimmed per ID) are supported.
+comma-separated lists are supported. As in MyBatis, the whole attribute is
+namespace-qualified if it contains no dot, then split and trimmed per ID.
+Unqualified entries remaining after splitting use workspace-wide short-ID lookup.
 Each missing ID produces a warning at the `resultMap` attribute value.
 
-Blank values/list entries, attributes containing `${...}`, and missing/dynamic
+Blank values/list entries after qualification, attributes containing `${...}`, and missing/dynamic
 namespaces are skipped. This validates existence only, not mapping compatibility;
-nested mappings and duplicate IDs remain out of scope. A type alias such as
+nested mappings, duplicate IDs, and ambiguous short-ID detection remain out of scope.
+A type alias such as
 `map` is not a resultMap reference unless a resultMap with that ID is declared.
 Externally registered resultMaps may produce warnings because configuration,
 annotations, and dependencies are not loaded. Warnings do not change the CLI

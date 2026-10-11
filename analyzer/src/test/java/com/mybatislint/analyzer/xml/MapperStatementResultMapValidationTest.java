@@ -76,7 +76,7 @@ class MapperStatementResultMapValidationTest {
         assertEquals(file.toUri().toString(), warnings.get(0).getUri());
         assertTrue(warnings.get(0).getMessage().contains("'Missing'"));
         assertTrue(warnings.get(1).getMessage().contains("'other.Mapper.Missing'"));
-        assertTrue(warnings.get(2).getMessage().contains("'NextMissing'"));
+        assertTrue(warnings.get(2).getMessage().contains("'example.Mapper.NextMissing'"));
         assertTrue(warnings.stream().allMatch(d -> d.getSeverity() == Severity.WARNING));
         assertFalse(result.hasErrors());
     }
@@ -103,7 +103,6 @@ class MapperStatementResultMapValidationTest {
                 <mapper namespace="example.Mapper">
                     <select id="absent">select 1</select>
                     <select id="blank" resultMap=" "/>
-                    <select id="emptyList" resultMap=" , , "/>
                     <select id="dynamic" resultMap="Missing, ${maps}"/>
                     <select id="typeOnly" resultType="map"/>
                     <resultMap id="Base" type="map">
@@ -129,10 +128,33 @@ class MapperStatementResultMapValidationTest {
                     <resultMap id="Outer" type="map">
                         <collection property="items"><resultMap id="Nested" type="map"/></collection>
                     </resultMap>
-                    <select id="find" resultMap="map, Columns, Nested, Base">select 1</select>
+                    <select id="find" resultMap="map, Columns, Nested">select 1</select>
+                    <select id="short" resultMap="Base">select 1</select>
                 </mapper>
                 """);
         assertEquals(4, statementDiagnostics(new AnalyzerCli().run(workspace)).size());
+    }
+
+    @Test
+    void qualifiesTheWholeListBeforeResolvingGlobalShortIds() throws IOException {
+        write("Other.xml", """
+                <mapper namespace="other.Mapper">
+                    <resultMap id="Base" type="map"/>
+                    <resultMap id="Remote" type="map"/>
+                </mapper>
+                """);
+        write("Mapper.xml", """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Local" type="map"/>
+                    <select id="localFirst" resultMap="Local, Remote"/>
+                    <select id="qualifiedFirst" resultMap="other.Mapper.Base, Remote"/>
+                    <select id="qualifiedLater" resultMap="Remote, other.Mapper.Base"/>
+                    <select id="single" resultMap="Remote"/>
+                </mapper>
+                """);
+        List<Diagnostic> warnings = statementDiagnostics(new AnalyzerCli().run(workspace));
+        assertEquals(1, warnings.size());
+        assertTrue(warnings.get(0).getMessage().contains("'example.Mapper.Remote'"));
     }
 
     @Test

@@ -337,9 +337,17 @@ public final class MapperReferenceValidator {
             if (value.isBlank() || value.contains("${")) {
                 continue;
             }
-            for (String reference : value.split(",")) {
+            // MyBatis qualifies the whole attribute before splitting the resultMap list.
+            String qualifiedValue = value.contains(".") ? value : namespace + "." + value;
+            for (String reference : qualifiedValue.split(",")) {
                 String id = reference.trim();
-                if (id.isEmpty() || isResultMapResolved(id, namespace, localIds)) {
+                if (id.isEmpty()) {
+                    continue;
+                }
+                boolean resolved = id.contains(".")
+                        ? isResultMapResolved(id, namespace, localIds)
+                        : localIds.contains(id) || resultMapIndex.containsShortId(id);
+                if (resolved) {
                     continue;
                 }
                 diagnostics.add(new Diagnostic(displayFile, uri,

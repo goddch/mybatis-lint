@@ -62,8 +62,10 @@ extension descriptions never overstate current capabilities.
     `<select>`/`<insert>`/`<update>`/`<delete>` statements
     (`mybatis-lint/unresolved-statement-result-map`, warning). Local IDs resolve
     within the current namespace across workspace files; fully-qualified
-    references, forward declarations, and comma-separated lists are supported.
-    Blank values/list entries, dynamic attributes, and missing/dynamic namespaces
+    references, forward declarations, and comma-separated lists are supported
+    (namespace qualification precedes splitting, as in MyBatis; remaining
+    short IDs use workspace-wide existence lookup, not ambiguity detection).
+    Blank values/list entries after qualification, dynamic attributes, and missing/dynamic namespaces
     are skipped. This checks existence only; externally registered resultMaps
     may produce warnings, and nested mapping references are not checked.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
