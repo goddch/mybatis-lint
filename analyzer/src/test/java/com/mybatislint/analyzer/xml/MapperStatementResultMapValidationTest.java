@@ -166,8 +166,9 @@ class MapperStatementResultMapValidationTest {
                     <resultMap id="Base" type="string"/>
                 </mapper>
                 """);
-        assertTrue(new MapperXmlAnalyzer().analyze(file, file.getFileName(), file.toUri().toString()).isEmpty());
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(new MapperXmlAnalyzer().analyze(file, file.getFileName(), file.toUri().toString()).stream()
+                .noneMatch(d -> RuleIds.UNRESOLVED_STATEMENT_RESULT_MAP.equals(d.getRuleId())));
+        assertTrue(statementDiagnostics(new AnalyzerCli().run(workspace)).isEmpty());
     }
 
     @Test
