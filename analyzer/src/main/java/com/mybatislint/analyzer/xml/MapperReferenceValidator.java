@@ -19,13 +19,14 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Java メソッドの情報を必要としない、Mapper XML 内の参照関係を検証する。
  *
  * <p>{@code <include refid="...">}、{@code resultMap/resultType} の同時指定、
- * typeAlias 候補、明示的な resultMap プロパティ、extends・statement の resultMap 参照を扱う。XML とワークスペース内の
+ * typeAlias 候補、明示的な resultMap プロパティ、ID 重複、extends・statement の resultMap 参照を扱う。XML とワークスペース内の
  * {@link MapperSqlFragmentIndex}/{@link MapperResultMapIndex}/{@link JavaTypeIndex} で判断できるため、Java Mapper パラメータ
  * 検証とは分けておくと、責務が読み取りやすくなる。</p>
  */
@@ -88,6 +89,7 @@ public final class MapperReferenceValidator {
             validateResultMapAndType(mapper, xml, displayFile, uri, diagnostics);
             validateTypeAliases(mapper, xml, displayFile, uri, diagnostics);
             validateResultProperties(mapper, xml, displayFile, uri, diagnostics);
+            validateDuplicateResultMapIds(mapper, namespace, xml, displayFile, uri, diagnostics);
             validateResultMapExtends(mapper, namespace, xml, displayFile, uri, diagnostics);
             validateStatementResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
             return diagnostics;
@@ -285,6 +287,33 @@ public final class MapperReferenceValidator {
                     RuleIds.UNKNOWN_RESULT_PROPERTY,
                     "Unknown resultMap property '" + property + "' on Java type '" + type
                             + "'; no matching field or setter was found."));
+        }
+    }
+
+    private void validateDuplicateResultMapIds(Element mapper, String namespace, String xml,
+                                               Path displayFile, String uri, List<Diagnostic> diagnostics) {
+        if (namespace.isBlank() || namespace.contains("${")) {
+            return;
+        }
+        Map<String, Integer> localCounts = MapperResultMapIndex.collectLocalIdCounts(mapper);
+        String prefix = namespace + ".";
+        List<Element> resultMaps = new ArrayList<>();
+        collectDescendantsByTagName(mapper, "resultMap", resultMaps);
+        int searchOffset = 0;
+        for (Element resultMap : resultMaps) {
+            int elementStart = findStartOfElement(xml, resultMap, searchOffset);
+            searchOffset = elementStart + "<resultMap".length();
+            String id = resultMap.getAttribute("id");
+            if (resultMap.getParentNode() != mapper || id.isBlank() || id.contains("${")) {
+                continue;
+            }
+            String localId = id.startsWith(prefix) ? id.substring(prefix.length()) : id;
+            if (localCounts.getOrDefault(localId, 0) > 1 || resultMapIndex.isDuplicate(prefix + localId)) {
+                diagnostics.add(new Diagnostic(displayFile, uri,
+                        rangeForAttributeValue(xml, resultMap, "id", id, elementStart),
+                        Severity.ERROR, RuleIds.DUPLICATE_RESULT_MAP_ID,
+                        "Duplicate resultMap id '" + id + "' in namespace '" + namespace + "'."));
+            }
         }
     }
 
@@ -510,16 +539,34 @@ public final class MapperReferenceValidator {
     private static int findStartOfElement(String xml, Element element, int lowerBound) {
         String tag = element.getTagName();
         String search = "<" + tag;
-        int index = xml.indexOf(search, lowerBound);
+        int index = xml.indexOf('<', lowerBound);
         while (index >= 0) {
+            // DOM が除外するコメント・CDATA・処理命令や属性値内の文字列は、
+            // 実際の開始タグとして位置検索に使わない。
+            String terminator = xml.startsWith("<!--", index) ? "-->"
+                    : xml.startsWith("<![CDATA[", index) ? "]]>"
+                    : xml.startsWith("<?", index) ? "?>" : null;
+            if (terminator != null) {
+                int end = xml.indexOf(terminator, index);
+                if (end < 0) {
+                    return lowerBound;
+                }
+                index = xml.indexOf('<', end + terminator.length());
+                continue;
+            }
             // "<select" だけで探すと "<selectKey>" にも一致してしまう。
             // タグ名の直後が XML 名文字でないことを確認し、実際のタグ境界だけを
             // 採用することで range が別要素へずれるのを防ぐ。
             int afterName = index + search.length();
-            if (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName))) {
+            if (index >= lowerBound && xml.startsWith(search, index)
+                    && (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName)))) {
                 return index;
             }
-            index = xml.indexOf(search, afterName);
+            int end = findStartTagEnd(xml, index);
+            if (end < 0) {
+                return lowerBound;
+            }
+            index = xml.indexOf('<', end + 1);
         }
         return lowerBound;
     }

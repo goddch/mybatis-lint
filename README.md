@@ -16,6 +16,8 @@ for exactly what is and isn't implemented.
   - missing/blank `<mapper namespace="...">`
   - duplicate statement IDs (`select`/`insert`/`update`/`delete`) within a
     mapper file
+  - duplicate top-level resultMap IDs within the same namespace, including
+    declarations across mapper files (`mybatis-lint/duplicate-result-map-id`, error)
   - duplicate `<otherwise>` inside a `<choose>`
   - `<when>` / `<otherwise>` used outside `<choose>`
   - definite undefined Java mapper parameter references in resolved mapper
@@ -52,7 +54,7 @@ for exactly what is and isn't implemented.
     and fully-qualified `namespace.resultMapId` references across mapper files
   - unresolved `resultMap="..."` references on top-level statements
     (`mybatis-lint/unresolved-statement-result-map`, warning), including
-    comma-separated references and cross-file resolution
+    cross-file resolution (comma-separated references are skipped)
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -115,6 +117,22 @@ A type alias such as
 Externally registered resultMaps may produce warnings because configuration,
 annotations, and dependencies are not loaded. Warnings do not change the CLI
 exit code.
+
+### Duplicate resultMap IDs
+
+Top-level `<resultMap id="Base">` declarations must be unique within their
+namespace across the scanned workspace. `Base` and `example.Mapper.Base` are
+treated as the same ID when the mapper namespace is `example.Mapper`.
+`mybatis-lint/duplicate-result-map-id` reports an error at the `id` attribute
+value of every conflicting declaration, including the first, so diagnostics
+do not depend on which file is analyzed first. Errors cause a non-zero CLI
+exit code. Single-file analysis also detects local duplicates.
+
+IDs are case-sensitive, and equal IDs in different namespaces do not conflict.
+Missing/blank/dynamic (`${...}`) IDs, missing/blank/dynamic namespaces, nested
+declarations, and malformed/unreadable XML are not indexed for this check.
+This rule does not change resultMap reference existence checks or inspect
+externally registered resultMaps, inheritance cycles, or nested mapping types.
 
 ## What is **not** implemented yet
 

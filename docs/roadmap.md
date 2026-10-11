@@ -15,6 +15,14 @@ extension descriptions never overstate current capabilities.
   - missing/blank `<mapper namespace="...">`
   - duplicate statement IDs (`select`/`insert`/`update`/`delete`) within one
     mapper file
+  - duplicate top-level resultMap IDs within the same namespace, including
+    declarations across workspace files (`mybatis-lint/duplicate-result-map-id`,
+    error). Short and current-namespace-qualified declaration IDs are normalized
+    consistently with reference resolution. Every conflicting declaration is
+    reported at its `id` attribute value, including the first. IDs are
+    case-sensitive; different namespaces do not conflict. Missing/blank/dynamic
+    IDs or namespaces, nested declarations, and malformed/unreadable XML are
+    skipped. Single-file analysis also detects local duplicates.
   - duplicate `<otherwise>` inside a single `<choose>`
   - `<when>` used outside `<choose>`
   - `<otherwise>` used outside `<choose>`
@@ -97,8 +105,8 @@ working in user-facing docs until they land:
 - **Additional mapper-level rules**, e.g. other cross-reference checks not
   covered by the current SQL fragment include rule or the typeAlias
   heuristic (for example validating `<association>`/`<collection>` nested
-  result mappings, duplicate resultMap IDs,
-  and resultMap inheritance cycles). Parent existence for `resultMap extends`
+  result mappings and resultMap inheritance cycles). ResultMap ID uniqueness,
+  parent existence for `resultMap extends`,
   and statement `resultMap` references are now checked, but inherited property
   validation remains fail-open.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
