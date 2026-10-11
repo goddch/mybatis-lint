@@ -58,6 +58,14 @@ extension descriptions never overstate current capabilities.
     Blank/dynamic parents and missing/dynamic namespaces are skipped.
     This checks existence only, not cycles or inherited properties; externally
     registered parents are not indexed and may produce warnings.
+   - unresolved `resultMap` references on top-level
+    `<select>`/`<insert>`/`<update>`/`<delete>` statements
+    (`mybatis-lint/unresolved-statement-result-map`, warning). Local IDs resolve
+    within the current namespace across workspace files; fully-qualified
+    references, forward declarations, and comma-separated lists are supported.
+    Blank values/list entries, dynamic attributes, and missing/dynamic namespaces
+    are skipped. This checks existence only; externally registered resultMaps
+    may produce warnings, and nested mapping references are not checked.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -85,9 +93,10 @@ working in user-facing docs until they land:
 - **Additional mapper-level rules**, e.g. other cross-reference checks not
   covered by the current SQL fragment include rule or the typeAlias
   heuristic (for example validating `<association>`/`<collection>` nested
-  result mappings, statement `resultMap` references, duplicate resultMap IDs,
+  result mappings, duplicate resultMap IDs,
   and resultMap inheritance cycles). Parent existence for `resultMap extends`
-  is now checked, but inherited property validation remains fail-open.
+  and statement `resultMap` references are now checked, but inherited property
+  validation remains fail-open.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out

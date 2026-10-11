@@ -50,6 +50,9 @@ for exactly what is and isn't implemented.
   - unresolved `extends="..."` parents on top-level `<resultMap>` declarations
     (`mybatis-lint/unresolved-result-map-extends`, warning), resolving local IDs
     and fully-qualified `namespace.resultMapId` references across mapper files
+  - unresolved `resultMap="..."` references on top-level statements
+    (`mybatis-lint/unresolved-statement-result-map`, warning), including
+    comma-separated references and cross-file resolution
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -83,10 +86,28 @@ resolved across files, including forward references.
 
 This checks parent existence at each link, not inheritance cycles or inherited
 properties. Blank/dynamic (`${...}`) parents and missing/dynamic namespaces are
-skipped. Nested mappings, statement `resultMap` references, and duplicate
+skipped. Nested mappings and duplicate
 resultMap IDs are not checked by this rule. MyBatis configuration, annotations,
 and external dependencies are not loaded, so an externally registered parent
 may produce a warning; warnings do not change the CLI exit code.
+
+### Statement resultMap references
+
+`<select id="find" resultMap="UserMap"/>` produces
+`mybatis-lint/unresolved-statement-result-map` if `UserMap` is not declared as a
+top-level resultMap in the current namespace anywhere in the scanned workspace.
+The same check applies to top-level `<insert>`, `<update>`, and `<delete>`.
+Fully-qualified `namespace.resultMapId` references, forward declarations, and
+comma-separated lists (with surrounding whitespace trimmed per ID) are supported.
+Each missing ID produces a warning at the `resultMap` attribute value.
+
+Blank values/list entries, attributes containing `${...}`, and missing/dynamic
+namespaces are skipped. This validates existence only, not mapping compatibility;
+nested mappings and duplicate IDs remain out of scope. A type alias such as
+`map` is not a resultMap reference unless a resultMap with that ID is declared.
+Externally registered resultMaps may produce warnings because configuration,
+annotations, and dependencies are not loaded. Warnings do not change the CLI
+exit code.
 
 ## What is **not** implemented yet
 
