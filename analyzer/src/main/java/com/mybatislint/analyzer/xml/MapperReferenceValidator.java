@@ -539,7 +539,7 @@ public final class MapperReferenceValidator {
     private static int findStartOfElement(String xml, Element element, int lowerBound) {
         String tag = element.getTagName();
         String search = "<" + tag;
-        int index = xml.indexOf('<');
+        int index = xml.indexOf('<', lowerBound);
         while (index >= 0) {
             // DOM が除外するコメント・CDATA・処理命令や属性値内の文字列は、
             // 実際の開始タグとして位置検索に使わない。
