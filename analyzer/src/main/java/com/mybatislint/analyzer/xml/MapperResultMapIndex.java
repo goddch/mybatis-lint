@@ -50,12 +50,13 @@ public final class MapperResultMapIndex {
 
     static Set<String> collectLocalIds(Element mapper) {
         Set<String> ids = new HashSet<>();
+        String prefix = mapper.getAttribute("namespace") + ".";
         NodeList children = mapper.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
             if (children.item(i) instanceof Element element && "resultMap".equals(element.getTagName())) {
                 String id = element.getAttribute("id");
                 if (!id.isBlank() && !id.contains("${")) {
-                    ids.add(id);
+                    ids.add(id.startsWith(prefix) ? id.substring(prefix.length()) : id);
                 }
             }
         }

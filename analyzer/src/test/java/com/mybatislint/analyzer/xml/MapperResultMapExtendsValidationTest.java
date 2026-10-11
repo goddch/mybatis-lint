@@ -33,6 +33,24 @@ class MapperResultMapExtendsValidationTest {
     }
 
     @Test
+    void resolvesDeclarationsAlreadyQualifiedWithTheirNamespace() throws IOException {
+        Path file = write("Mapper.xml", """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="example.Mapper.Base" type="map"/>
+                    <resultMap id="Leaf" type="map" extends="Base"/>
+                    <resultMap id="OtherLeaf" type="map" extends="example.Mapper.Base"/>
+                </mapper>
+                """);
+        assertTrue(new MapperXmlAnalyzer().analyze(file, file.getFileName(), file.toUri().toString()).isEmpty());
+        write("Other.xml", """
+                <mapper namespace="other.Mapper">
+                    <resultMap id="Leaf" type="map" extends="example.Mapper.Base"/>
+                </mapper>
+                """);
+        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+    }
+
+    @Test
     void reportsMissingParentsAtTheirAttributeValues() throws IOException {
         Path file = write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
