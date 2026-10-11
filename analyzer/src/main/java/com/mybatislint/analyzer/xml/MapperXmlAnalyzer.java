@@ -70,6 +70,16 @@ public final class MapperXmlAnalyzer {
                                     JavaMapperIndex javaIndex,
                                     MapperSqlFragmentIndex sqlFragmentIndex,
                                     JavaTypeIndex typeIndex) {
+        return analyze(actualFile, displayFile, uri, javaIndex, sqlFragmentIndex, typeIndex, MapperResultMapIndex.empty());
+    }
+
+    public List<Diagnostic> analyze(Path actualFile,
+                                    Path displayFile,
+                                    String uri,
+                                    JavaMapperIndex javaIndex,
+                                    MapperSqlFragmentIndex sqlFragmentIndex,
+                                    JavaTypeIndex typeIndex,
+                                    MapperResultMapIndex resultMapIndex) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         SAXParser parser = SafeXmlParserFactory.newSaxParser();
         Handler handler = new Handler(displayFile, uri, diagnostics);
@@ -92,7 +102,8 @@ public final class MapperXmlAnalyzer {
         // SAX の基本構造チェックが通ったファイルだけ、DOM ベースの追加検証へ進める。
         // include 参照や Java Mapper パラメータ検証は属性値やテキストの位置を探すために
         // 元 XML 文字列も使うので、責務を小さな validator に分けている。
-        diagnostics.addAll(new MapperReferenceValidator(sqlFragmentIndex, typeIndex).validate(actualFile, displayFile, uri));
+        diagnostics.addAll(new MapperReferenceValidator(sqlFragmentIndex, typeIndex, resultMapIndex)
+                .validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterValidator(javaIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterTypeValidator(javaIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperResultTypeValidator(javaIndex).validate(actualFile, displayFile, uri));

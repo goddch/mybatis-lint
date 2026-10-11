@@ -32,6 +32,7 @@ public final class RuleIds {
     // (詳細は MapperResultTypeValidator のクラス javadoc を参照)。
     public static final String RESULT_TYPE_MISMATCH = "mybatis-lint/result-type-mismatch";
     public static final String UNKNOWN_RESULT_PROPERTY = "mybatis-lint/unknown-result-property";
+    public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
 
     private RuleIds() {
     }
