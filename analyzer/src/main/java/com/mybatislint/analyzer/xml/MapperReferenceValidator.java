@@ -325,6 +325,7 @@ public final class MapperReferenceValidator {
             return;
         }
         Set<String> localIds = MapperResultMapIndex.collectLocalIds(mapper);
+        MapperResultMapIndex localIndex = MapperResultMapIndex.fromMapper(mapper);
         List<Element> resultMaps = new ArrayList<>();
         collectDescendantsByTagName(mapper, "resultMap", resultMaps);
         int searchOffset = 0;
@@ -339,6 +340,17 @@ public final class MapperReferenceValidator {
                 continue;
             }
             if (isResultMapResolved(parent, namespace, localIds)) {
+                String id = resultMap.getAttribute("id");
+                String prefix = namespace + ".";
+                String qualifiedId = id.startsWith(prefix) ? id : prefix + id;
+                MapperResultMapIndex cycleIndex = resultMapIndex.contains(qualifiedId) ? resultMapIndex : localIndex;
+                if (!id.isBlank() && !id.contains("${") && cycleIndex.isInInheritanceCycle(qualifiedId)) {
+                    diagnostics.add(new Diagnostic(displayFile, uri,
+                            rangeForAttributeValue(xml, resultMap, "extends", parent, elementStart),
+                            Severity.WARNING, RuleIds.RESULT_MAP_INHERITANCE_CYCLE,
+                            "ResultMap '" + id + "' participates in an inheritance cycle through extends '"
+                                    + parent + "'."));
+                }
                 continue;
             }
             diagnostics.add(new Diagnostic(displayFile, uri,

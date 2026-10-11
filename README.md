@@ -52,6 +52,9 @@ for exactly what is and isn't implemented.
   - unresolved `extends="..."` parents on top-level `<resultMap>` declarations
     (`mybatis-lint/unresolved-result-map-extends`, warning), resolving local IDs
     and fully-qualified `namespace.resultMapId` references across mapper files
+  - inheritance cycles among top-level resultMaps
+    (`mybatis-lint/result-map-inheritance-cycle`, warning), including self-references
+    and cycles across mapper files and namespaces
   - unresolved `resultMap="..."` references on top-level statements
     (`mybatis-lint/unresolved-statement-result-map`, warning), including
     cross-file resolution (comma-separated references are skipped)
@@ -90,12 +93,29 @@ top-level resultMap in the same namespace anywhere in the scanned workspace.
 Fully-qualified parents such as `com.example.OtherMapper.BaseUser` are also
 resolved across files, including forward references.
 
-This checks parent existence at each link, not inheritance cycles or inherited
+This rule checks parent existence at each link, not inheritance cycles or inherited
 properties. Blank/dynamic (`${...}`) parents and missing/dynamic namespaces are
 skipped. Nested mappings and duplicate
 resultMap IDs are not checked by this rule. MyBatis configuration, annotations,
 and external dependencies are not loaded, so an externally registered parent
 may produce a warning; warnings do not change the CLI exit code.
+
+### resultMap inheritance cycles
+
+`<resultMap id="A" type="map" extends="B"/>` and
+`<resultMap id="B" type="map" extends="A"/>` produce
+`mybatis-lint/result-map-inheritance-cycle` warnings at each participating
+`extends` attribute value. Self-references are also detected. Short parents
+resolve within the current namespace; fully-qualified parents resolve across
+workspace files. Current-namespace-qualified declaration IDs are normalized.
+Single-file analysis detects local cycles too.
+
+Only cycle members are reported, not resultMaps that merely inherit from a cycle.
+Blank/dynamic IDs, parents, or namespaces, nested declarations, malformed/unreadable
+XML, and paths through duplicate resultMap IDs are skipped. Missing parents remain
+the responsibility of `mybatis-lint/unresolved-result-map-extends`. Configuration,
+annotations, and external dependencies are not loaded; inherited properties are
+not checked. These warnings do not change the CLI exit code.
 
 ### Statement resultMap references
 

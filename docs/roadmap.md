@@ -66,6 +66,16 @@ extension descriptions never overstate current capabilities.
     Blank/dynamic parents and missing/dynamic namespaces are skipped.
     This checks existence only, not cycles or inherited properties; externally
     registered parents are not indexed and may produce warnings.
+   - inheritance cycles among top-level resultMaps
+    (`mybatis-lint/result-map-inheritance-cycle`, warning). Self-references and
+    multi-map cycles, including cross-file/cross-namespace references, are
+    reported at each cycle member's `extends` attribute value. Incoming
+    descendants are not reported. Short parents resolve in the current namespace;
+    current-namespace-qualified declaration IDs are normalized. Single-file
+    analysis supports local cycles. Blank/dynamic IDs, parents, or namespaces,
+    nested declarations, malformed/unreadable XML, and paths through duplicate
+    IDs remain fail-open. Missing parents keep the existing unresolved-extends
+    diagnostic; inherited properties and external registrations are not checked.
    - unresolved `resultMap` references on top-level
      `<select>`/`<insert>`/`<update>`/`<delete>` statements
      (`UNRESOLVED_STATEMENT_RESULT_MAP`,
@@ -112,7 +122,7 @@ working in user-facing docs until they land:
   reporting of how many branches were (and were not) checked.
 - **Additional mapper-level rules**, e.g. other cross-reference checks not
   covered by the current SQL fragment include rule or the typeAlias
-  heuristic (for example resultMap inheritance cycles). ResultMap ID uniqueness,
+  heuristic. ResultMap ID uniqueness, inheritance cycles,
   parent existence for `resultMap extends`,
   statement `resultMap` references, and nested association/collection
   `resultMap` references are now checked, but inherited property validation
