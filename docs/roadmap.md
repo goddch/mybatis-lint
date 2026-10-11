@@ -76,8 +76,16 @@ extension descriptions never overstate current capabilities.
      lists, missing/dynamic namespaces, and nonblank `resultType` (already reported
      by `RESULT_MAP_AND_TYPE`). Malformed/unreadable XML is handled by normal XML
      analysis without duplicate reporting. This checks existence only; externally
-     registered resultMaps may produce warnings, and nested mapping references
-     are not checked.
+     registered resultMaps may produce warnings.
+   - unresolved `resultMap` references on `<association>` and `<collection>`
+     elements inside top-level resultMaps
+     (`UNRESOLVED_NESTED_RESULT_MAP`,
+     `mybatis-lint/unresolved-nested-result-map`, WARNING). Local,
+     fully-qualified, forward, and same-namespace cross-file references resolve.
+     Blank/dynamic values, comma-separated values, missing/dynamic namespaces,
+     and elements outside top-level resultMaps are skipped. Inline nested
+     declarations are not interpreted as references; externally registered
+     resultMaps may produce warnings.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -104,11 +112,11 @@ working in user-facing docs until they land:
   reporting of how many branches were (and were not) checked.
 - **Additional mapper-level rules**, e.g. other cross-reference checks not
   covered by the current SQL fragment include rule or the typeAlias
-  heuristic (for example validating `<association>`/`<collection>` nested
-  result mappings and resultMap inheritance cycles). ResultMap ID uniqueness,
+  heuristic (for example resultMap inheritance cycles). ResultMap ID uniqueness,
   parent existence for `resultMap extends`,
-  and statement `resultMap` references are now checked, but inherited property
-  validation remains fail-open.
+  statement `resultMap` references, and nested association/collection
+  `resultMap` references are now checked, but inherited property validation
+  remains fail-open.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out

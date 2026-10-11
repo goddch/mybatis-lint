@@ -35,6 +35,7 @@ public final class RuleIds {
     public static final String UNKNOWN_RESULT_PROPERTY = "mybatis-lint/unknown-result-property";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
+    public static final String UNRESOLVED_NESTED_RESULT_MAP = "mybatis-lint/unresolved-nested-result-map";
 
     private RuleIds() {
     }
