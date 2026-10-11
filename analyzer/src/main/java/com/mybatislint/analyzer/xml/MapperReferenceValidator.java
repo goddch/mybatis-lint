@@ -25,7 +25,7 @@ import java.util.Set;
  * Java メソッドの情報を必要としない、Mapper XML 内の参照関係を検証する。
  *
  * <p>{@code <include refid="...">}、{@code resultMap/resultType} の同時指定、
- * typeAlias 候補、明示的な resultMap プロパティ、extends 参照を扱う。XML とワークスペース内の
+ * typeAlias 候補、明示的な resultMap プロパティ、extends・statement の resultMap 参照を扱う。XML とワークスペース内の
  * {@link MapperSqlFragmentIndex}/{@link MapperResultMapIndex}/{@link JavaTypeIndex} で判断できるため、Java Mapper パラメータ
  * 検証とは分けておくと、責務が読み取りやすくなる。</p>
  */
@@ -89,6 +89,7 @@ public final class MapperReferenceValidator {
             validateTypeAliases(mapper, xml, displayFile, uri, diagnostics);
             validateResultProperties(mapper, xml, displayFile, uri, diagnostics);
             validateResultMapExtends(mapper, namespace, xml, displayFile, uri, diagnostics);
+            validateStatementResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
             return diagnostics;
         } catch (Exception e) {
             // XML の壊れ方や読み込み失敗は MapperXmlAnalyzer 側の SAX パースで診断する。
@@ -306,10 +307,7 @@ public final class MapperReferenceValidator {
             if (parent.isBlank() || parent.contains("${")) {
                 continue;
             }
-            String qualifiedId = parent.contains(".") ? parent : namespace + "." + parent;
-            String prefix = namespace + ".";
-            if ((qualifiedId.startsWith(prefix) && localIds.contains(qualifiedId.substring(prefix.length())))
-                    || resultMapIndex.contains(qualifiedId)) {
+            if (isResultMapResolved(parent, namespace, localIds)) {
                 continue;
             }
             diagnostics.add(new Diagnostic(displayFile, uri,
@@ -318,6 +316,54 @@ public final class MapperReferenceValidator {
                     "Unresolved resultMap extends '" + parent
                             + "'; no matching top-level resultMap was found in the workspace."));
         }
+    }
+
+    private void validateStatementResultMaps(Element mapper, String namespace, String xml,
+                                             Path displayFile, String uri, List<Diagnostic> diagnostics) {
+        if (namespace.isBlank() || namespace.contains("${")) {
+            return;
+        }
+        Set<String> localIds = MapperResultMapIndex.collectLocalIds(mapper);
+        List<Element> statements = new ArrayList<>();
+        collectStatements(mapper, statements);
+        int searchOffset = 0;
+        for (Element statement : statements) {
+            int elementStart = findStartOfElement(xml, statement, searchOffset);
+            searchOffset = elementStart + ("<" + statement.getTagName()).length();
+            if (statement.getParentNode() != mapper) {
+                continue;
+            }
+            String value = statement.getAttribute("resultMap");
+            if (value.isBlank() || value.contains("${")) {
+                continue;
+            }
+            // MyBatis qualifies the whole attribute before splitting the resultMap list.
+            String qualifiedValue = value.contains(".") ? value : namespace + "." + value;
+            for (String reference : qualifiedValue.split(",")) {
+                String id = reference.trim();
+                if (id.isEmpty()) {
+                    continue;
+                }
+                boolean resolved = id.contains(".")
+                        ? isResultMapResolved(id, namespace, localIds)
+                        : localIds.contains(id) || resultMapIndex.containsShortId(id);
+                if (resolved) {
+                    continue;
+                }
+                diagnostics.add(new Diagnostic(displayFile, uri,
+                        rangeForAttributeValue(xml, statement, "resultMap", value, elementStart),
+                        Severity.WARNING, RuleIds.UNRESOLVED_STATEMENT_RESULT_MAP,
+                        "Unresolved statement resultMap '" + id
+                                + "'; no matching top-level resultMap was found in the workspace."));
+            }
+        }
+    }
+
+    private boolean isResultMapResolved(String id, String namespace, Set<String> localIds) {
+        String qualifiedId = id.contains(".") ? id : namespace + "." + id;
+        String prefix = namespace + ".";
+        return (qualifiedId.startsWith(prefix) && localIds.contains(qualifiedId.substring(prefix.length())))
+                || resultMapIndex.contains(qualifiedId);
     }
 
     private boolean isResolved(String refid, String namespace, Set<String> localSqlIds) {

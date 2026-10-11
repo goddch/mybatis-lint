@@ -48,6 +48,10 @@ public final class MapperResultMapIndex {
         return qualifiedIds.contains(qualifiedId);
     }
 
+    public boolean containsShortId(String id) {
+        return qualifiedIds.stream().anyMatch(qualifiedId -> qualifiedId.endsWith("." + id));
+    }
+
     static Set<String> collectLocalIds(Element mapper) {
         Set<String> ids = new HashSet<>();
         String prefix = mapper.getAttribute("namespace") + ".";
