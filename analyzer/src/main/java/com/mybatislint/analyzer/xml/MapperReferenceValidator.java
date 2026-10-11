@@ -334,28 +334,18 @@ public final class MapperReferenceValidator {
                 continue;
             }
             String value = statement.getAttribute("resultMap");
-            if (value.isBlank() || value.contains("${")) {
+            if (value.isBlank() || value.contains("${") || value.contains(",")
+                    || !statement.getAttribute("resultType").isBlank()) {
                 continue;
             }
-            // MyBatis qualifies the whole attribute before splitting the resultMap list.
-            String qualifiedValue = value.contains(".") ? value : namespace + "." + value;
-            for (String reference : qualifiedValue.split(",")) {
-                String id = reference.trim();
-                if (id.isEmpty()) {
-                    continue;
-                }
-                boolean resolved = id.contains(".")
-                        ? isResultMapResolved(id, namespace, localIds)
-                        : localIds.contains(id) || resultMapIndex.containsShortId(id);
-                if (resolved) {
-                    continue;
-                }
-                diagnostics.add(new Diagnostic(displayFile, uri,
-                        rangeForAttributeValue(xml, statement, "resultMap", value, elementStart),
-                        Severity.WARNING, RuleIds.UNRESOLVED_STATEMENT_RESULT_MAP,
-                        "Unresolved statement resultMap '" + id
-                                + "'; no matching top-level resultMap was found in the workspace."));
+            if (isResultMapResolved(value, namespace, localIds)) {
+                continue;
             }
+            diagnostics.add(new Diagnostic(displayFile, uri,
+                    rangeForAttributeValue(xml, statement, "resultMap", value, elementStart),
+                    Severity.WARNING, RuleIds.UNRESOLVED_STATEMENT_RESULT_MAP,
+                    "Unresolved statement resultMap '" + value
+                            + "'; no matching top-level resultMap was found in the workspace."));
         }
     }
 
