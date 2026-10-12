@@ -55,7 +55,8 @@ extension descriptions never overstate current capabilities.
     `resultMap`, `Cursor`/
     `void`, nested generics, arrays, unknown aliases, and `${...}` dynamic
     values — scope intentionally kept very small)
-  - unknown direct `<id>` / `<result>` properties on a top-level
+  - unknown direct `<id>` / `<result>` / `<association>` / `<collection>`
+    properties on a top-level
     `<resultMap type="fully.qualified.Class">` or inline nested
     `<association javaType="fully.qualified.Class">` /
     `<collection ofType="fully.qualified.Class">` (warning;
@@ -70,7 +71,9 @@ extension descriptions never overstate current capabilities.
     explicit type, without inferring omitted types or treating collection
     `javaType` as its element type. Nested mappings with `resultMap`, `select`,
     or `extends`, and their descendants, are skipped. Association/collection
-    properties themselves and type compatibility are not checked.
+    properties themselves are checked against the immediate parent's explicit
+    type, even if their own type is omitted. Mappings with `resultMap`, `select`,
+    or `extends` remain skipped for this check too. Type compatibility is not checked.
   - unresolved `extends` parents on top-level resultMaps
     (`mybatis-lint/unresolved-result-map-extends`, warning). Local IDs resolve
     within the current namespace across workspace files; fully-qualified
@@ -124,7 +127,8 @@ working in user-facing docs until they land:
   one, rather than assuming either is a perfect match up front.
 - **Broader `resultType` / `resultMap` property validation.** Explicit, direct
   `resultMap` properties on plain FQCN-specified classes are now checked.
-  Explicitly FQCN-typed inline nested properties are also checked.
+  Explicitly FQCN-typed inline nested properties and association/collection
+  properties on their immediate parent types are also checked.
   Remaining work includes inferred/referenced nested mapping properties and collection/
   association type compatibility beyond alias candidates, as well as checking that SQL
   column aliases in a `<select>` correspond to real properties on the

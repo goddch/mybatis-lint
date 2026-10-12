@@ -276,11 +276,18 @@ public final class MapperReferenceValidator {
         NodeList mappings = mapper.getElementsByTagName("*");
         for (int i = 0; i < mappings.getLength(); i++) {
             Element mapping = (Element) mappings.item(i);
-            if (!"id".equals(mapping.getTagName()) && !"result".equals(mapping.getTagName())) {
+            boolean nestedMapping = "association".equals(mapping.getTagName())
+                    || "collection".equals(mapping.getTagName());
+            if (!"id".equals(mapping.getTagName()) && !"result".equals(mapping.getTagName())
+                    && !nestedMapping) {
                 continue;
             }
             int mappingStart = findStartOfElement(xml, mapping, searchOffset);
             searchOffset = mappingStart + ("<" + mapping.getTagName()).length();
+            if (nestedMapping && (mapping.hasAttribute("resultMap") || mapping.hasAttribute("select")
+                    || mapping.hasAttribute("extends"))) {
+                continue;
+            }
             String type = explicitResultPropertyType(mapping, mapper);
             if (!type.contains(".") || type.contains("${")) {
                 continue;

@@ -46,7 +46,8 @@ for exactly what is and isn't implemented.
     or a simple `List<T>`
     (warning; deliberately narrow scope, fail-open on `Cursor`/`void`/
     nested generics/arrays/unknown aliases/`${...}`)
-  - unknown direct `<id property="...">` / `<result property="...">` in a
+  - unknown direct `property="..."` on `<id>` / `<result>` /
+    `<association>` / `<collection>` in a
     top-level `<resultMap type="fully.qualified.Class">` or inline nested
     `<association javaType="fully.qualified.Class">` /
     `<collection ofType="fully.qualified.Class">`, when no field or
@@ -85,8 +86,12 @@ The same check applies to direct `<id>` / `<result>` children of inline
 top-level resultMaps. Each mapping uses only its immediate parent's explicit
 type: collection `javaType` describes the container and is not used as the
 element type. An explicit nested type can be checked even when its enclosing
-mapping's type cannot be resolved. Omitted types are not inferred, and the
-association/collection's own `property` and type compatibility are not checked.
+mapping's type cannot be resolved. The association/collection's own `property`
+is also checked against its immediate parent's explicit type, not against its
+own `javaType`/`ofType`. For example, an association with `property="addres"`
+warns if the enclosing Java class has neither that field nor a matching setter.
+This parent-property check does not require the association/collection to declare
+its own type. Omitted types are not inferred, and type compatibility is not checked.
 Mappings with `resultMap`, `select`, or `extends`, and their descendants, are
 skipped. ResultMaps containing discriminators remain entirely fail-open.
 
@@ -96,7 +101,8 @@ or duplicate Java types, interfaces, abstract/generic/nested classes, records,
 classes with inheritance or annotations (including annotated members and
 Lombok), `resultMap extends`, resultMaps containing discriminators,
 blank/dynamic/nested/indexed properties,
-constructor mappings, and nested mappings without explicit supported FQCN types. No MyBatis
+constructor mappings, and properties whose immediate parent has no explicit
+supported FQCN type. No MyBatis
 configuration or compiled classpath is loaded.
 
 ### resultMap inheritance references
