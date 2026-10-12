@@ -47,7 +47,9 @@ for exactly what is and isn't implemented.
     (warning; deliberately narrow scope, fail-open on `Cursor`/`void`/
     nested generics/arrays/unknown aliases/`${...}`)
   - unknown direct `<id property="...">` / `<result property="...">` in a
-    top-level `<resultMap type="fully.qualified.Class">`, when no field or
+    top-level `<resultMap type="fully.qualified.Class">` or inline nested
+    `<association javaType="fully.qualified.Class">` /
+    `<collection ofType="fully.qualified.Class">`, when no field or
     setter exists on the uniquely resolved workspace Java class
     (`mybatis-lint/unknown-result-property`, warning)
   - unresolved `extends="..."` parents on top-level `<resultMap>` declarations
@@ -77,13 +79,24 @@ For example, `<resultMap type="com.example.User">` with
 class `com.example.User` has neither a `naem` field nor a `setNaem(...)` method.
 Private fields are supported, and property names are case-sensitive.
 
+The same check applies to direct `<id>` / `<result>` children of inline
+`<association javaType="com.example.Address">` and
+`<collection ofType="com.example.Item">`, including deeper nesting inside
+top-level resultMaps. Each mapping uses only its immediate parent's explicit
+type: collection `javaType` describes the container and is not used as the
+element type. An explicit nested type can be checked even when its enclosing
+mapping's type cannot be resolved. Omitted types are not inferred, and the
+association/collection's own `property` and type compatibility are not checked.
+Mappings with `resultMap`, `select`, or `extends`, and their descendants, are
+skipped. ResultMaps containing discriminators remain entirely fail-open.
+
 This is a conservative first step toward result mapping validation, not SQL
 column validation. It skips aliases (including simple class names), unresolved
 or duplicate Java types, interfaces, abstract/generic/nested classes, records,
 classes with inheritance or annotations (including annotated members and
 Lombok), `resultMap extends`, resultMaps containing discriminators,
 blank/dynamic/nested/indexed properties,
-constructors, and nested `<association>` / `<collection>` mappings. No MyBatis
+constructor mappings, and nested mappings without explicit supported FQCN types. No MyBatis
 configuration or compiled classpath is loaded.
 
 ### resultMap inheritance references
@@ -156,7 +169,8 @@ Blank/dynamic values, FQCNs, built-in aliases, and lowercase custom aliases are
 skipped. Explicit types are checked even when a nested mapping also references
 `resultMap`. Elements outside top-level resultMaps and `association ofType` are
 not checked. This does not infer omitted types, validate collection/element
-compatibility, or validate nested properties. External alias registrations can
+compatibility, or validate properties through aliases. Explicit FQCN nested
+properties are checked separately as described above. External alias registrations can
 produce false positives; warnings do not change the CLI exit code. See
 [`docs/type-alias-validation.md`](docs/type-alias-validation.md).
 

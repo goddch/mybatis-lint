@@ -40,7 +40,7 @@ extension descriptions never overstate current capabilities.
     Nested mapping types are checked only inside top-level resultMaps, including
     deeper nesting. Blank/dynamic values, FQCNs, built-in aliases, and lowercase
     custom aliases are skipped. Omitted types are not inferred; collection/element
-    compatibility and nested properties are not checked.
+    compatibility and properties through aliases are not checked.
   - `parameterType="..."` on a statement that doesn't match the single
     argument type of a uniquely resolved Java mapper method (warning;
     single-argument methods only, fail-open on ambiguous/unresolved methods,
@@ -56,14 +56,21 @@ extension descriptions never overstate current capabilities.
     `void`, nested generics, arrays, unknown aliases, and `${...}` dynamic
     values — scope intentionally kept very small)
   - unknown direct `<id>` / `<result>` properties on a top-level
-    `<resultMap type="fully.qualified.Class">` (warning;
+    `<resultMap type="fully.qualified.Class">` or inline nested
+    `<association javaType="fully.qualified.Class">` /
+    `<collection ofType="fully.qualified.Class">` (warning;
     `mybatis-lint/unknown-result-property`). This first property-validation
     slice checks fields (including private fields) and one-argument setters
     on uniquely resolved, unannotated, non-generic concrete workspace classes
     with no superclass/interfaces. Aliases, duplicate/unresolved types,
-    records, nested classes/mappings, constructor mappings, `resultMap extends`,
+    records, nested classes, constructor mappings, `resultMap extends`,
     resultMaps containing discriminators,
     and blank/dynamic/nested/indexed properties remain fail-open.
+    Deeper inline association/collection nesting uses each immediate parent's
+    explicit type, without inferring omitted types or treating collection
+    `javaType` as its element type. Nested mappings with `resultMap`, `select`,
+    or `extends`, and their descendants, are skipped. Association/collection
+    properties themselves and type compatibility are not checked.
   - unresolved `extends` parents on top-level resultMaps
     (`mybatis-lint/unresolved-result-map-extends`, warning). Local IDs resolve
     within the current namespace across workspace files; fully-qualified
@@ -117,7 +124,8 @@ working in user-facing docs until they land:
   one, rather than assuming either is a perfect match up front.
 - **Broader `resultType` / `resultMap` property validation.** Explicit, direct
   `resultMap` properties on plain FQCN-specified classes are now checked.
-  Remaining work includes nested mapping property validation and collection/
+  Explicitly FQCN-typed inline nested properties are also checked.
+  Remaining work includes inferred/referenced nested mapping properties and collection/
   association type compatibility beyond alias candidates, as well as checking that SQL
   column aliases in a `<select>` correspond to real properties on the
   configured `resultType`, accounting for `mapUnderscoreToCamelCase`,

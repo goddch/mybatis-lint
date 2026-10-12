@@ -200,6 +200,183 @@ class MapperResultPropertyValidationTest {
         assertTrue(diagnostics.stream().anyMatch(d -> RuleIds.MALFORMED_XML.equals(d.getRuleId())));
     }
 
+    @Test
+    void validatesExplicitNestedTypesAndPreservesDocumentOrder(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Address.java"), """
+                package com.example;
+                public class Address { private String street; }
+                """, StandardCharsets.UTF_8);
+        String xml = """
+                <mapper namespace="com.example.UserMapper">
+                    <resultMap id="UserMap" type="com.example.User">
+                        <association property="address" javaType=" com.example.Address ">
+                            <result property="street"/>
+                            <id property='id'/>
+                            <collection property="users" javaType="java.util.ArrayList" ofType="com.example.User">
+                                <id property="id"/>
+                                <result property="displayName"/>
+                                <result property="URL"/>
+                                <result property="street"/>
+                                <association property="address" javaType="com.example.Address">
+                                    <result property="street"/>
+                                    <result property="name"/>
+                                </association>
+                            </collection>
+                        </association>
+                        <result property="street"/>
+                    </resultMap>
+                </mapper>
+                """;
+        Path xmlFile = writeMapper(tempDir, xml);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+
+        assertEquals(4, diagnostics.size());
+        assertTrue(diagnostics.stream().allMatch(d -> d.getSeverity() == Severity.WARNING));
+        int[] lines = {5, 10, 13, 17};
+        String[] types = {"Address", "User", "Address", "User"};
+        for (int i = 0; i < diagnostics.size(); i++) {
+            Diagnostic diagnostic = diagnostics.get(i);
+            assertEquals(lines[i], diagnostic.getRange().getStart().getLine());
+            String line = xml.lines().toList().get(lines[i] - 1);
+            assertEquals(line.indexOf("property=") + "property=".length() + 2,
+                    diagnostic.getRange().getStart().getCharacter());
+            assertTrue(diagnostic.getMessage().contains("com.example." + types[i]));
+        }
+    }
+
+    @Test
+    void skipsNestedTypesThatCannotBeResolvedConfidently(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
+                package com.example;
+                class Child extends User {}
+                @Data class Generated {}
+                record Summary(Long id) {}
+                class Generic<T> {}
+                interface Contract {}
+                abstract class AbstractUser {}
+                class Outer { class Inner {} }
+                class Duplicate {}
+                """, StandardCharsets.UTF_8);
+        Files.writeString(tempDir.resolve("Duplicate.java"),
+                "package com.example; class Duplicate {}", StandardCharsets.UTF_8);
+        StringBuilder mappings = new StringBuilder();
+        for (String type : List.of("", "User", "userAlias", "map", "java.util.Map",
+                "com.example.Unknown", "${dto}", "com.example.Child", "com.example.Generated",
+                "com.example.Summary", "com.example.Generic", "com.example.Contract",
+                "com.example.AbstractUser", "com.example.Outer.Inner", "com.example.Duplicate")) {
+            mappings.append("<association javaType=\"").append(type)
+                    .append("\"><result property=\"missing\"/></association>\n");
+            mappings.append("<collection ofType=\"").append(type)
+                    .append("\"><id property=\"missing\"/></collection>\n");
+        }
+        mappings.append("""
+                <collection javaType="com.example.User"><result property="missing"/></collection>
+                <association ofType="com.example.User"><result property="missing"/></association>
+                """);
+        Path xmlFile = writeMapper(tempDir, "<mapper namespace=\"example.Mapper\">"
+                + "<resultMap id=\"Map\" type=\"com.example.User\">" + mappings
+                + "</resultMap></mapper>");
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+        assertTrue(propertyDiagnostics(new MapperXmlAnalyzer().analyze(
+                xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString())).isEmpty());
+    }
+
+    @Test
+    void skipsReferencedSelectedInheritedDiscriminatedAndOutsideMappings(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <association javaType="com.example.User" resultMap="Map">
+                            <result property="missing"/>
+                            <collection ofType="com.example.User"><id property="missing"/></collection>
+                        </association>
+                        <collection ofType="com.example.User" select="find">
+                            <id property="missing"/>
+                            <association javaType="com.example.User"><result property="missing"/></association>
+                        </collection>
+                        <association javaType="com.example.User" extends="Base">
+                            <result property="missing"/>
+                        </association>
+                        <constructor><arg javaType="com.example.User">
+                            <association javaType="com.example.User"><result property="missing"/></association>
+                        </arg></constructor>
+                        <resultMap type="com.example.User">
+                            <association javaType="com.example.User"><result property="missing"/></association>
+                        </resultMap>
+                    </resultMap>
+                    <resultMap id="Inherited" type="com.example.User" extends="Map">
+                        <collection ofType="com.example.User"><id property="missing"/></collection>
+                    </resultMap>
+                    <resultMap id="Discriminated" type="com.example.User">
+                        <association javaType="com.example.User">
+                            <result property="missing"/>
+                            <discriminator column="kind" javaType="string">
+                                <case value="other" resultType="com.example.Other">
+                                    <collection ofType="com.example.User"><id property="missing"/></collection>
+                                </case>
+                            </discriminator>
+                        </association>
+                    </resultMap>
+                    <sql id="fragment"><association javaType="com.example.User">
+                        <result property="missing"/>
+                    </association></sql>
+                </mapper>
+                """);
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+    }
+
+    @Test
+    void skipsNonSimpleNestedPropertiesAndDoesNotRequireParentTypeInference(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="map">
+                        <collection>
+                            <id property="missing"/>
+                            <association javaType="com.example.User">
+                                <result/>
+                                <result property=" "/>
+                                <result property="${property}"/>
+                                <result property="address.street"/>
+                                <result property="addresses[0]"/>
+                                <constructor><arg name="missing"/></constructor>
+                                <result property="typo"/>
+                            </association>
+                        </collection>
+                    </resultMap>
+                </mapper>
+                """);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+        assertEquals(1, diagnostics.size());
+        assertEquals(12, diagnostics.get(0).getRange().getStart().getLine());
+    }
+
+    @Test
+    void cliPublishesNestedPropertyWarningsWithoutErrors(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="map">
+                        <association javaType="com.example.User"><result property="typo"/></association>
+                        <collection ofType="com.example.User"><id property="typo"/></collection>
+                    </resultMap>
+                </mapper>
+                """);
+
+        AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
+        assertEquals(2, propertyDiagnostics(result.getDiagnostics()).size());
+        assertFalse(result.hasErrors());
+    }
+
     private static List<Diagnostic> analyze(Path tempDir, Path xmlFile) {
         return new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(),
                 JavaMapperIndex.empty(), MapperSqlFragmentIndex.empty(), JavaTypeIndex.build(tempDir));
