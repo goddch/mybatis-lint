@@ -1,5 +1,6 @@
 package com.mybatislint.analyzer.xml;
 
+import com.mybatislint.analyzer.cli.AnalyzerCli;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
@@ -15,13 +16,13 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * {@code mybatis-lint/unresolved-type-alias} の正常系・異常系・フェイルオープン系を
  * まとめて確認するテスト。{@link JavaTypeIndex} をワークスペース内の Java ソースから
- * 実際にビルドし、mapper XML の {@code type}/{@code parameterType}/{@code resultType}
- * を検証する。
+ * 実際にビルドし、mapper XML の明示的な型指定を検証する。
  */
 class MapperTypeAliasValidationTest {
 
@@ -120,6 +121,93 @@ class MapperTypeAliasValidationTest {
 
         assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNRESOLVED_TYPE_ALIAS.equals(d.getRuleId())),
                 () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsNestedMappingTypeAliasesAtEachAttributeValue(@TempDir Path tempDir) throws IOException {
+        Path xmlFile = writeMapperXml(tempDir, "NestedMapper.xml", """
+                <mapper namespace="com.example.NestedMapper">
+                    <sql id="fragment"><association javaType="Ignored"/></sql>
+                    <!-- <association javaType="MissingChild"/> -->
+                    <resultMap id="Parent" type="map">
+                        <association property="child" javaType='MissingChild'>
+                            <collection property="items" javaType="MissingList" ofType=" MissingItem "/>
+                        </association>
+                        <collection property="other" ofType="MissingChild" resultMap="Parent"/>
+                    </resultMap>
+                </mapper>
+                """);
+
+        AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
+        List<Diagnostic> warnings = result.getDiagnostics().stream()
+                .filter(d -> RuleIds.UNRESOLVED_TYPE_ALIAS.equals(d.getRuleId())).toList();
+        assertEquals(4, warnings.size(), () -> result.getDiagnostics().toString());
+        List<String> lines = Files.readAllLines(xmlFile);
+        List<String> values = List.of("MissingChild", "MissingList", " MissingItem ", "MissingChild");
+        List<String> attributes = List.of("javaType", "javaType", "ofType", "ofType");
+        List<Integer> lineNumbers = List.of(5, 6, 6, 8);
+        for (int i = 0; i < warnings.size(); i++) {
+            Diagnostic warning = warnings.get(i);
+            String value = values.get(i);
+            int line = lineNumbers.get(i);
+            int character = lines.get(line - 1).indexOf(value) + 1;
+            assertEquals(line, warning.getRange().getStart().getLine());
+            assertEquals(character, warning.getRange().getStart().getCharacter());
+            assertEquals(line, warning.getRange().getEnd().getLine());
+            assertEquals(character, warning.getRange().getEnd().getCharacter());
+            assertEquals(Severity.WARNING, warning.getSeverity());
+            assertEquals(xmlFile.toUri().toString(), warning.getUri());
+            assertTrue(warning.getMessage().contains("'" + value + "'"));
+            assertTrue(warning.getMessage().contains("'" + attributes.get(i) + "'"));
+        }
+        assertFalse(result.hasErrors());
+    }
+
+    @Test
+    void resolvesNestedMappingAliasesUsingWorkspaceTypesAndExistingFailOpenPolicy(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaClass(tempDir, "Child");
+        writeJavaClass(tempDir, "ChildList");
+        writeMapperXml(tempDir, "ResolvedNestedMapper.xml", """
+                <mapper namespace="com.example.ResolvedNestedMapper">
+                    <resultMap id="Parent" type="map">
+                        <association property="child" javaType=" Child "/>
+                        <collection property="children" javaType="Childlist" ofType="CHILD"/>
+                        <association property="fqcn" javaType="external.Missing"/>
+                        <collection property="builtin" javaType="ARRAYLIST" ofType="STRING"/>
+                        <association property="custom" javaType="registeredAlias"/>
+                        <collection property="dynamic" javaType="${listType}" ofType="${itemType}"/>
+                        <collection property="empty" javaType=" " ofType=""/>
+                        <association property="inferred"/>
+                        <collection property="nested">
+                            <association property="child" javaType="Child"/>
+                        </collection>
+                    </resultMap>
+                </mapper>
+                """);
+
+        assertTrue(new AnalyzerCli().run(tempDir).getDiagnostics().isEmpty());
+    }
+
+    @Test
+    void skipsTypeAttributesOutsideSupportedNestedMappings(@TempDir Path tempDir) throws IOException {
+        writeMapperXml(tempDir, "OutOfScopeMapper.xml", """
+                <mapper namespace="com.example.OutOfScopeMapper">
+                    <association javaType="Outside"/>
+                    <collection javaType="OutsideList" ofType="OutsideItem"/>
+                    <sql id="fragment"><collection javaType="FragmentList" ofType="FragmentItem"/></sql>
+                    <select id="find" javaType="StatementType" ofType="StatementItem">
+                        <association javaType="StatementChild"/>
+                    </select>
+                    <resultMap id="Parent" type="map">
+                        <id property="id" javaType="IdType"/>
+                        <result property="value" javaType="ResultType"/>
+                        <association property="child" ofType="UnsupportedAttribute"/>
+                    </resultMap>
+                </mapper>
+                """);
+
+        assertTrue(new AnalyzerCli().run(tempDir).getDiagnostics().isEmpty());
     }
 
     private static Path writeMapperXml(Path tempDir, String fileName, String content) throws IOException {

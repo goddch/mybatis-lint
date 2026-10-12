@@ -169,9 +169,7 @@ public final class MapperReferenceValidator {
                                      Path displayFile,
                                      String uri,
                                      List<Diagnostic> diagnostics) {
-        // <resultMap type="..."> と、statement の parameterType/resultType の
-        // 3 箇所だけを対象にする。スコープを広げすぎると誤検知が増えるため、
-        // まずはこの 3 パターンから小さく始める(要件どおりの方針)。
+        // 明示的な型指定だけを対象にし、ネストした mapping の型推論は行わない。
         List<Element> resultMaps = new ArrayList<>();
         collectDescendantsByTagName(mapper, "resultMap", resultMaps);
         int resultMapSearchOffset = 0;
@@ -189,6 +187,25 @@ public final class MapperReferenceValidator {
             statementSearchOffset = elementStart + ("<" + statement.getTagName()).length();
             reportIfUnresolvedTypeAlias(statement, "parameterType", xml, elementStart, displayFile, uri, diagnostics);
             reportIfUnresolvedTypeAlias(statement, "resultType", xml, elementStart, displayFile, uri, diagnostics);
+        }
+
+        NodeList elements = mapper.getElementsByTagName("*");
+        int mappingSearchOffset = 0;
+        for (int i = 0; i < elements.getLength(); i++) {
+            Element element = (Element) elements.item(i);
+            String tagName = element.getTagName();
+            if (!"association".equals(tagName) && !"collection".equals(tagName)) {
+                continue;
+            }
+            int elementStart = findStartOfElement(xml, element, mappingSearchOffset);
+            mappingSearchOffset = elementStart + ("<" + tagName).length();
+            if (!isInsideTopLevelResultMap(element, mapper)) {
+                continue;
+            }
+            reportIfUnresolvedTypeAlias(element, "javaType", xml, elementStart, displayFile, uri, diagnostics);
+            if ("collection".equals(tagName)) {
+                reportIfUnresolvedTypeAlias(element, "ofType", xml, elementStart, displayFile, uri, diagnostics);
+            }
         }
     }
 
