@@ -66,6 +66,10 @@ for exactly what is and isn't implemented.
     `<collection>` elements inside top-level resultMaps
     (`mybatis-lint/unresolved-nested-result-map`, warning), including
     cross-file resolution
+  - unresolved `resultMap="..."` references on discriminator `<case>` elements
+    inside top-level resultMaps
+    (`mybatis-lint/unresolved-discriminator-result-map`, warning), including
+    cross-file resolution
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.
@@ -193,6 +197,27 @@ namespaces, are skipped. Inline nested `<resultMap>` declarations are not
 interpreted as references. Because configuration, annotations, and dependencies
 are not loaded, externally registered resultMaps may produce warnings; warnings
 do not change the CLI exit code.
+
+### Discriminator resultMap references
+
+`<discriminator><case value="admin" resultMap="AdminMap"/></discriminator>`
+inside a top-level `<resultMap>` produces
+`mybatis-lint/unresolved-discriminator-result-map` (warning) if `AdminMap`
+is not declared as a top-level resultMap in the current namespace anywhere
+in the scanned workspace. Discriminators within inline nested mappings are
+also checked. Local, fully-qualified `namespace.resultMapId`, forward, and
+same-namespace cross-file references use the existing resultMap resolution.
+Duplicate declarations still satisfy this existence check and are reported
+separately by the duplicate-ID rule.
+
+Only direct `<case>` children of `<discriminator>` inside top-level resultMaps
+are checked. Blank/dynamic (`${...}`) and comma-separated values, missing/dynamic
+namespaces, and inline cases without a `resultMap` reference are skipped.
+This checks reference existence only, not discriminator values, mapping
+compatibility, cycles through cases, or properties within discriminator mappings.
+Malformed/unreadable XML is handled by normal XML analysis. Configuration,
+annotations, and external dependencies are not loaded, so externally registered
+resultMaps may produce warnings. Warnings do not change the CLI exit code.
 
 ### Duplicate resultMap IDs
 
