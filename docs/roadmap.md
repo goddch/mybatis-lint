@@ -33,9 +33,14 @@ extension descriptions never overstate current capabilities.
     `namespace.sqlId` refs to SQL fragments in other mapper files
   - `resultMap` and `resultType` specified together on a statement (warning)
   - unresolved `typeAlias` candidates in `<resultMap type="...">`,
-    `parameterType="..."`, and `resultType="..."` (warning; a workspace-wide
+    `parameterType="..."`, `resultType="..."`, association/collection
+    `javaType="..."`, and collection `ofType="..."` (warning; a workspace-wide
     heuristic, not a guaranteed-correct resolution — see
     [`docs/type-alias-validation.md`](type-alias-validation.md))
+    Nested mapping types are checked only inside top-level resultMaps, including
+    deeper nesting. Blank/dynamic values, FQCNs, built-in aliases, and lowercase
+    custom aliases are skipped. Omitted types are not inferred; collection/element
+    compatibility and nested properties are not checked.
   - `parameterType="..."` on a statement that doesn't match the single
     argument type of a uniquely resolved Java mapper method (warning;
     single-argument methods only, fail-open on ambiguous/unresolved methods,
@@ -112,7 +117,8 @@ working in user-facing docs until they land:
   one, rather than assuming either is a perfect match up front.
 - **Broader `resultType` / `resultMap` property validation.** Explicit, direct
   `resultMap` properties on plain FQCN-specified classes are now checked.
-  Remaining work includes checking that SQL
+  Remaining work includes nested mapping property validation and collection/
+  association type compatibility beyond alias candidates, as well as checking that SQL
   column aliases in a `<select>` correspond to real properties on the
   configured `resultType`, accounting for `mapUnderscoreToCamelCase`,
   Lombok-generated accessors, records, and `resultMap`-based mappings.

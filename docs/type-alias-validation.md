@@ -11,7 +11,9 @@
    - 各 XML を解析する前に `JavaTypeIndex` を一度だけ作り、全ファイルの解析に渡します。
 3. [`MapperReferenceValidator`](../analyzer/src/main/java/com/mybatislint/analyzer/xml/MapperReferenceValidator.java)
    の `validateTypeAliases` / `reportIfUnresolvedTypeAlias`
-   - `<resultMap type>` / `parameterType` / `resultType` を見て、未解決候補を判定します。
+   - `<resultMap type>` / `parameterType` / `resultType` と、resultMap 内の
+     `<association javaType>` / `<collection javaType>` / `<collection ofType>`
+     を見て、未解決候補を判定します。
 4. [`JavaTypeIndexTest`](../analyzer/src/test/java/com/mybatislint/analyzer/javaindex/JavaTypeIndexTest.java) /
    [`MapperTypeAliasValidationTest`](../analyzer/src/test/java/com/mybatislint/analyzer/xml/MapperTypeAliasValidationTest.java)
    - 正常系、異常系、フェイルオープン系を具体例で確認できます。
@@ -78,10 +80,21 @@ MyBatis の `typeAlias` は、次のいずれか(または複数)によって実
   「レビューで人が確認する価値のある候補を、ノイズを抑えて提示する」ことを
   目的にしています。
 
-## 対象を 3 箇所だけに絞った理由
+## 対象と段階的な拡張
 
 `typeAlias` らしき値は他にも `<parameterMap>` や TypeHandler の指定など
-さまざまな場所に出てきますが、まずは実務で最も頻出する
-`<resultMap type>` / `parameterType` / `resultType` の 3 箇所だけに絞って
-実装しています。スコープを広げすぎると、検証ロジックの複雑さと誤検知の
-リスクが同時に増えるため、小さく始めて安全性を確認してから広げる方針です。
+さまざまな場所に出てきますが、最初は `<resultMap type>` / `parameterType` /
+`resultType` の 3 箇所から始めました。次の段階として、トップレベル resultMap 内の
+`<association javaType>` / `<collection javaType>` / `<collection ofType>` に
+同じ判定を適用しています。深いネストも対象で、`resultMap` 参照を併記していても
+明示された型は検証します。警告の位置は該当する属性値です。
+
+例えば `<collection property="items" ofType="MissingItem"/>` は、
+ワークスペース内に `MissingItem` と同じ simple name の型が無い場合に warning を
+出します。空値・動的値・FQCN・組み込み alias・小文字始まりの custom alias は
+従来どおりフェイルオープンです。警告だけでは CLI の終了コードは変わりません。
+
+トップレベル resultMap の外にある要素や `<association ofType>` は対象外です。
+型の省略時の推論、collection 型と要素型の互換性、ネストしたプロパティの検証、
+外部 classpath や設定ファイルの読み込みは行いません。明示的な外部 alias 登録による
+誤検知など、上記の heuristic の制限もそのまま適用されます。

@@ -29,7 +29,8 @@ for exactly what is and isn't implemented.
     (dynamic `${...}` refids are intentionally ignored to avoid false positives)
   - statements that specify both `resultMap` and `resultType` (warning)
   - unresolved `typeAlias` candidates for `<resultMap type="...">`,
-    `parameterType="..."`, and `resultType="..."` — a workspace-wide,
+    `parameterType="..."`, `resultType="..."`, nested association/collection
+    `javaType="..."`, and collection `ofType="..."` — a workspace-wide,
     fail-open heuristic based on matching Java class/interface simple names
     (warning; see [`docs/type-alias-validation.md`](docs/type-alias-validation.md))
   - mismatched `parameterType="..."` on `<select>/<insert>/<update>/<delete>`
@@ -141,6 +142,23 @@ A type alias such as
 Externally registered resultMaps may produce warnings because configuration,
 annotations, and dependencies are not loaded. Warnings do not change the CLI
 exit code.
+
+### Nested mapping type aliases
+
+Inside top-level resultMaps, explicit `javaType` values on `<association>` /
+`<collection>` and `ofType` values on `<collection>` use the existing
+`mybatis-lint/unresolved-type-alias` heuristic (warning). Deeper nested mappings
+are included. For example, `<collection property="items" ofType="MissingItem"/>`
+warns when no workspace class/interface simple name matches `MissingItem`
+case-insensitively.
+
+Blank/dynamic values, FQCNs, built-in aliases, and lowercase custom aliases are
+skipped. Explicit types are checked even when a nested mapping also references
+`resultMap`. Elements outside top-level resultMaps and `association ofType` are
+not checked. This does not infer omitted types, validate collection/element
+compatibility, or validate nested properties. External alias registrations can
+produce false positives; warnings do not change the CLI exit code. See
+[`docs/type-alias-validation.md`](docs/type-alias-validation.md).
 
 ### Nested resultMap references
 
