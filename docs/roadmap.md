@@ -34,13 +34,19 @@ extension descriptions never overstate current capabilities.
   - `resultMap` and `resultType` specified together on a statement (warning)
   - unresolved `typeAlias` candidates in `<resultMap type="...">`,
     `parameterType="..."`, `resultType="..."`, association/collection
-    `javaType="..."`, and collection `ofType="..."` (warning; a workspace-wide
+    `javaType="..."`, collection `ofType="..."`, discriminator `javaType="..."`,
+    and inline discriminator case `resultType="..."` (warning; a workspace-wide
     heuristic, not a guaranteed-correct resolution — see
     [`docs/type-alias-validation.md`](type-alias-validation.md))
     Nested mapping types are checked only inside top-level resultMaps, including
     deeper nesting. Blank/dynamic values, FQCNs, built-in aliases, and lowercase
     custom aliases are skipped. Omitted types are not inferred; collection/element
     compatibility and properties through aliases are not checked.
+    Discriminator types and direct case types are also checked within top-level
+    resultMaps, including deeper nesting. A case with a `resultMap` attribute
+    uses a referenced map, so its `resultType` is skipped; discriminator
+    `javaType` and case reference validation remain independent. Discriminator
+    values, type compatibility, and mapping properties are not checked.
   - `parameterType="..."` on a statement that doesn't match the single
     argument type of a uniquely resolved Java mapper method (warning;
     single-argument methods only, fail-open on ambiguous/unresolved methods,
@@ -159,7 +165,9 @@ working in user-facing docs until they land:
   parent existence for `resultMap extends`,
   statement `resultMap` references, and nested association/collection
   and discriminator case `resultMap` references are now checked, but inherited
-  and discriminator mapping property validation remains fail-open.
+  and discriminator mapping property validation remains fail-open. Explicit
+  discriminator/inline case type alias candidates are checked; discriminator
+  values and type compatibility remain unvalidated.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out

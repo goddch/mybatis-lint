@@ -12,7 +12,8 @@
 3. [`MapperReferenceValidator`](../analyzer/src/main/java/com/mybatislint/analyzer/xml/MapperReferenceValidator.java)
    の `validateTypeAliases` / `reportIfUnresolvedTypeAlias`
    - `<resultMap type>` / `parameterType` / `resultType` と、resultMap 内の
-     `<association javaType>` / `<collection javaType>` / `<collection ofType>`
+     `<association javaType>` / `<collection javaType>` / `<collection ofType>` /
+     `<discriminator javaType>` / inline `<case resultType>`
      を見て、未解決候補を判定します。
 4. [`JavaTypeIndexTest`](../analyzer/src/test/java/com/mybatislint/analyzer/javaindex/JavaTypeIndexTest.java) /
    [`MapperTypeAliasValidationTest`](../analyzer/src/test/java/com/mybatislint/analyzer/xml/MapperTypeAliasValidationTest.java)
@@ -95,6 +96,15 @@ MyBatis の `typeAlias` は、次のいずれか(または複数)によって実
 従来どおりフェイルオープンです。警告だけでは CLI の終了コードは変わりません。
 
 トップレベル resultMap の外にある要素や `<association ofType>` は対象外です。
+discriminator の `javaType` と、直下の inline case の `resultType` も、
+トップレベル resultMap 内(深いネストを含む)で同じ判定を適用します。
+例えば `<case value="admin" resultType="MissingAdmin"/>` は、対応する
+simple name の型が無ければ属性値の位置に warning を出します。
+`resultMap` 属性がある case は参照先を使うため、その `resultType` は対象外です
+(空・動的な `resultMap` 属性も含む)。discriminator 自身の `javaType` と
+case の `resultMap` 参照検証は独立して行います。case の値や型の互換性、
+discriminator mapping のプロパティは検証しません。
+
 型の省略時の推論、collection 型と要素型の互換性、ネストしたプロパティの検証、
 外部 classpath や設定ファイルの読み込みは行いません。明示的な外部 alias 登録による
 誤検知など、上記の heuristic の制限もそのまま適用されます。

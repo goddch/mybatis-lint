@@ -195,7 +195,8 @@ public final class MapperReferenceValidator {
         for (int i = 0; i < elements.getLength(); i++) {
             Element element = (Element) elements.item(i);
             String tagName = element.getTagName();
-            if (!"association".equals(tagName) && !"collection".equals(tagName)) {
+            if (!"association".equals(tagName) && !"collection".equals(tagName)
+                    && !"discriminator".equals(tagName) && !"case".equals(tagName)) {
                 continue;
             }
             int elementStart = findStartOfElement(xml, element, mappingSearchOffset);
@@ -203,9 +204,16 @@ public final class MapperReferenceValidator {
             if (!isInsideTopLevelResultMap(element, mapper)) {
                 continue;
             }
-            reportIfUnresolvedTypeAlias(element, "javaType", xml, elementStart, displayFile, uri, diagnostics);
-            if ("collection".equals(tagName)) {
-                reportIfUnresolvedTypeAlias(element, "ofType", xml, elementStart, displayFile, uri, diagnostics);
+            if ("case".equals(tagName)) {
+                if (element.getParentNode() instanceof Element parent
+                        && "discriminator".equals(parent.getTagName()) && !element.hasAttribute("resultMap")) {
+                    reportIfUnresolvedTypeAlias(element, "resultType", xml, elementStart, displayFile, uri, diagnostics);
+                }
+            } else {
+                reportIfUnresolvedTypeAlias(element, "javaType", xml, elementStart, displayFile, uri, diagnostics);
+                if ("collection".equals(tagName)) {
+                    reportIfUnresolvedTypeAlias(element, "ofType", xml, elementStart, displayFile, uri, diagnostics);
+                }
             }
         }
     }

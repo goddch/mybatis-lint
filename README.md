@@ -30,7 +30,8 @@ for exactly what is and isn't implemented.
   - statements that specify both `resultMap` and `resultType` (warning)
   - unresolved `typeAlias` candidates for `<resultMap type="...">`,
     `parameterType="..."`, `resultType="..."`, nested association/collection
-    `javaType="..."`, and collection `ofType="..."` — a workspace-wide,
+    `javaType="..."`, collection `ofType="..."`, discriminator `javaType="..."`,
+    and inline discriminator case `resultType="..."` — a workspace-wide,
     fail-open heuristic based on matching Java class/interface simple names
     (warning; see [`docs/type-alias-validation.md`](docs/type-alias-validation.md))
   - mismatched `parameterType="..."` on `<select>/<insert>/<update>/<delete>`
@@ -191,6 +192,24 @@ compatibility, or validate properties through aliases. Explicit FQCN nested
 properties are checked separately as described above. External alias registrations can
 produce false positives; warnings do not change the CLI exit code. See
 [`docs/type-alias-validation.md`](docs/type-alias-validation.md).
+
+### Discriminator type aliases
+
+Inside top-level resultMaps (including deeper inline nesting), explicit
+`<discriminator javaType="...">` and direct `<case resultType="...">` children
+use the same `mybatis-lint/unresolved-type-alias` heuristic (warning).
+For example, `<case value="admin" resultType="MissingAdmin"/>` warns if no
+workspace class/interface/record simple name matches `MissingAdmin`,
+case-insensitively.
+
+Cases with a `resultMap` attribute are skipped for `resultType` validation:
+MyBatis uses the referenced map instead of constructing an inline case map.
+Their reference validation remains independent, and the discriminator's own
+`javaType` is still checked. Blank/dynamic values, FQCNs, built-in aliases,
+lowercase custom aliases, and elements outside top-level resultMaps are skipped.
+Omitted types are not inferred; discriminator values, type compatibility, and
+mapping properties are not checked. External alias registrations can produce
+false positives; warnings do not change the CLI exit code.
 
 ### Nested resultMap references
 
