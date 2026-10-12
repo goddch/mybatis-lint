@@ -69,11 +69,13 @@ extension descriptions never overstate current capabilities.
     and blank/dynamic/nested/indexed properties remain fail-open.
     Deeper inline association/collection nesting uses each immediate parent's
     explicit type, without inferring omitted types or treating collection
-    `javaType` as its element type. Nested mappings with `resultMap`, `select`,
-    or `extends`, and their descendants, are skipped. Association/collection
+    `javaType` as its element type. Descendant properties within nested mappings
+    with `resultMap`, `select`, or `extends` are skipped. Association/collection
     properties themselves are checked against the immediate parent's explicit
-    type, even if their own type is omitted. Mappings with `resultMap`, `select`,
-    or `extends` remain skipped for this check too. Type compatibility is not checked.
+    type, even if their own type is omitted. Mappings with `resultMap` or `select`
+    are now checked for their own association/collection `property`, independently
+    of reference resolution; their descendants remain skipped. Mappings with
+    `extends` remain skipped for this check too. Type compatibility is not checked.
   - unresolved `extends` parents on top-level resultMaps
     (`mybatis-lint/unresolved-result-map-extends`, warning). Local IDs resolve
     within the current namespace across workspace files; fully-qualified
@@ -140,8 +142,9 @@ working in user-facing docs until they land:
 - **Broader `resultType` / `resultMap` property validation.** Explicit, direct
   `resultMap` properties on plain FQCN-specified classes are now checked.
   Explicitly FQCN-typed inline nested properties and association/collection
-  properties on their immediate parent types are also checked.
-  Remaining work includes inferred/referenced nested mapping properties and collection/
+  properties on their immediate parent types are also checked, including the
+  association/collection's own property when it uses `resultMap` or `select`.
+  Remaining work includes properties within inferred/referenced nested mappings and collection/
   association type compatibility beyond alias candidates, as well as checking that SQL
   column aliases in a `<select>` correspond to real properties on the
   configured `resultType`, accounting for `mapUnderscoreToCamelCase`,
