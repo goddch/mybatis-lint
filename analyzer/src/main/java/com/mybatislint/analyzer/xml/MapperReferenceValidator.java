@@ -281,14 +281,8 @@ public final class MapperReferenceValidator {
             }
             int mappingStart = findStartOfElement(xml, mapping, searchOffset);
             searchOffset = mappingStart + ("<" + mapping.getTagName()).length();
-            // ネストした mapping も位置検索は進めるが、今回の検証対象には含めない。
-            if (!(mapping.getParentNode() instanceof Element resultMap)
-                    || !"resultMap".equals(resultMap.getTagName()) || resultMap.getParentNode() != mapper) {
-                continue;
-            }
-            String type = resultMap.getAttribute("type").trim();
-            if (!type.contains(".") || type.contains("${") || resultMap.hasAttribute("extends")
-                    || resultMap.getElementsByTagName("discriminator").getLength() > 0) {
+            String type = explicitResultPropertyType(mapping, mapper);
+            if (!type.contains(".") || type.contains("${")) {
                 continue;
             }
             Set<String> properties = typeIndex.findResultProperties(type);
@@ -307,6 +301,41 @@ public final class MapperReferenceValidator {
                     "Unknown resultMap property '" + property + "' on Java type '" + type
                             + "'; no matching field or setter was found."));
         }
+    }
+
+    private static String explicitResultPropertyType(Element mapping, Element mapper) {
+        if (!(mapping.getParentNode() instanceof Element parent)) {
+            return "";
+        }
+        String typeAttribute = switch (parent.getTagName()) {
+            case "resultMap" -> "type";
+            case "association" -> "javaType";
+            case "collection" -> "ofType";
+            default -> "";
+        };
+        if (typeAttribute.isEmpty()) {
+            return "";
+        }
+        // 型は直接の親の明示属性だけから取得し、継承・参照・discriminator は展開しない。
+        Element context = parent;
+        while (context != mapper) {
+            if (context.hasAttribute("extends")
+                    || context.getElementsByTagName("discriminator").getLength() > 0) {
+                return "";
+            }
+            if ("resultMap".equals(context.getTagName())) {
+                return context.getParentNode() == mapper ? parent.getAttribute(typeAttribute).trim() : "";
+            }
+            if (!"association".equals(context.getTagName()) && !"collection".equals(context.getTagName())
+                    || context.hasAttribute("resultMap") || context.hasAttribute("select")) {
+                return "";
+            }
+            if (!(context.getParentNode() instanceof Element ancestor)) {
+                return "";
+            }
+            context = ancestor;
+        }
+        return "";
     }
 
     private void validateDuplicateResultMapIds(Element mapper, String namespace, String xml,
