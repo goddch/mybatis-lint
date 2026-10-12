@@ -840,6 +840,144 @@ class MapperResultPropertyValidationTest {
         assertFalse(result.hasErrors());
     }
 
+    @Test
+    void infersInlineAssociationTypesThroughFieldsAndSetters(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Owner.java"), """
+                package com.example;
+                import com.example.User;
+                class Owner {
+                    private Address address;
+                    public void setUser(User user) {}
+                }
+                class Address {
+                    private String street;
+                    private com.example.User user;
+                }
+                """, StandardCharsets.UTF_8);
+        String xml = """
+                <mapper namespace="com.example.UserMapper">
+                    <resultMap id="OwnerMap" type="com.example.Owner">
+                        <association property="address">
+                            <result property="street"/>
+                            <result property='stret'/>
+                            <association property="user">
+                                <result property="name"/>
+                                <id property="missingId"/>
+                                <collection property="missingCollection" ofType="com.example.User">
+                                    <result property="missingName"/>
+                                </collection>
+                            </association>
+                        </association>
+                        <association property="user"><result property="missingSetterProperty"/></association>
+                    </resultMap>
+                    <resultMap id="ListMap" type="map">
+                        <collection property="owners" ofType="com.example.Owner">
+                            <association property="address"><result property="missingInCollection"/></association>
+                        </collection>
+                    </resultMap>
+                    <resultMap id="Cases" type="map">
+                        <discriminator column="kind" javaType="string">
+                            <case value="owner" resultType="com.example.Owner">
+                                <association property="address"><result property="missingInCase"/></association>
+                            </case>
+                        </discriminator>
+                    </resultMap>
+                </mapper>
+                """;
+        Path xmlFile = writeMapper(tempDir, xml);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+
+        int[] lines = {5, 8, 9, 10, 14, 18, 24};
+        String[] types = {"Address", "User", "User", "User", "User", "Address", "Address"};
+        assertEquals(lines.length, diagnostics.size());
+        for (int i = 0; i < lines.length; i++) {
+            Diagnostic diagnostic = diagnostics.get(i);
+            String line = xml.lines().toList().get(lines[i] - 1);
+            int attribute = line.lastIndexOf("property=") + "property=".length() + 2;
+            assertEquals(lines[i], diagnostic.getRange().getStart().getLine());
+            assertEquals(attribute, diagnostic.getRange().getStart().getCharacter());
+            assertTrue(diagnostic.getMessage().contains("com.example." + types[i]));
+            assertEquals(Severity.WARNING, diagnostic.getSeverity());
+        }
+        AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
+        assertEquals(diagnostics.size(), propertyDiagnostics(result.getDiagnostics()).size());
+        assertFalse(result.hasErrors());
+    }
+
+    @Test
+    void inferredAssociationsRemainFailOpenForUnsupportedContexts(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Owner.java"), """
+                package com.example;
+                class Owner {
+                    private User user;
+                    private java.util.List<User> users;
+                    private User[] array;
+                    public void setAmbiguous(User value) {}
+                    public void setAmbiguous(Owner value) {}
+                }
+                """, StandardCharsets.UTF_8);
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="com.example.UserMapper">
+                    <resultMap id="OwnerMap" type="com.example.Owner">
+                        <association property="user" javaType=""><result property="typo"/></association>
+                        <association property="user" javaType="User"><result property="typo"/></association>
+                        <association property="user" javaType="${type}"><result property="typo"/></association>
+                        <association property="user" resultMap="UserMap"><result property="typo"/></association>
+                        <association property="user" select="findUser"><result property="typo"/></association>
+                        <association property="user" extends="Base"><result property="typo"/></association>
+                        <association property="users"><result property="typo"/></association>
+                        <association property="array"><result property="typo"/></association>
+                        <association property="ambiguous"><result property="typo"/></association>
+                        <collection property="user"><result property="typo"/></collection>
+                        <association property="user.name"><result property="typo"/></association>
+                        <association property="user[0]"><result property="typo"/></association>
+                        <association property="${property}"><result property="typo"/></association>
+                        <association property=" "><result property="typo"/></association>
+                        <association><result property="typo"/></association>
+                    </resultMap>
+                    <resultMap id="Alias" type="Owner">
+                        <association property="user"><result property="typo"/></association>
+                    </resultMap>
+                    <resultMap id="Inherited" type="com.example.Owner" extends="OwnerMap">
+                        <association property="user"><result property="typo"/></association>
+                    </resultMap>
+                    <resultMap id="Discriminated" type="com.example.Owner">
+                        <association property="user"><result property="typo"/></association>
+                        <discriminator column="kind" javaType="string"><case value="a" resultMap="OwnerMap"/></discriminator>
+                    </resultMap>
+                </mapper>
+                """);
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+    }
+
+    @Test
+    void explicitAssociationTypeOverridesInferredType(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Owner.java"), """
+                package com.example;
+                class Owner { private User user; }
+                class Address { private String street; }
+                """, StandardCharsets.UTF_8);
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="com.example.UserMapper">
+                    <resultMap id="OwnerMap" type="com.example.Owner">
+                        <association property="user" javaType="com.example.Address">
+                            <result property="street"/>
+                            <result property="name"/>
+                        </association>
+                    </resultMap>
+                </mapper>
+                """);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+        assertEquals(1, diagnostics.size());
+        assertTrue(diagnostics.get(0).getMessage().contains("com.example.Address"));
+    }
+
     private static List<Diagnostic> analyze(Path tempDir, Path xmlFile) {
         return new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(),
                 JavaMapperIndex.empty(), MapperSqlFragmentIndex.empty(), JavaTypeIndex.build(tempDir));

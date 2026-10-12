@@ -89,19 +89,34 @@ Private fields are supported, and property names are case-sensitive.
 The same check applies to direct `<id>` / `<result>` children of inline
 `<association javaType="com.example.Address">` and
 `<collection ofType="com.example.Item">`, including deeper nesting inside
-top-level resultMaps. Each mapping uses only its immediate parent's explicit
+top-level resultMaps. Each mapping uses its immediate parent's
 type: collection `javaType` describes the container and is not used as the
 element type. An explicit nested type can be checked even when its enclosing
 mapping's type cannot be resolved. The association/collection's own `property`
-is also checked against its immediate parent's explicit type, not against its
+is also checked against its immediate parent's type, not against its
 own `javaType`/`ofType`. For example, an association with `property="addres"`
 warns if the enclosing Java class has neither that field nor a matching setter.
 This parent-property check does not require the association/collection to declare
-its own type. Omitted types are not inferred, and type compatibility is not checked.
+its own type. Type compatibility is not checked.
+
+When an inline association **omits** `javaType`, its type can also be inferred
+from the immediate parent Java class's field or one-argument setter. For example,
+if `com.example.User` declares `private Address address;`, then
+`<association property="address"><result property="stret"/></association>`
+warns against the resolved `Address` class. Fully-qualified Java declarations,
+explicit imports, and same-package simple names are supported. Both owner and
+target must satisfy the plain workspace-class constraints below. Conflicting
+field/setter types, overloaded setters with different types, generic/array types,
+static members, nested member types, and ambiguous imports remain fail-open;
+simple names with wildcard/static imports are not resolved. Deeper association
+chains, associations inside explicitly typed collections, and explicit inline
+cases are supported. An existing `javaType` attribute (even blank, an alias, or
+dynamic) always takes precedence and never triggers inference.
+Collection element types and omitted case types are still not inferred.
 Association/collection properties are also checked when the element specifies
 `resultMap` or `select`: these attributes do not change the property's owner.
 For example, `<association property="addres" resultMap="AddressMap"/>` warns
-against the enclosing explicit Java type even if `AddressMap` resolves correctly.
+against the enclosing Java type even if `AddressMap` resolves correctly.
 This check is independent of reference resolution; a missing resultMap can also
 produce the existing unresolved-reference warning.
 Descendants of mappings with `resultMap` or `select` are still skipped; referenced
@@ -113,7 +128,7 @@ an inline discriminator `<case resultType="com.example.Admin">` are checked
 against that explicit case type, not the enclosing resultMap type or the
 discriminator's `javaType`. For example, `<result property="roel"/>` warns if
 `com.example.Admin` has no `roel` field or setter. Deeper inline mappings use
-their immediate parent's explicit `javaType`/`ofType`, including cases inside
+their immediate parent's explicit or inferred type, including cases inside
 nested mappings. Omitted case types are not inferred. Cases with a `resultMap`
 attribute (even blank), and descendants of referenced/selected/inherited mappings,
 are skipped. Properties outside inline cases in resultMaps containing
@@ -127,7 +142,7 @@ classes with inheritance or annotations (including annotated members and
 Lombok), `resultMap extends`, discriminated mappings outside explicit inline cases,
 blank/dynamic/nested/indexed properties,
 constructor mappings, and properties whose immediate parent has no explicit
-supported FQCN type. No MyBatis
+or safely inferred supported FQCN type. No MyBatis
 configuration or compiled classpath is loaded.
 
 ### resultMap inheritance references

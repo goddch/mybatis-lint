@@ -300,7 +300,7 @@ public final class MapperReferenceValidator {
             if (nestedMapping && mapping.hasAttribute("extends")) {
                 continue;
             }
-            String type = explicitResultPropertyType(mapping, mapper);
+            String type = resultPropertyType(mapping, mapper);
             if (!type.contains(".") || type.contains("${")) {
                 continue;
             }
@@ -322,7 +322,7 @@ public final class MapperReferenceValidator {
         }
     }
 
-    private static String explicitResultPropertyType(Element mapping, Element mapper) {
+    private String resultPropertyType(Element mapping, Element mapper) {
         if (!(mapping.getParentNode() instanceof Element parent)) {
             return "";
         }
@@ -336,7 +336,7 @@ public final class MapperReferenceValidator {
         if (typeAttribute.isEmpty()) {
             return "";
         }
-        // 型は直接の親の明示属性だけから取得し、継承・参照は展開しない。
+        // 継承・参照は展開せず、inline association の省略型だけを親プロパティから補う。
         Element context = parent;
         boolean insideInlineCase = false;
         while (context != mapper) {
@@ -349,7 +349,19 @@ public final class MapperReferenceValidator {
                 return "";
             }
             if ("resultMap".equals(context.getTagName())) {
-                return context.getParentNode() == mapper ? parent.getAttribute(typeAttribute).trim() : "";
+                if (context.getParentNode() != mapper) {
+                    return "";
+                }
+                if ("association".equals(parent.getTagName()) && !parent.hasAttribute(typeAttribute)) {
+                    String property = parent.getAttribute("property");
+                    if (property.isBlank() || property.contains("${") || property.contains(".")
+                            || property.contains("[") || property.contains("]")) {
+                        return "";
+                    }
+                    String inferred = typeIndex.findResultPropertyType(resultPropertyType(parent, mapper), property);
+                    return inferred == null ? "" : inferred;
+                }
+                return parent.getAttribute(typeAttribute).trim();
             }
             if (context.hasAttribute("resultMap") || context.hasAttribute("select")) {
                 return "";

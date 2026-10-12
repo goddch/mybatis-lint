@@ -92,6 +92,82 @@ class JavaTypeIndexTest {
     }
 
     @Test
+    void resolvesSimplePropertyTypesAndSkipsAmbiguousShapes(@TempDir Path tempDir) throws IOException {
+        writeJavaFile(tempDir, "com/example/Address.java",
+                "package com.example; public class Address { private String street; }");
+        writeJavaFile(tempDir, "com/other/Detail.java",
+                "package com.other; public class Detail {}");
+        writeJavaFile(tempDir, "com/example/User.java", """
+                package com.example;
+                import com.other.Detail;
+                public class User {
+                    private Address address;
+                    private com.example.Address qualified;
+                    private Detail imported;
+                    private Address[] array;
+                    private java.util.List<Address> list;
+                    private Address conflict;
+                    public void setConflict(Detail value) {}
+                    public void setSetterOnly(Address value) {}
+                    public void setOverloaded(Address value) {}
+                    public void setOverloaded(Detail value) {}
+                    public void setOverloaded(com.example.Address value) {}
+                    public <Address> void setGeneric(Address value) {}
+                    public void setVarargs(Address... values) {}
+                    private static Address shared;
+                    private Missing missing;
+                }
+                """);
+
+        JavaTypeIndex index = JavaTypeIndex.build(tempDir);
+
+        for (String property : Set.of("address", "qualified", "setterOnly")) {
+            assertEquals("com.example.Address", index.findResultPropertyType("com.example.User", property));
+        }
+        assertEquals("com.other.Detail", index.findResultPropertyType("com.example.User", "imported"));
+        for (String property : Set.of("array", "list", "conflict", "overloaded", "generic", "varargs",
+                "shared", "missing", "unknown")) {
+            assertNull(index.findResultPropertyType("com.example.User", property), property);
+        }
+        assertNull(index.findResultPropertyType("User", "address"));
+        assertNull(index.findResultPropertyType(null, "address"));
+    }
+
+    @Test
+    void skipsInferenceForWildcardImportsShadowingAndDuplicateTypes(@TempDir Path tempDir) throws IOException {
+        writeJavaFile(tempDir, "com/example/Address.java", "package com.example; class Address {}");
+        writeJavaFile(tempDir, "com/example/Wildcard.java", """
+                package com.example;
+                import com.other.*;
+                class Wildcard { Address address; com.example.Address qualified; }
+                """);
+        writeJavaFile(tempDir, "com/example/StaticImport.java", """
+                package com.example;
+                import static com.other.Outer.Address;
+                class StaticImport { Address address; }
+                """);
+        writeJavaFile(tempDir, "com/example/Shadow.java", """
+                package com.example;
+                class Shadow { class Address {} Address address; }
+                """);
+        writeJavaFile(tempDir, "first/User.java", """
+                package com.example; class User { Address address; }
+                """);
+        writeJavaFile(tempDir, "second/User.java", "package com.example; class User {}");
+        writeJavaFile(tempDir, "com/example/Duplicate.java", """
+                package com.example; class Duplicate { User user; }
+                """);
+
+        JavaTypeIndex index = JavaTypeIndex.build(tempDir);
+
+        for (String owner : Set.of("Wildcard", "StaticImport", "Shadow", "User")) {
+            assertNull(index.findResultPropertyType("com.example." + owner, "address"), owner);
+        }
+        assertNull(index.findResultPropertyType("com.example.Duplicate", "user"));
+        assertEquals("com.example.Address", index.findResultPropertyType("com.example.Wildcard", "qualified"));
+    }
+
+    @Test
     void skipsPropertiesOfUnsupportedTypes(@TempDir Path tempDir) throws IOException {
         writeJavaFile(tempDir, "com/example/Types.java", """
                 package com.example;
