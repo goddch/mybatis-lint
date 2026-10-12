@@ -6,7 +6,9 @@ import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.RecordDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.type.Type;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
 import java.io.IOException;
@@ -17,6 +19,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -51,6 +54,7 @@ public final class JavaTypeIndex {
     // 管理しているため、この索引の比較方法を合わせておくと自然な挙動になる。
     private final Set<String> simpleNamesLowerCase = new HashSet<>();
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
+    private final Map<String, Map<String, String>> resultPropertyTypesByQualifiedName = new HashMap<>();
 
     public static JavaTypeIndex empty() {
         return new JavaTypeIndex();
@@ -84,6 +88,16 @@ public final class JavaTypeIndex {
         return resultPropertiesByQualifiedName.get(qualifiedName);
     }
 
+    /** 通常クラスの単純なプロパティ型。一意に解決できない場合は null。 */
+    public String findResultPropertyType(String qualifiedName, String property) {
+        if (findResultProperties(qualifiedName) == null) {
+            return null;
+        }
+        Map<String, String> types = resultPropertyTypesByQualifiedName.get(qualifiedName);
+        String type = types == null ? null : types.get(property);
+        return findResultProperties(type) == null ? null : type;
+    }
+
     private void indexJavaFile(Path file) {
         try {
             String source = Files.readString(file, StandardCharsets.UTF_8);
@@ -104,6 +118,9 @@ public final class JavaTypeIndex {
                             resultPropertiesByQualifiedName.put(name, null);
                         } else {
                             resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
+                            if (findResultProperties(name) != null) {
+                                resultPropertyTypesByQualifiedName.put(name, collectResultPropertyTypes(type, unit));
+                            }
                         }
                     });
                 }
@@ -148,5 +165,72 @@ public final class JavaTypeIndex {
             }
         }
         return Set.copyOf(properties);
+    }
+
+    private static Map<String, String> collectResultPropertyTypes(ClassOrInterfaceDeclaration type,
+                                                                 CompilationUnit unit) {
+        Map<String, String> types = new HashMap<>();
+        // メンバー型の名前解決はクラスパスなしでは決め打ちしない。
+        if (type.getMembers().stream().anyMatch(member -> member instanceof TypeDeclaration<?>)) {
+            return types;
+        }
+        for (var field : type.getFields()) {
+            field.getVariables().forEach(variable -> addPropertyType(types, variable.getNameAsString(),
+                    field.isStatic() ? null : resolvePropertyType(variable.getType(), unit)));
+        }
+        for (var method : type.getMethods()) {
+            String name = method.getNameAsString();
+            if (name.startsWith("set") && name.length() > 3 && method.getParameters().size() == 1) {
+                String property = name.substring(3);
+                if (property.length() == 1 || !Character.isUpperCase(property.charAt(1))) {
+                    property = Character.toLowerCase(property.charAt(0)) + property.substring(1);
+                }
+                var parameter = method.getParameter(0);
+                addPropertyType(types, property,
+                        method.isStatic() || !method.getTypeParameters().isEmpty() || parameter.isVarArgs()
+                                ? null : resolvePropertyType(parameter.getType(), unit));
+            }
+        }
+        return types;
+    }
+
+    private static void addPropertyType(Map<String, String> types, String property, String type) {
+        // フィールドと setter、または overload 間で型が異なる場合は fail-open。
+        if (types.containsKey(property) && !Objects.equals(types.get(property), type)) {
+            types.put(property, null);
+        } else {
+            types.put(property, type);
+        }
+    }
+
+    private static String resolvePropertyType(Type type, CompilationUnit unit) {
+        if (!type.isClassOrInterfaceType()) {
+            return null;
+        }
+        String name = type.asString();
+        if (name.contains("<") || name.contains("@")) {
+            return null;
+        }
+        if (name.contains(".")) {
+            return name;
+        }
+        String imported = null;
+        for (var declaration : unit.getImports()) {
+            if (declaration.isAsterisk() || declaration.isStatic()) {
+                return null;
+            }
+            String candidate = declaration.getNameAsString();
+            if (candidate.endsWith("." + name)) {
+                if (imported != null && !imported.equals(candidate)) {
+                    return null;
+                }
+                imported = candidate;
+            }
+        }
+        if (imported != null) {
+            return imported;
+        }
+        return unit.getPackageDeclaration().map(declaration -> declaration.getNameAsString() + "." + name)
+                .orElse(null);
     }
 }

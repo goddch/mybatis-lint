@@ -78,10 +78,10 @@ extension descriptions never overstate current capabilities.
     discriminated mappings outside explicit inline cases,
     and blank/dynamic/nested/indexed properties remain fail-open.
     Deeper inline association/collection nesting uses each immediate parent's
-    explicit type, without inferring omitted types or treating collection
+    explicit type or a safely inferred inline association type, without treating collection
     `javaType` as its element type. Descendant properties within nested mappings
     with `resultMap`, `select`, or `extends` are skipped. Association/collection
-    properties themselves are checked against the immediate parent's explicit
+    properties themselves are checked against the immediate parent's
     type, even if their own type is omitted. Mappings with `resultMap` or `select`
     are now checked for their own association/collection `property`, independently
     of reference resolution; their descendants remain skipped. Mappings with
@@ -92,6 +92,15 @@ extension descriptions never overstate current capabilities.
     descendants of referenced/selected/inherited mappings are skipped. A property
     owner containing another discriminator remains fail-open. Type compatibility
     is not checked.
+    Inline associations without a `javaType` attribute can infer their type from
+    the immediate parent's field or one-argument setter, including deeper chains,
+    associations inside explicit collections, and explicit inline cases. Both
+    owner and target must be supported plain workspace classes. Java FQCNs,
+    explicit imports, and same-package names resolve; conflicting field/setter
+    types, differing setter overloads, generic/array types, static members,
+    nested member types, and simple names with wildcard/static imports fail open.
+    Existing `javaType` attributes, even blank/dynamic/aliases, prevent inference.
+    Collection element types and omitted case types are not inferred.
   - unresolved `extends` parents on top-level resultMaps
     (`mybatis-lint/unresolved-result-map-extends`, warning). Local IDs resolve
     within the current namespace across workspace files; fully-qualified
@@ -161,7 +170,9 @@ working in user-facing docs until they land:
   properties on their immediate parent types are also checked, including the
   association/collection's own property when it uses `resultMap` or `select`.
   Explicit FQCN-typed inline discriminator case properties are also checked.
-  Remaining work includes properties within inferred/referenced nested mappings and collection/
+  Omitted inline association types are now inferred conservatively from plain
+  parent fields/setters. Remaining work includes broader inference (such as
+  collection element types), referenced nested mapping properties, and collection/
   association type compatibility beyond alias candidates, as well as checking that SQL
   column aliases in a `<select>` correspond to real properties on the
   configured `resultType`, accounting for `mapUnderscoreToCamelCase`,
