@@ -46,7 +46,9 @@ extension descriptions never overstate current capabilities.
     resultMaps, including deeper nesting. A case with a `resultMap` attribute
     uses a referenced map, so its `resultType` is skipped; discriminator
     `javaType` and case reference validation remain independent. Discriminator
-    values, type compatibility, and mapping properties are not checked.
+    and case types in ignored subtrees beneath referenced/selected nested
+    mappings or referenced cases are skipped.
+    Discriminator values, type compatibility, and mapping properties are not checked.
   - `parameterType="..."` on a statement that doesn't match the single
     argument type of a uniquely resolved Java mapper method (warning;
     single-argument methods only, fail-open on ambiguous/unresolved methods,

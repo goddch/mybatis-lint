@@ -104,6 +104,9 @@ simple name の型が無ければ属性値の位置に warning を出します�
 (空・動的な `resultMap` 属性も含む)。discriminator 自身の `javaType` と
 case の `resultMap` 参照検証は独立して行います。case の値や型の互換性、
 discriminator mapping のプロパティは検証しません。
+`resultMap` / `select` 属性がある association/collection や `resultMap` 属性がある
+case の子孫は MyBatis が inline mapping として処理しないため、そこにある
+discriminator/case の型も対象外です。
 
 型の省略時の推論、collection 型と要素型の互換性、ネストしたプロパティの検証、
 外部 classpath や設定ファイルの読み込みは行いません。明示的な外部 alias 登録による

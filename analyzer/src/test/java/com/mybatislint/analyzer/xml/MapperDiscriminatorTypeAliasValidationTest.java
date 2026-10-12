@@ -144,6 +144,40 @@ class MapperDiscriminatorTypeAliasValidationTest {
     }
 
     @Test
+    void skipsTypesInsideReferencedOrSelectedMappingSubtrees() throws IOException {
+        write("Mapper.xml", """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Base" type="map">
+                        <discriminator javaType="string">
+                            <case value="reference" resultMap="Base" resultType="IgnoredCase">
+                                <association javaType="map">
+                                    <discriminator javaType="IgnoredKind"><case resultType="IgnoredNested"/></discriminator>
+                                </association>
+                            </case>
+                        </discriminator>
+                        <association resultMap="Base">
+                            <discriminator javaType="IgnoredKind"><case resultType="IgnoredNested"/></discriminator>
+                        </association>
+                        <collection select="find">
+                            <discriminator javaType="IgnoredKind"><case resultType="IgnoredNested"/></discriminator>
+                        </collection>
+                        <association select="">
+                            <discriminator javaType="IgnoredKind"><case resultType="IgnoredNested"/></discriminator>
+                        </association>
+                        <collection resultMap="">
+                            <discriminator javaType="IgnoredKind"><case resultType="IgnoredNested"/></discriminator>
+                        </collection>
+                        <discriminator javaType="MissingKind"><case resultType="MissingCase"/></discriminator>
+                    </resultMap>
+                </mapper>
+                """);
+        List<Diagnostic> diagnostics = aliases(new AnalyzerCli().run(workspace).getDiagnostics());
+        assertEquals(2, diagnostics.size());
+        assertTrue(diagnostics.get(0).getMessage().contains("MissingKind"));
+        assertTrue(diagnostics.get(1).getMessage().contains("MissingCase"));
+    }
+
+    @Test
     void malformedXmlKeepsOnlyExistingXmlError() throws IOException {
         write("Mapper.xml", """
                 <mapper namespace="example.Mapper">

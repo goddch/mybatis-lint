@@ -207,6 +207,9 @@ MyBatis uses the referenced map instead of constructing an inline case map.
 Their reference validation remains independent, and the discriminator's own
 `javaType` is still checked. Blank/dynamic values, FQCNs, built-in aliases,
 lowercase custom aliases, and elements outside top-level resultMaps are skipped.
+Discriminator/case types within descendants of association/collection mappings
+with `resultMap` or `select`, or cases with `resultMap`, are also skipped:
+MyBatis does not construct those inline maps.
 Omitted types are not inferred; discriminator values, type compatibility, and
 mapping properties are not checked. External alias registrations can produce
 false positives; warnings do not change the CLI exit code.
