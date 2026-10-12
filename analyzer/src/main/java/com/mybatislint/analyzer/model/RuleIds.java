@@ -37,6 +37,7 @@ public final class RuleIds {
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
     public static final String UNRESOLVED_NESTED_RESULT_MAP = "mybatis-lint/unresolved-nested-result-map";
+    public static final String UNRESOLVED_DISCRIMINATOR_RESULT_MAP = "mybatis-lint/unresolved-discriminator-result-map";
 
     private RuleIds() {
     }

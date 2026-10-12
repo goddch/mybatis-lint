@@ -27,7 +27,7 @@ import java.util.Set;
  *
  * <p>{@code <include refid="...">}、{@code resultMap/resultType} の同時指定、
  * typeAlias 候補、明示的な resultMap プロパティ、ID 重複、extends・statement・
- * nested mapping の resultMap 参照を扱う。XML とワークスペース内の
+ * nested mapping・discriminator case の resultMap 参照を扱う。XML とワークスペース内の
  * {@link MapperSqlFragmentIndex}/{@link MapperResultMapIndex}/{@link JavaTypeIndex}
  * で判断できるため、Java Mapper パラメータ検証とは分けておくと、責務が読み取りやすくなる。</p>
  */
@@ -94,6 +94,7 @@ public final class MapperReferenceValidator {
             validateResultMapExtends(mapper, namespace, xml, displayFile, uri, diagnostics);
             validateStatementResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
             validateNestedResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
+            validateDiscriminatorResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
             return diagnostics;
         } catch (Exception e) {
             // XML の壊れ方や読み込み失敗は MapperXmlAnalyzer 側の SAX パースで診断する。
@@ -473,6 +474,38 @@ public final class MapperReferenceValidator {
                     rangeForAttributeValue(xml, element, "resultMap", value, elementStart),
                     Severity.WARNING, RuleIds.UNRESOLVED_NESTED_RESULT_MAP,
                     "Unresolved nested resultMap '" + value
+                            + "'; no matching top-level resultMap was found in the workspace."));
+        }
+    }
+
+    private void validateDiscriminatorResultMaps(Element mapper, String namespace, String xml,
+                                                  Path displayFile, String uri, List<Diagnostic> diagnostics) {
+        if (namespace.isBlank() || namespace.contains("${")) {
+            return;
+        }
+        Set<String> localIds = MapperResultMapIndex.collectLocalIds(mapper);
+        NodeList cases = mapper.getElementsByTagName("case");
+        int searchOffset = 0;
+        for (int i = 0; i < cases.getLength(); i++) {
+            Element element = (Element) cases.item(i);
+            int elementStart = findStartOfElement(xml, element, searchOffset);
+            searchOffset = elementStart + "<case".length();
+            if (!(element.getParentNode() instanceof Element parent)
+                    || !"discriminator".equals(parent.getTagName())
+                    || !isInsideTopLevelResultMap(element, mapper)) {
+                continue;
+            }
+            String value = element.getAttribute("resultMap");
+            if (value.isBlank() || value.contains("${") || value.contains(",")) {
+                continue;
+            }
+            if (isResultMapResolved(value.trim(), namespace, localIds)) {
+                continue;
+            }
+            diagnostics.add(new Diagnostic(displayFile, uri,
+                    rangeForAttributeValue(xml, element, "resultMap", value, elementStart),
+                    Severity.WARNING, RuleIds.UNRESOLVED_DISCRIMINATOR_RESULT_MAP,
+                    "Unresolved discriminator case resultMap '" + value
                             + "'; no matching top-level resultMap was found in the workspace."));
         }
     }

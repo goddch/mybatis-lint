@@ -111,6 +111,18 @@ extension descriptions never overstate current capabilities.
      and elements outside top-level resultMaps are skipped. Inline nested
      declarations are not interpreted as references; externally registered
      resultMaps may produce warnings.
+   - unresolved `resultMap` references on direct `<case>` children of
+     `<discriminator>` inside top-level resultMaps, including inline nested
+     mappings (`mybatis-lint/unresolved-discriminator-result-map`, warning).
+     Local, fully-qualified, forward, and same-namespace cross-file references
+     use the existing resultMap index. Duplicate declarations satisfy this
+     existence check and retain separate duplicate-ID diagnostics.
+     Blank/dynamic or comma-separated values, missing/dynamic namespaces,
+     inline cases without references, and cases outside this context are skipped.
+     Malformed/unreadable XML is handled by normal XML analysis. Externally
+     registered resultMaps may produce warnings. Discriminator values, type
+     compatibility, cycles through cases, and discriminator mapping properties
+     remain out of scope.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -143,8 +155,8 @@ working in user-facing docs until they land:
   heuristic. ResultMap ID uniqueness, inheritance cycles,
   parent existence for `resultMap extends`,
   statement `resultMap` references, and nested association/collection
-  `resultMap` references are now checked, but inherited property validation
-  remains fail-open.
+  and discriminator case `resultMap` references are now checked, but inherited
+  and discriminator mapping property validation remains fail-open.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
 - **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out
