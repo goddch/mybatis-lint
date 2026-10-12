@@ -330,23 +330,37 @@ public final class MapperReferenceValidator {
             case "resultMap" -> "type";
             case "association" -> "javaType";
             case "collection" -> "ofType";
+            case "case" -> "resultType";
             default -> "";
         };
         if (typeAttribute.isEmpty()) {
             return "";
         }
-        // 型は直接の親の明示属性だけから取得し、継承・参照・discriminator は展開しない。
+        // 型は直接の親の明示属性だけから取得し、継承・参照は展開しない。
         Element context = parent;
+        boolean insideInlineCase = false;
         while (context != mapper) {
+            if ("case".equals(context.getTagName())) {
+                insideInlineCase = true;
+            }
             if (context.hasAttribute("extends")
-                    || context.getElementsByTagName("discriminator").getLength() > 0) {
+                    || ((context == parent || !insideInlineCase)
+                    && context.getElementsByTagName("discriminator").getLength() > 0)) {
                 return "";
             }
             if ("resultMap".equals(context.getTagName())) {
                 return context.getParentNode() == mapper ? parent.getAttribute(typeAttribute).trim() : "";
             }
-            if (!"association".equals(context.getTagName()) && !"collection".equals(context.getTagName())
-                    || context.hasAttribute("resultMap") || context.hasAttribute("select")) {
+            if (context.hasAttribute("resultMap") || context.hasAttribute("select")) {
+                return "";
+            }
+            if ("case".equals(context.getTagName())) {
+                if (!(context.getParentNode() instanceof Element discriminator)
+                        || !"discriminator".equals(discriminator.getTagName())) {
+                    return "";
+                }
+                context = discriminator;
+            } else if (!"association".equals(context.getTagName()) && !"collection".equals(context.getTagName())) {
                 return "";
             }
             if (!(context.getParentNode() instanceof Element ancestor)) {

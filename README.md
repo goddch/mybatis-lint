@@ -51,7 +51,8 @@ for exactly what is and isn't implemented.
     `<association>` / `<collection>` in a
     top-level `<resultMap type="fully.qualified.Class">` or inline nested
     `<association javaType="fully.qualified.Class">` /
-    `<collection ofType="fully.qualified.Class">`, when no field or
+    `<collection ofType="fully.qualified.Class">`, including inline discriminator
+    `<case resultType="fully.qualified.Class">` mappings, when no field or
     setter exists on the uniquely resolved workspace Java class
     (`mybatis-lint/unknown-result-property`, warning)
   - unresolved `extends="..."` parents on top-level `<resultMap>` declarations
@@ -105,14 +106,25 @@ This check is independent of reference resolution; a missing resultMap can also
 produce the existing unresolved-reference warning.
 Descendants of mappings with `resultMap` or `select` are still skipped; referenced
 maps and nested select return types are not expanded or inferred. Mappings with
-`extends` and their descendants are skipped. ResultMaps containing discriminators
-remain entirely fail-open.
+`extends` and their descendants are skipped.
+
+Direct `<id>` / `<result>` / `<association>` / `<collection>` properties inside
+an inline discriminator `<case resultType="com.example.Admin">` are checked
+against that explicit case type, not the enclosing resultMap type or the
+discriminator's `javaType`. For example, `<result property="roel"/>` warns if
+`com.example.Admin` has no `roel` field or setter. Deeper inline mappings use
+their immediate parent's explicit `javaType`/`ofType`, including cases inside
+nested mappings. Omitted case types are not inferred. Cases with a `resultMap`
+attribute (even blank), and descendants of referenced/selected/inherited mappings,
+are skipped. Properties outside inline cases in resultMaps containing
+discriminators remain fail-open; a property owner containing another discriminator
+is also skipped rather than expanding its possible case types.
 
 This is a conservative first step toward result mapping validation, not SQL
 column validation. It skips aliases (including simple class names), unresolved
 or duplicate Java types, interfaces, abstract/generic/nested classes, records,
 classes with inheritance or annotations (including annotated members and
-Lombok), `resultMap extends`, resultMaps containing discriminators,
+Lombok), `resultMap extends`, discriminated mappings outside explicit inline cases,
 blank/dynamic/nested/indexed properties,
 constructor mappings, and properties whose immediate parent has no explicit
 supported FQCN type. No MyBatis
@@ -210,8 +222,9 @@ lowercase custom aliases, and elements outside top-level resultMaps are skipped.
 Discriminator/case types within descendants of association/collection mappings
 with `resultMap` or `select`, or cases with `resultMap`, are also skipped:
 MyBatis does not construct those inline maps.
-Omitted types are not inferred; discriminator values, type compatibility, and
-mapping properties are not checked. External alias registrations can produce
+Omitted types are not inferred; discriminator values and type compatibility are
+not checked. Explicit FQCN inline case properties are checked separately as
+described above. External alias registrations can produce
 false positives; warnings do not change the CLI exit code.
 
 ### Nested resultMap references
@@ -244,7 +257,8 @@ Only direct `<case>` children of `<discriminator>` inside top-level resultMaps
 are checked. Blank/dynamic (`${...}`) and comma-separated values, missing/dynamic
 namespaces, and inline cases without a `resultMap` reference are skipped.
 This checks reference existence only, not discriminator values, mapping
-compatibility, cycles through cases, or properties within discriminator mappings.
+compatibility, cycles through cases, or inherited/referenced mapping properties.
+Explicit inline case properties use the separate property check described above.
 Malformed/unreadable XML is handled by normal XML analysis. Configuration,
 annotations, and external dependencies are not loaded, so externally registered
 resultMaps may produce warnings. Warnings do not change the CLI exit code.
