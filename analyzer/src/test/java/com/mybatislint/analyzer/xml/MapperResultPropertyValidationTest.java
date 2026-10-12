@@ -456,10 +456,10 @@ class MapperResultPropertyValidationTest {
                         <association property="${property}"/>
                         <collection property="address.street"/>
                         <association property="addresses[0]"/>
-                        <collection property="missing" resultMap="Map">
+                        <collection property="name" resultMap="Map">
                             <association property="missing" javaType="com.example.User"/>
                         </collection>
-                        <association property="missing" select="find"/>
+                        <association property="name" select="find"/>
                         <collection property="missing" extends="Map"/>
                         <association property="name">
                             <collection property="missing"/>
@@ -483,6 +483,124 @@ class MapperResultPropertyValidationTest {
         assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
         assertTrue(propertyDiagnostics(new MapperXmlAnalyzer().analyze(
                 xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString())).isEmpty());
+    }
+
+    @Test
+    void validatesReferencedAndSelectedMappingPropertiesWithoutExpandingChildren(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Address.java"), """
+                package com.example;
+                class Address { private String street; }
+                """, StandardCharsets.UTF_8);
+        String xml = """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <association property="name" resultMap="Other"/>
+                        <collection property="displayName" select="find"/>
+                        <association property="address" resultMap="Other" javaType="com.example.Address">
+                            <result property="missing"/>
+                            <collection property="missing" ofType="com.example.User">
+                                <id property="missing"/>
+                            </collection>
+                        </association>
+                        <collection property='users' select="find" ofType="com.example.User">
+                            <id property="missing"/>
+                            <association property="missing" javaType="com.example.Address"/>
+                        </collection>
+                        <association property="name" javaType="com.example.Address">
+                            <collection property="users" resultMap="Other"/>
+                            <association property="street" select="find"/>
+                            <association property="name" select="find"/>
+                        </association>
+                    </resultMap>
+                    <resultMap id="Other" type="map"/>
+                </mapper>
+                """;
+        Path xmlFile = writeMapper(tempDir, xml);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+
+        assertEquals(4, diagnostics.size());
+        int[] lines = {5, 11, 16, 18};
+        String[] types = {"com.example.User", "com.example.User", "com.example.Address", "com.example.Address"};
+        for (int i = 0; i < diagnostics.size(); i++) {
+            Diagnostic diagnostic = diagnostics.get(i);
+            assertEquals(Severity.WARNING, diagnostic.getSeverity());
+            assertEquals(lines[i], diagnostic.getRange().getStart().getLine());
+            String line = xml.lines().toList().get(lines[i] - 1);
+            int start = line.indexOf("property=") + "property=".length() + 2;
+            assertEquals(start, diagnostic.getRange().getStart().getCharacter());
+            assertTrue(diagnostic.getMessage().contains(types[i]));
+            assertEquals(xmlFile.getFileName(), diagnostic.getFile());
+            assertEquals(xmlFile.toUri().toString(), diagnostic.getUri());
+        }
+    }
+
+    @Test
+    void referencedAndSelectedMappingPropertiesRemainFailOpenForUncertainContexts(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
+                package com.example;
+                @Data class Generated {}
+                class Duplicate {}
+                """, StandardCharsets.UTF_8);
+        Files.writeString(tempDir.resolve("Duplicate.java"),
+                "package com.example; class Duplicate {}", StandardCharsets.UTF_8);
+        StringBuilder mappings = new StringBuilder();
+        for (String type : List.of("", "User", "map", "${dto}", "com.example.Unknown",
+                "com.example.Generated", "com.example.Duplicate")) {
+            mappings.append("<resultMap type=\"").append(type).append("\">")
+                    .append("<association property=\"missing\" resultMap=\"Other\"/>")
+                    .append("<collection property=\"missing\" select=\"find\"/>")
+                    .append("</resultMap>");
+        }
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <association property="${property}" resultMap="Other"/>
+                        <collection property="address.street" select="find"/>
+                        <association property="addresses[0]" resultMap="Other"/>
+                        <collection property=" " select="find"/>
+                        <association resultMap="Other"/>
+                    </resultMap>
+                    <resultMap id="Inherited" type="com.example.User" extends="Map">
+                        <association property="missing" resultMap="Other"/>
+                        <collection property="missing" select="find"/>
+                    </resultMap>
+                    <resultMap id="Discriminated" type="com.example.User">
+                        <association property="missing" resultMap="Other"/>
+                        <collection property="missing" select="find"/>
+                        <discriminator column="kind" javaType="string"/>
+                    </resultMap>
+                    <sql id="fragment"><association property="missing" resultMap="Other"/></sql>
+                """ + mappings + "</mapper>");
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+        assertTrue(propertyDiagnostics(new MapperXmlAnalyzer().analyze(
+                xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString())).isEmpty());
+    }
+
+    @Test
+    void cliPublishesReferencedAndSelectedPropertyWarningsAlongsideReferenceWarnings(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <association property="typo" resultMap="Missing"/>
+                        <collection property="typo" select="find"/>
+                    </resultMap>
+                </mapper>
+                """);
+
+        AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
+
+        assertEquals(2, propertyDiagnostics(result.getDiagnostics()).size());
+        assertEquals(1, result.getDiagnostics().stream()
+                .filter(d -> RuleIds.UNRESOLVED_NESTED_RESULT_MAP.equals(d.getRuleId())).count());
+        assertFalse(result.hasErrors());
     }
 
     @Test

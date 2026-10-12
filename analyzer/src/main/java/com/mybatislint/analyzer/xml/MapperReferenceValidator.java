@@ -285,8 +285,7 @@ public final class MapperReferenceValidator {
             }
             int mappingStart = findStartOfElement(xml, mapping, searchOffset);
             searchOffset = mappingStart + ("<" + mapping.getTagName()).length();
-            if (nestedMapping && (mapping.hasAttribute("resultMap") || mapping.hasAttribute("select")
-                    || mapping.hasAttribute("extends"))) {
+            if (nestedMapping && mapping.hasAttribute("extends")) {
                 continue;
             }
             String type = explicitResultPropertyType(mapping, mapper);

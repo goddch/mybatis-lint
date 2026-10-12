@@ -96,8 +96,16 @@ own `javaType`/`ofType`. For example, an association with `property="addres"`
 warns if the enclosing Java class has neither that field nor a matching setter.
 This parent-property check does not require the association/collection to declare
 its own type. Omitted types are not inferred, and type compatibility is not checked.
-Mappings with `resultMap`, `select`, or `extends`, and their descendants, are
-skipped. ResultMaps containing discriminators remain entirely fail-open.
+Association/collection properties are also checked when the element specifies
+`resultMap` or `select`: these attributes do not change the property's owner.
+For example, `<association property="addres" resultMap="AddressMap"/>` warns
+against the enclosing explicit Java type even if `AddressMap` resolves correctly.
+This check is independent of reference resolution; a missing resultMap can also
+produce the existing unresolved-reference warning.
+Descendants of mappings with `resultMap` or `select` are still skipped; referenced
+maps and nested select return types are not expanded or inferred. Mappings with
+`extends` and their descendants are skipped. ResultMaps containing discriminators
+remain entirely fail-open.
 
 This is a conservative first step toward result mapping validation, not SQL
 column validation. It skips aliases (including simple class names), unresolved
