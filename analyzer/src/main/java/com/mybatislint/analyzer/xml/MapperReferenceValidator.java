@@ -195,7 +195,8 @@ public final class MapperReferenceValidator {
         for (int i = 0; i < elements.getLength(); i++) {
             Element element = (Element) elements.item(i);
             String tagName = element.getTagName();
-            if (!"association".equals(tagName) && !"collection".equals(tagName)) {
+            if (!"association".equals(tagName) && !"collection".equals(tagName)
+                    && !"discriminator".equals(tagName) && !"case".equals(tagName)) {
                 continue;
             }
             int elementStart = findStartOfElement(xml, element, mappingSearchOffset);
@@ -203,9 +204,20 @@ public final class MapperReferenceValidator {
             if (!isInsideTopLevelResultMap(element, mapper)) {
                 continue;
             }
-            reportIfUnresolvedTypeAlias(element, "javaType", xml, elementStart, displayFile, uri, diagnostics);
-            if ("collection".equals(tagName)) {
-                reportIfUnresolvedTypeAlias(element, "ofType", xml, elementStart, displayFile, uri, diagnostics);
+            if (("discriminator".equals(tagName) || "case".equals(tagName))
+                    && isInsideReferencedMapping(element, mapper)) {
+                continue;
+            }
+            if ("case".equals(tagName)) {
+                if (element.getParentNode() instanceof Element parent
+                        && "discriminator".equals(parent.getTagName()) && !element.hasAttribute("resultMap")) {
+                    reportIfUnresolvedTypeAlias(element, "resultType", xml, elementStart, displayFile, uri, diagnostics);
+                }
+            } else {
+                reportIfUnresolvedTypeAlias(element, "javaType", xml, elementStart, displayFile, uri, diagnostics);
+                if ("collection".equals(tagName)) {
+                    reportIfUnresolvedTypeAlias(element, "ofType", xml, elementStart, displayFile, uri, diagnostics);
+                }
             }
         }
     }
@@ -514,6 +526,19 @@ public final class MapperReferenceValidator {
         while (ancestor instanceof Element parent && parent != mapper) {
             if (parent.getParentNode() == mapper) {
                 return "resultMap".equals(parent.getTagName());
+            }
+            ancestor = parent.getParentNode();
+        }
+        return false;
+    }
+
+    private static boolean isInsideReferencedMapping(Element element, Element mapper) {
+        Node ancestor = element.getParentNode();
+        while (ancestor instanceof Element parent && parent != mapper) {
+            String tagName = parent.getTagName();
+            if (("association".equals(tagName) || "collection".equals(tagName) || "case".equals(tagName))
+                    && (parent.hasAttribute("resultMap") || parent.hasAttribute("select"))) {
+                return true;
             }
             ancestor = parent.getParentNode();
         }
