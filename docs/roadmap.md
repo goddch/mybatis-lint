@@ -48,7 +48,8 @@ extension descriptions never overstate current capabilities.
     `javaType` and case reference validation remain independent. Discriminator
     and case types in ignored subtrees beneath referenced/selected nested
     mappings or referenced cases are skipped.
-    Discriminator values, type compatibility, and mapping properties are not checked.
+    Discriminator values and type compatibility are not checked; explicit inline
+    case properties use the separate property check below.
   - `parameterType="..."` on a statement that doesn't match the single
     argument type of a uniquely resolved Java mapper method (warning;
     single-argument methods only, fail-open on ambiguous/unresolved methods,
@@ -67,13 +68,14 @@ extension descriptions never overstate current capabilities.
     properties on a top-level
     `<resultMap type="fully.qualified.Class">` or inline nested
     `<association javaType="fully.qualified.Class">` /
-    `<collection ofType="fully.qualified.Class">` (warning;
+    `<collection ofType="fully.qualified.Class">`, including inline discriminator
+    `<case resultType="fully.qualified.Class">` mappings (warning;
     `mybatis-lint/unknown-result-property`). This first property-validation
     slice checks fields (including private fields) and one-argument setters
     on uniquely resolved, unannotated, non-generic concrete workspace classes
     with no superclass/interfaces. Aliases, duplicate/unresolved types,
     records, nested classes, constructor mappings, `resultMap extends`,
-    resultMaps containing discriminators,
+    discriminated mappings outside explicit inline cases,
     and blank/dynamic/nested/indexed properties remain fail-open.
     Deeper inline association/collection nesting uses each immediate parent's
     explicit type, without inferring omitted types or treating collection
@@ -83,7 +85,13 @@ extension descriptions never overstate current capabilities.
     type, even if their own type is omitted. Mappings with `resultMap` or `select`
     are now checked for their own association/collection `property`, independently
     of reference resolution; their descendants remain skipped. Mappings with
-    `extends` remain skipped for this check too. Type compatibility is not checked.
+    `extends` remain skipped for this check too. Inline case properties use their
+    immediate case's explicit `resultType`, not the enclosing map type or
+    discriminator `javaType`. Deeper inline mappings and nested cases are supported.
+    Omitted case types are not inferred; cases with any `resultMap` attribute and
+    descendants of referenced/selected/inherited mappings are skipped. A property
+    owner containing another discriminator remains fail-open. Type compatibility
+    is not checked.
   - unresolved `extends` parents on top-level resultMaps
     (`mybatis-lint/unresolved-result-map-extends`, warning). Local IDs resolve
     within the current namespace across workspace files; fully-qualified
@@ -131,8 +139,8 @@ extension descriptions never overstate current capabilities.
      inline cases without references, and cases outside this context are skipped.
      Malformed/unreadable XML is handled by normal XML analysis. Externally
      registered resultMaps may produce warnings. Discriminator values, type
-     compatibility, cycles through cases, and discriminator mapping properties
-     remain out of scope.
+     compatibility, cycles through cases, and inherited/referenced discriminator
+     mapping properties remain out of scope.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.
@@ -152,6 +160,7 @@ working in user-facing docs until they land:
   Explicitly FQCN-typed inline nested properties and association/collection
   properties on their immediate parent types are also checked, including the
   association/collection's own property when it uses `resultMap` or `select`.
+  Explicit FQCN-typed inline discriminator case properties are also checked.
   Remaining work includes properties within inferred/referenced nested mappings and collection/
   association type compatibility beyond alias candidates, as well as checking that SQL
   column aliases in a `<select>` correspond to real properties on the
@@ -167,7 +176,8 @@ working in user-facing docs until they land:
   parent existence for `resultMap extends`,
   statement `resultMap` references, and nested association/collection
   and discriminator case `resultMap` references are now checked, but inherited
-  and discriminator mapping property validation remains fail-open. Explicit
+  and inferred/referenced discriminator mapping property validation remains
+  fail-open. Explicit FQCN inline case properties are checked. Explicit
   discriminator/inline case type alias candidates are checked; discriminator
   values and type compatibility remain unvalidated.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the

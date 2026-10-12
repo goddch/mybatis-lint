@@ -290,7 +290,7 @@ class MapperResultPropertyValidationTest {
     }
 
     @Test
-    void skipsReferencedSelectedInheritedDiscriminatedAndOutsideMappings(@TempDir Path tempDir)
+    void skipsUncertainContextsButChecksExplicitNestedTypesWithinCases(@TempDir Path tempDir)
             throws IOException {
         writeJavaType(tempDir);
         Path xmlFile = writeMapper(tempDir, """
@@ -333,7 +333,10 @@ class MapperResultPropertyValidationTest {
                 </mapper>
                 """);
 
-        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+        assertEquals(1, diagnostics.size());
+        assertEquals(29, diagnostics.get(0).getRange().getStart().getLine());
+        assertTrue(diagnostics.get(0).getMessage().contains("com.example.User"));
     }
 
     @Test
@@ -619,6 +622,221 @@ class MapperResultPropertyValidationTest {
         AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
 
         assertEquals(2, propertyDiagnostics(result.getDiagnostics()).size());
+        assertFalse(result.hasErrors());
+    }
+
+    @Test
+    void validatesInlineCasePropertiesAgainstCaseTypeWithAttributePositions(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Admin.java"), """
+                package com.example;
+                class Admin { private String role; public void setLevel(int value) {} }
+                """, StandardCharsets.UTF_8);
+        String xml = """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <result property="outerUnknown"/>
+                        <discriminator column="kind" javaType="string">
+                            <case value="admin" resultType=" com.example.Admin ">
+                                <id property="role"/>
+                                <result property="level"/>
+                                <result property='name'/>
+                                <association property="role" resultMap="Other"/>
+                                <collection property="users" select="find"/>
+                            </case>
+                            <case value="user" resultType="com.example.User">
+                                <result property="name"/>
+                                <result property="displayName"/>
+                                <result property="URL"/>
+                                <id property="role"/>
+                            </case>
+                        </discriminator>
+                    </resultMap>
+                    <resultMap id="Other" type="map"/>
+                    <resultMap id="Plain" type="com.example.User"><result property="role"/></resultMap>
+                </mapper>
+                """;
+        Path xmlFile = writeMapper(tempDir, xml);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+
+        assertEquals(4, diagnostics.size());
+        int[] lines = {8, 10, 16, 21};
+        String[] types = {"com.example.Admin", "com.example.Admin", "com.example.User", "com.example.User"};
+        for (int i = 0; i < diagnostics.size(); i++) {
+            Diagnostic diagnostic = diagnostics.get(i);
+            assertEquals(Severity.WARNING, diagnostic.getSeverity());
+            assertEquals(lines[i], diagnostic.getRange().getStart().getLine());
+            String line = xml.lines().toList().get(lines[i] - 1);
+            int start = line.indexOf("property=") + "property=".length() + 2;
+            assertEquals(start, diagnostic.getRange().getStart().getCharacter());
+            assertEquals(start, diagnostic.getRange().getEnd().getCharacter());
+            assertTrue(diagnostic.getMessage().contains(types[i]));
+            assertEquals(xmlFile.getFileName(), diagnostic.getFile());
+            assertEquals(xmlFile.toUri().toString(), diagnostic.getUri());
+        }
+    }
+
+    @Test
+    void validatesDeepInlineCaseMappingsUsingOnlyImmediateExplicitTypes(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="map">
+                        <association>
+                            <discriminator column="kind" javaType="string">
+                                <case value="user" resultType="com.example.User">
+                                    <association property="name" javaType="com.example.User">
+                                        <collection property="name" ofType="com.example.User">
+                                            <result property="typo"/>
+                                        </collection>
+                                    </association>
+                                    <collection javaType="com.example.User"><id property="missing"/></collection>
+                                    <association><id property="missing"/></association>
+                                    <association javaType="map">
+                                        <discriminator column="kind" javaType="string">
+                                            <case value="nested" resultType="com.example.User">
+                                                <id property="typo"/>
+                                            </case>
+                                        </discriminator>
+                                    </association>
+                                </case>
+                            </discriminator>
+                        </association>
+                    </resultMap>
+                </mapper>
+                """);
+
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+        assertEquals(2, diagnostics.size());
+        assertEquals(8, diagnostics.get(0).getRange().getStart().getLine());
+        assertEquals(16, diagnostics.get(1).getRange().getStart().getLine());
+    }
+
+    @Test
+    void skipsUncertainCaseTypesAndNonSimpleProperties(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
+                package com.example;
+                class Child extends User {}
+                @Data class Generated {}
+                record Summary(Long id) {}
+                class Generic<T> {}
+                interface Contract {}
+                abstract class AbstractUser {}
+                class Outer { class Inner {} }
+                class Duplicate {}
+                """, StandardCharsets.UTF_8);
+        Files.writeString(tempDir.resolve("Duplicate.java"),
+                "package com.example; class Duplicate {}", StandardCharsets.UTF_8);
+        StringBuilder cases = new StringBuilder();
+        for (String type : List.of("", "User", "userAlias", "map", "java.util.Map",
+                "com.example.Unknown", "${dto}", "com.example.Child", "com.example.Generated",
+                "com.example.Summary", "com.example.Generic", "com.example.Contract",
+                "com.example.AbstractUser", "com.example.Outer.Inner", "com.example.Duplicate")) {
+            cases.append("<case value=\"other\" resultType=\"").append(type)
+                    .append("\"><result property=\"missing\"/></case>");
+        }
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <discriminator column="kind" javaType="string">
+                            <case value="omitted"><result property="missing"/></case>
+                            <case value="user" resultType="com.example.User">
+                                <result/>
+                                <result property=" "/>
+                                <result property="${property}"/>
+                                <result property="address.street"/>
+                                <result property="addresses[0]"/>
+                                <constructor><arg name="missing"/></constructor>
+                            </case>
+                """ + cases + "</discriminator></resultMap></mapper>");
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+        assertTrue(propertyDiagnostics(new MapperXmlAnalyzer().analyze(
+                xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString())).isEmpty());
+    }
+
+    @Test
+    void skipsReferencedInheritedDiscriminatedAndInvalidCaseContexts(@TempDir Path tempDir)
+            throws IOException {
+        writeJavaType(tempDir);
+        String discriminator = """
+                <discriminator column="kind" javaType="string">
+                    <case value="user" resultType="com.example.User">
+                        <result property="missing"/>
+                    </case>
+                </discriminator>
+                """;
+        Path xmlFile = writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="com.example.User">
+                        <discriminator column="kind" javaType="string">
+                            <case value="referenced" resultType="com.example.User" resultMap="Map">
+                                <result property="missing"/>
+                                <association javaType="com.example.User"><id property="missing"/></association>
+                """ + discriminator + """
+                            </case>
+                            <case value="blankReference" resultType="com.example.User" resultMap="">
+                                <result property="missing"/>
+                            </case>
+                            <case value="inline" resultType="com.example.User">
+                                <association property="name" javaType="com.example.User" resultMap="Map">
+                                    <id property="missing"/>
+                """ + discriminator + """
+                                </association>
+                                <collection property="name" ofType="com.example.User" select="find">
+                                    <result property="missing"/>
+                """ + discriminator + """
+                                </collection>
+                                <association property="missing" extends="Map" javaType="com.example.User">
+                                    <result property="missing"/>
+                                </association>
+                                <collection ofType="com.example.User" resultMap="Map">
+                                    <collection ofType="com.example.User"><id property="missing"/></collection>
+                                </collection>
+                            </case>
+                            <case value="discriminated" resultType="com.example.User">
+                                <result property="missing"/>
+                                <discriminator column="other" javaType="string"/>
+                            </case>
+                        </discriminator>
+                        <case resultType="com.example.User"><id property="missing"/></case>
+                        <constructor><arg>
+                """ + discriminator + """
+                        </arg></constructor>
+                        <resultMap type="map">
+                """ + discriminator + """
+                        </resultMap>
+                    </resultMap>
+                    <resultMap id="Inherited" type="com.example.User" extends="Map">
+                """ + discriminator + """
+                    </resultMap>
+                    <sql id="fragment">
+                """ + discriminator + """
+                    </sql>
+                """ + discriminator + "</mapper>");
+
+        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+    }
+
+    @Test
+    void cliPublishesInlineCaseWarningsWithoutErrors(@TempDir Path tempDir) throws IOException {
+        writeJavaType(tempDir);
+        writeMapper(tempDir, """
+                <mapper namespace="example.Mapper">
+                    <resultMap id="Map" type="map">
+                        <discriminator column="kind" javaType="string">
+                            <case value="user" resultType="com.example.User"><result property="typo"/></case>
+                        </discriminator>
+                    </resultMap>
+                </mapper>
+                """);
+
+        AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
+        assertEquals(1, propertyDiagnostics(result.getDiagnostics()).size());
         assertFalse(result.hasErrors());
     }
 
