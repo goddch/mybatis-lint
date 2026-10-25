@@ -3,10 +3,9 @@
 Static analysis engine and VS Code extension for MyBatis mapper XML and
 dynamic SQL.
 
-This is a **private, early-stage** project. This first pull request
-establishes a small, testable vertical slice — it deliberately does **not**
-attempt full MyBatis/Oracle support yet. See [`docs/roadmap.md`](docs/roadmap.md)
-for exactly what is and isn't implemented.
+This is an **early-stage preview**. It deliberately does **not** attempt full
+MyBatis/Oracle support yet, and false positives are possible. See
+[`docs/roadmap.md`](docs/roadmap.md) for exactly what is and isn't implemented.
 
 ## What works today (MVP)
 
@@ -384,7 +383,7 @@ runtime for the OS it runs on, a platform-specific VSIX is built per target.
 ```sh
 cd analyzer && ./gradlew jar && cd ../vscode-extension
 JAVA_HOME=/path/to/jdk-17 npm run bundle   # copies analyzer.jar, creates jre/, smoke-tests it
-npx vsce package --skip-license --target linux-x64   # Node 20+ required
+npx vsce package --target linux-x64   # Node 20+ required
 ```
 
 `.github/workflows/package.yml` builds VSIX files for `linux-x64`, `win32-x64`,
@@ -398,3 +397,9 @@ during development too; delete it to go back to auto-detection.
 See [`docs/roadmap.md`](docs/roadmap.md) for the full list of planned work,
 including Oracle SQL parsing, deeper resultType property validation, and
 dynamic SQL branch expansion.
+
+## License
+
+[Apache License 2.0](LICENSE). The packaged VS Code extension also bundles an
+OpenJDK runtime, which is distributed under its own license (GPLv2 with the
+Classpath Exception); its license files are included under `jre/legal/`.

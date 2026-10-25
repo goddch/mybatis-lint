@@ -40,7 +40,7 @@ npm run compile && npm run lint && npm test
 
 # 配布用パッケージ（Java ランタイム同梱。jar のビルド後に実行）
 JAVA_HOME=/path/to/jdk-17 npm run bundle
-npx vsce package --skip-license --target linux-x64
+npx vsce package --target linux-x64
 ```
 
 配布する拡張機能には jlink で作った最小構成の Java 17 を同梱しているので、利用者は
