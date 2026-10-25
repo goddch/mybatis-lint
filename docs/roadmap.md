@@ -199,9 +199,10 @@ working in user-facing docs until they land:
   values and type compatibility remain unvalidated.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
-- **Publishing** to the VS Code Marketplace as a preview release. Platform-specific
-  VSIX packages with a bundled Java runtime are already built by
-  `.github/workflows/package.yml`; automated publishing is not set up yet.
+- **First Marketplace release.** `v*` tags attach platform-specific VSIX files
+  to a GitHub Release; they are uploaded to the Marketplace manually. No version
+  has been published yet. Automated publishing would need an Azure DevOps
+  token, which now requires an Azure subscription.
 
 ## Design decisions carried forward
 

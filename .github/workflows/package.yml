@@ -2,7 +2,9 @@ name: Package extension
 
 # Java ランタイムを同梱したプラットフォーム別の VSIX を作る。
 # jlink は実行した OS 向けのランタイムしか作れないため、対象ごとにその OS のランナーで実行する。
-# Marketplace への公開はまだ行わない(成果物の VSIX を Actions からダウンロードできる)。
+# v* タグを push したときだけ、作った VSIX を GitHub Release に添付する(release ジョブ)。
+# Marketplace への公開は、Release から VSIX をダウンロードして管理画面から手動で行う。
+# (トークンによる自動公開には Azure サブスクリプションが必要なため、今は使わない)
 
 on:
   workflow_dispatch:
@@ -80,3 +82,29 @@ jobs:
         with:
           name: vsix-${{ matrix.target }}
           path: vscode-extension/*.vsix
+
+  release:
+    name: Create GitHub Release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the tag matches package.json version
+        run: |
+          expected="v$(node -p "require('./vscode-extension/package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version ($expected)." >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+          path: vsix
+      - name: Create release with VSIX files
+        run: gh release create "$GITHUB_REF_NAME" vsix/*.vsix --prerelease --generate-notes --title "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
