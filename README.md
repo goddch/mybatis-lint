@@ -375,6 +375,24 @@ npm test          # unit tests (node --test), no Extension Host required
 For a repeatable end-to-end smoke test, see
 [`docs/manual-testing.md`](docs/manual-testing.md).
 
+### Packaging the extension (bundled Java runtime)
+
+The packaged extension ships its own minimal Java 17 runtime (built with
+`jlink`), so users do not need Java installed. Because `jlink` only produces a
+runtime for the OS it runs on, a platform-specific VSIX is built per target.
+
+```sh
+cd analyzer && ./gradlew jar && cd ../vscode-extension
+JAVA_HOME=/path/to/jdk-17 npm run bundle   # copies analyzer.jar, creates jre/, smoke-tests it
+npx vsce package --skip-license --target linux-x64   # Node 20+ required
+```
+
+`.github/workflows/package.yml` builds VSIX files for `linux-x64`, `win32-x64`,
+`darwin-arm64`, and `darwin-x64` on manual dispatch or `v*` tags and uploads
+them as workflow artifacts. Publishing to the Marketplace is not automated yet.
+Once `vscode-extension/jre/` exists, the extension prefers it over `JAVA_HOME`
+during development too; delete it to go back to auto-detection.
+
 ## Roadmap
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full list of planned work,

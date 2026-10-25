@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 
 import { runAnalyzer } from './analyzerRunner';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
-import { resolveJavaPath } from './javaPathResolver';
+import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { resolveAnalyzerJarPath } from './jarPathResolver';
 
@@ -24,6 +24,25 @@ export function deactivate(): void {
   // context.subscriptions (disposed automatically by VS Code).
 }
 
+/**
+ * Restores the executable bit on the bundled `java` if the VSIX install lost
+ * it. Best effort: if this fails, launching reports a clear error anyway.
+ */
+function ensureExecutable(filePath: string): void {
+  if (process.platform === 'win32') {
+    return;
+  }
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+  } catch {
+    try {
+      fs.chmodSync(filePath, 0o755);
+    } catch {
+      // Ignored: runAnalyzer surfaces the launch failure to the user.
+    }
+  }
+}
+
 async function checkWorkspace(
   context: vscode.ExtensionContext,
   diagnosticCollection: vscode.DiagnosticCollection,
@@ -39,7 +58,11 @@ async function checkWorkspace(
     config.inspect<string>('javaPath')?.workspaceFolderValue ??
       config.inspect<string>('javaPath')?.workspaceValue ??
       config.inspect<string>('javaPath')?.globalValue,
+    context.extensionPath,
   );
+  if (javaPath === bundledJavaPath(context.extensionPath)) {
+    ensureExecutable(javaPath);
+  }
   const jarPath = resolveAnalyzerJarPath(config.get<string>('analyzerJarPath'), context.extensionPath);
 
   if (!fs.existsSync(jarPath)) {

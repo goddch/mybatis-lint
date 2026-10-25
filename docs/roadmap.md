@@ -199,8 +199,9 @@ working in user-facing docs until they land:
   values and type compatibility remain unvalidated.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
-- **Packaging/publishing** (VS Code Marketplace, Maven Central, etc.) is out
-  of scope while this repository is private.
+- **Publishing** to the VS Code Marketplace as a preview release. Platform-specific
+  VSIX packages with a bundled Java runtime are already built by
+  `.github/workflows/package.yml`; automated publishing is not set up yet.
 
 ## Design decisions carried forward
 
