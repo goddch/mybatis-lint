@@ -38,6 +38,7 @@ public final class RuleIds {
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
     public static final String UNRESOLVED_NESTED_RESULT_MAP = "mybatis-lint/unresolved-nested-result-map";
     public static final String UNRESOLVED_DISCRIMINATOR_RESULT_MAP = "mybatis-lint/unresolved-discriminator-result-map";
+    public static final String DUPLICATE_DISCRIMINATOR_CASE_VALUE = "mybatis-lint/duplicate-discriminator-case-value";
 
     private RuleIds() {
     }

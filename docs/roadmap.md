@@ -150,6 +150,12 @@ extension descriptions never overstate current capabilities.
      registered resultMaps may produce warnings. Discriminator values, type
      compatibility, cycles through cases, and inherited/referenced discriminator
      mapping properties remain out of scope.
+   - duplicate `<case value="...">` values within one `<discriminator>` inside
+     top-level resultMaps (`mybatis-lint/duplicate-discriminator-case-value`,
+     warning). Every later duplicate is reported at its `value` attribute
+     value; the first is not. Comparison is exact per discriminator, including
+     inline nested ones. Blank/dynamic values are skipped. Value/type
+     compatibility is not checked.
 - Deterministic JSON output on stdout, non-zero exit code on errors.
 - A VS Code command (`MyBatis Lint: Check Workspace`) that runs the analyzer
   over the current workspace and publishes results as VS Code diagnostics.

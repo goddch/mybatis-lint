@@ -72,6 +72,9 @@ for exactly what is and isn't implemented.
     inside top-level resultMaps
     (`mybatis-lint/unresolved-discriminator-result-map`, warning), including
     cross-file resolution
+  - duplicate `<case value="...">` values within one `<discriminator>` inside
+    top-level resultMaps (`mybatis-lint/duplicate-discriminator-case-value`,
+    warning); blank/dynamic values are skipped
 - Diagnostics are emitted as deterministic JSON on stdout (schema documented
   in [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)); the process
   exits non-zero when error-severity diagnostics are found.

@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -95,6 +96,7 @@ public final class MapperReferenceValidator {
             validateStatementResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
             validateNestedResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
             validateDiscriminatorResultMaps(mapper, namespace, xml, displayFile, uri, diagnostics);
+            validateDuplicateDiscriminatorCaseValues(mapper, xml, displayFile, uri, diagnostics);
             return diagnostics;
         } catch (Exception e) {
             // XML の壊れ方や読み込み失敗は MapperXmlAnalyzer 側の SAX パースで診断する。
@@ -544,6 +546,36 @@ public final class MapperReferenceValidator {
                     Severity.WARNING, RuleIds.UNRESOLVED_DISCRIMINATOR_RESULT_MAP,
                     "Unresolved discriminator case resultMap '" + value
                             + "'; no matching top-level resultMap was found in the workspace."));
+        }
+    }
+
+    private void validateDuplicateDiscriminatorCaseValues(Element mapper, String xml,
+                                                           Path displayFile, String uri,
+                                                           List<Diagnostic> diagnostics) {
+        NodeList cases = mapper.getElementsByTagName("case");
+        Map<Node, Set<String>> seenByDiscriminator = new IdentityHashMap<>();
+        int searchOffset = 0;
+        for (int i = 0; i < cases.getLength(); i++) {
+            Element element = (Element) cases.item(i);
+            int elementStart = findStartOfElement(xml, element, searchOffset);
+            searchOffset = elementStart + "<case".length();
+            if (!(element.getParentNode() instanceof Element parent)
+                    || !"discriminator".equals(parent.getTagName())
+                    || !isInsideTopLevelResultMap(element, mapper)) {
+                continue;
+            }
+            String value = element.getAttribute("value");
+            if (value.isBlank() || value.contains("${")) {
+                continue;
+            }
+            if (seenByDiscriminator.computeIfAbsent(parent, k -> new HashSet<>()).add(value)) {
+                continue;
+            }
+            diagnostics.add(new Diagnostic(displayFile, uri,
+                    rangeForAttributeValue(xml, element, "value", value, elementStart),
+                    Severity.WARNING, RuleIds.DUPLICATE_DISCRIMINATOR_CASE_VALUE,
+                    "Duplicate discriminator case value '" + value
+                            + "'; only the first matching case is used."));
         }
     }
 
