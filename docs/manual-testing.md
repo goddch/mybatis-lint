@@ -56,7 +56,7 @@ analyzer/build/libs/analyzer.jar
 - 次の情報メッセージが表示されます。
 
   ```text
-  MyBatis Lint: checked workspace, found 6 error(s) and 0 warning(s) across 4 file(s).
+  MyBatis Lint: checked 3 mapper file(s), found 6 error(s) and 0 warning(s).
   ```
 
 - Problems パネルに診断が **6 件** 表示されます。
@@ -90,7 +90,7 @@ analyzer/build/libs/analyzer.jar
 - 次の情報メッセージが表示されます。
 
   ```text
-  MyBatis Lint: checked workspace, found 0 error(s) and 0 warning(s) across 0 file(s).
+  MyBatis Lint: checked 1 mapper file(s), found 0 error(s) and 0 warning(s).
   ```
 
 - Problems パネルが空になります。

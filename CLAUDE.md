@@ -50,6 +50,13 @@ Java を用意しなくてよい。jlink は実行した OS 向けのランタ�
 CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後は、関係する側の
 テストを手元で通してから完了とすること。
 
+## 作業の進め方
+
+- main は Ruleset で保護されていて、直接 push できない。必ずブランチを作って PR を出す
+- マージは merge commit のみ（squash / rebase は無効）
+- `Analyzer (Java)` と `VS Code extension (TypeScript)` の CI が通らないとマージできない
+- リポジトリは public。会社のコードや実在の SQL、個人を特定できる情報をコミットしない
+
 ## 基本方針
 
 - **誤検知を出さないことを最優先する（fail-open）。** 静的に確実と言えないケース

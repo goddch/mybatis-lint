@@ -6,6 +6,7 @@ import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMap
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { resolveAnalyzerJarPath } from './jarPathResolver';
+import { buildSummaryMessage } from './summaryMessage';
 
 const COMMAND_ID = 'mybatisLint.checkWorkspace';
 
@@ -103,10 +104,12 @@ async function checkWorkspace(
       diagnosticCollection.set(vscode.Uri.parse(uri), vscodeDiagnostics);
     }
 
-    void vscode.window.showInformationMessage(
-      `MyBatis Lint: checked workspace, found ${result.summary.errorCount} error(s) and ` +
-        `${result.summary.warningCount} warning(s) across ${result.summary.fileCount} file(s).`,
-    );
+    const summaryMessage = buildSummaryMessage(result.summary);
+    if (summaryMessage.level === 'warning') {
+      void vscode.window.showWarningMessage(summaryMessage.text);
+    } else {
+      void vscode.window.showInformationMessage(summaryMessage.text);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(message);

@@ -35,13 +35,20 @@ public final class AnalyzerCli {
     /** Result of running the analyzer against a workspace root. */
     public static final class Result {
         private final List<Diagnostic> diagnostics;
+        private final int mapperFileCount;
 
-        public Result(List<Diagnostic> diagnostics) {
+        public Result(List<Diagnostic> diagnostics, int mapperFileCount) {
             this.diagnostics = diagnostics;
+            this.mapperFileCount = mapperFileCount;
         }
 
         public List<Diagnostic> getDiagnostics() {
             return diagnostics;
+        }
+
+        /** Number of well-formed XML files with a {@code <mapper>} root element that were analyzed. */
+        public int getMapperFileCount() {
+            return mapperFileCount;
         }
 
         public boolean hasErrors() {
@@ -62,12 +69,20 @@ public final class AnalyzerCli {
         // 一度だけ索引化し、全ファイルの解析で共有する。
         MapperSqlFragmentIndex sqlFragmentIndex = MapperSqlFragmentIndex.build(mapperFiles);
         MapperResultMapIndex resultMapIndex = MapperResultMapIndex.build(mapperFiles);
+        // scanner は pom.xml なども含むすべての XML を返すため、「mapper が 1 つも
+        // 見つからなかった」と「問題がなかった」を利用者が区別できるよう、
+        // ルートが <mapper> だったファイルの数を別に数えておく。
+        int mapperFileCount = 0;
         for (Path file : mapperFiles) {
             Path relative = relativize(workspaceRoot, file);
-            diagnostics.addAll(analyzer.analyze(file, relative, file.toUri().toString(), javaIndex, sqlFragmentIndex,
-                    typeIndex, resultMapIndex));
+            MapperXmlAnalyzer.FileResult fileResult = analyzer.analyzeFile(file, relative, file.toUri().toString(),
+                    javaIndex, sqlFragmentIndex, typeIndex, resultMapIndex);
+            diagnostics.addAll(fileResult.getDiagnostics());
+            if (fileResult.isMapperFile()) {
+                mapperFileCount++;
+            }
         }
-        return new Result(diagnostics);
+        return new Result(diagnostics, mapperFileCount);
     }
 
     private static Path relativize(Path workspaceRoot, Path file) {

@@ -17,7 +17,10 @@ public final class JsonWriter {
     private JsonWriter() {
     }
 
-    public static String write(List<Diagnostic> diagnostics) {
+    /**
+     * @param mapperFileCount number of analyzed files whose root element was {@code <mapper>}
+     */
+    public static String write(List<Diagnostic> diagnostics, int mapperFileCount) {
         long errorCount = diagnostics.stream().filter(d -> d.getSeverity() == Severity.ERROR).count();
         long warningCount = diagnostics.stream().filter(d -> d.getSeverity() == Severity.WARNING).count();
 
@@ -25,6 +28,7 @@ public final class JsonWriter {
         sb.append("{\n");
         sb.append("  \"schemaVersion\": 1,\n");
         sb.append("  \"summary\": {\n");
+        sb.append("    \"mapperFileCount\": ").append(mapperFileCount).append(",\n");
         sb.append("    \"fileCount\": ").append(countDistinctFiles(diagnostics)).append(",\n");
         sb.append("    \"errorCount\": ").append(errorCount).append(",\n");
         sb.append("    \"warningCount\": ").append(warningCount).append("\n");

@@ -80,6 +80,41 @@ public final class MapperXmlAnalyzer {
                                     MapperSqlFragmentIndex sqlFragmentIndex,
                                     JavaTypeIndex typeIndex,
                                     MapperResultMapIndex resultMapIndex) {
+        return analyzeFile(actualFile, displayFile, uri, javaIndex, sqlFragmentIndex, typeIndex, resultMapIndex)
+                .getDiagnostics();
+    }
+
+    /** Result of analyzing one XML file. */
+    public static final class FileResult {
+        private final List<Diagnostic> diagnostics;
+        private final boolean mapperFile;
+
+        FileResult(List<Diagnostic> diagnostics, boolean mapperFile) {
+            this.diagnostics = diagnostics;
+            this.mapperFile = mapperFile;
+        }
+
+        public List<Diagnostic> getDiagnostics() {
+            return diagnostics;
+        }
+
+        /** Whether the file was well-formed XML with a {@code <mapper>} root element. */
+        public boolean isMapperFile() {
+            return mapperFile;
+        }
+    }
+
+    /**
+     * Same as {@link #analyze(Path, Path, String, JavaMapperIndex, MapperSqlFragmentIndex, JavaTypeIndex,
+     * MapperResultMapIndex)}, but also reports whether the file was a mapper file.
+     */
+    public FileResult analyzeFile(Path actualFile,
+                                  Path displayFile,
+                                  String uri,
+                                  JavaMapperIndex javaIndex,
+                                  MapperSqlFragmentIndex sqlFragmentIndex,
+                                  JavaTypeIndex typeIndex,
+                                  MapperResultMapIndex resultMapIndex) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         SAXParser parser = SafeXmlParserFactory.newSaxParser();
         Handler handler = new Handler(displayFile, uri, diagnostics);
@@ -89,15 +124,15 @@ public final class MapperXmlAnalyzer {
             parser.parse(source, handler);
         } catch (SAXParseException e) {
             diagnostics.add(malformedXmlDiagnostic(displayFile, uri, e));
-            return diagnostics;
+            return new FileResult(diagnostics, false);
         } catch (SAXException e) {
             diagnostics.add(new Diagnostic(displayFile, uri, Range.at(1, 1), Severity.ERROR,
                     RuleIds.MALFORMED_XML, "Malformed XML: " + e.getMessage()));
-            return diagnostics;
+            return new FileResult(diagnostics, false);
         } catch (IOException e) {
             diagnostics.add(new Diagnostic(displayFile, uri, Range.at(1, 1), Severity.ERROR,
                     RuleIds.MALFORMED_XML, "Unable to read file: " + e.getMessage()));
-            return diagnostics;
+            return new FileResult(diagnostics, false);
         }
         // SAX の基本構造チェックが通ったファイルだけ、DOM ベースの追加検証へ進める。
         // include 参照や Java Mapper パラメータ検証は属性値やテキストの位置を探すために
@@ -107,7 +142,7 @@ public final class MapperXmlAnalyzer {
         diagnostics.addAll(new MapperParameterValidator(javaIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterTypeValidator(javaIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperResultTypeValidator(javaIndex).validate(actualFile, displayFile, uri));
-        return diagnostics;
+        return new FileResult(diagnostics, handler.sawMapperRoot);
     }
 
     private static Diagnostic malformedXmlDiagnostic(Path file, String uri, SAXParseException e) {

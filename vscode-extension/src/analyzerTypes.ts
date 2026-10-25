@@ -27,6 +27,9 @@ export interface AnalyzerDiagnostic {
 }
 
 export interface AnalyzerSummary {
+  /** Files with a `<mapper>` root element that were analyzed. Absent in older analyzer jars. */
+  mapperFileCount?: number;
+  /** Distinct files that produced at least one diagnostic. */
   fileCount: number;
   errorCount: number;
   warningCount: number;
