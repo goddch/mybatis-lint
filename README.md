@@ -388,7 +388,9 @@ npx vsce package --target linux-x64   # Node 20+ required
 
 `.github/workflows/package.yml` builds VSIX files for `linux-x64`, `win32-x64`,
 `darwin-arm64`, and `darwin-x64` on manual dispatch or `v*` tags and uploads
-them as workflow artifacts. Publishing to the Marketplace is not automated yet.
+them as workflow artifacts. Pushing a `v*` tag additionally publishes them to
+the Marketplace (publisher `goddch`) after a manual approval of the
+`marketplace` environment; the tag must match the `package.json` version.
 Once `vscode-extension/jre/` exists, the extension prefers it over `JAVA_HOME`
 during development too; delete it to go back to auto-detection.
 

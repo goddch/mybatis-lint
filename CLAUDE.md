@@ -57,6 +57,15 @@ CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後�
 - `Analyzer (Java)` と `VS Code extension (TypeScript)` の CI が通らないとマージできない
 - リポジトリは public。会社のコードや実在の SQL、個人を特定できる情報をコミットしない
 
+## リリース手順
+
+1. PR で `vscode-extension/package.json` の `version` を上げてマージする
+2. main の最新コミットに `vX.Y.Z` タグを付けて push する（`package.json` の version と一致しないと失敗する）
+3. `package.yml` が全プラットフォームの VSIX を作り、`marketplace` 環境の承認待ちになる
+4. 承認すると Marketplace（publisher `goddch`）に公開される
+
+タグの push と承認は、ユーザーの明示的な指示があるときだけ行う。
+
 ## 基本方針
 
 - **誤検知を出さないことを最優先する（fail-open）。** 静的に確実と言えないケース
