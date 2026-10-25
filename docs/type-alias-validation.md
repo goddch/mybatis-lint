@@ -1,7 +1,6 @@
-# 未解決 `typeAlias` 検証(学習メモ)
+# 未解決 `typeAlias` 検証
 
-このドキュメントは `mybatis-lint/unresolved-type-alias` を追加した変更を
-読むためのガイドです。
+`mybatis-lint/unresolved-type-alias` の仕様と設計判断をまとめたものです。
 
 ## 実装を読む順番
 
@@ -81,19 +80,18 @@ MyBatis の `typeAlias` は、次のいずれか(または複数)によって実
   「レビューで人が確認する価値のある候補を、ノイズを抑えて提示する」ことを
   目的にしています。
 
-## 対象と段階的な拡張
+## 対象範囲
 
 `typeAlias` らしき値は他にも `<parameterMap>` や TypeHandler の指定など
-さまざまな場所に出てきますが、最初は `<resultMap type>` / `parameterType` /
-`resultType` の 3 箇所から始めました。次の段階として、トップレベル resultMap 内の
-`<association javaType>` / `<collection javaType>` / `<collection ofType>` に
-同じ判定を適用しています。深いネストも対象で、`resultMap` 参照を併記していても
+さまざまな場所に出てきますが、検証するのは `<resultMap type>` / `parameterType` /
+`resultType` と、トップレベル resultMap 内の
+`<association javaType>` / `<collection javaType>` / `<collection ofType>` です。深いネストも対象で、`resultMap` 参照を併記していても
 明示された型は検証します。警告の位置は該当する属性値です。
 
 例えば `<collection property="items" ofType="MissingItem"/>` は、
 ワークスペース内に `MissingItem` と同じ simple name の型が無い場合に warning を
 出します。空値・動的値・FQCN・組み込み alias・小文字始まりの custom alias は
-従来どおりフェイルオープンです。警告だけでは CLI の終了コードは変わりません。
+フェイルオープンです。警告だけでは CLI の終了コードは変わりません。
 
 トップレベル resultMap の外にある要素や `<association ofType>` は対象外です。
 discriminator の `javaType` と、直下の inline case の `resultType` も、

@@ -1,7 +1,7 @@
-# `<include refid="...">` 参照検証と `resultMap`/`resultType` 警告(学習メモ)
+# `<include refid="...">` 参照検証と `resultMap`/`resultType` 警告
 
-このドキュメントは、`mybatis-lint/unresolved-include` と
-`mybatis-lint/result-map-and-type` を追加した変更を読むためのガイドです。
+`mybatis-lint/unresolved-include` と `mybatis-lint/result-map-and-type` の
+仕様と設計判断をまとめたものです。
 
 ## 実装を読む順番
 
@@ -37,7 +37,7 @@ MyBatis では、再利用したい SQL 断片を次のように定義できま�
 <include refid="com.example.CommonFragments.BaseColumns" />
 ```
 
-このため、今回の実装では次のように判定しています。
+このため、次のように判定しています。
 
 - `refid` にドットがない場合: 同じ mapper ファイル内の `<sql id>` だけを探す
 - `refid` が現在の `namespace.sqlId` 形式の場合: 同じ mapper ファイル内の `<sql id>` と照合する
