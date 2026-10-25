@@ -32,7 +32,7 @@ import java.util.Set;
  *
  * <p>{@code parameterType} 側({@link MapperParameterTypeValidator})と違い、
  * resultType は {@code List<T>}/{@code Map}/{@code Cursor}/nested generics など
- * MyBatis 特有の表現の幅が広く、誤検知のリスクが高い。今回はクレジット節約も兼ねて、
+ * MyBatis 特有の表現の幅が広く、誤検知のリスクが高い。そのため、
  * 「Java 側の戻り値が単一オブジェクト型、要素がシンプルな {@code List<T>}、
  * またはシンプルな {@code Map<K, V>}」という最も安全に断定できるケースだけに
  * 絞り、それ以外はすべてフェイルオープンする。{@link MapperParameterTypeValidator}

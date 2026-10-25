@@ -1,14 +1,13 @@
-# `parameterType` と Java 引数型の突き合わせ検証(学習メモ)
+# `parameterType` と Java 引数型の突き合わせ検証
 
-このドキュメントは `mybatis-lint/parameter-type-mismatch` を追加した変更を
-読むためのガイドです。
+`mybatis-lint/parameter-type-mismatch` の仕様と設計判断をまとめたものです。
 
 ## 実装を読む順番
 
 1. [`JavaMapperIndex`](../analyzer/src/main/java/com/mybatislint/analyzer/javaindex/JavaMapperIndex.java)
    の `MapperMethodInfo`
    - `getParameterTypes()` / `getParameterCount()` / `isSingleParameterVarArgs()`
-     が今回追加した拡張ポイント。Java Mapper メソッドの「引数の宣言型を
+     がこのルールで使う情報。Java Mapper メソッドの「引数の宣言型を
      ソースそのままの文字列で」保持している。
 2. [`MapperParameterTypeValidator`](../analyzer/src/main/java/com/mybatislint/analyzer/xml/MapperParameterTypeValidator.java)
    - このルールの本体。`compare` メソッドが判定ロジックの中心。
@@ -59,7 +58,7 @@ MyBatis の mapper XML では、statement の `parameterType` 属性で
 つまり `unresolved-type-alias` は「この文字列は解決できそうな alias 候補か」
 という 1 変数の疑い、`parameter-type-mismatch` は「Java 側で実際に読み取れた
 型と食い違っていないか」という 2 変数の突き合わせである。resultType や
-`<resultMap type>` を今回のルールの対象に含めていないのも、Java 側に
+`<resultMap type>` をこのルールの対象に含めていないのも、Java 側に
 「戻り値の型」という一意に比較できる情報源が無い(戻り値の型はメソッドの
 戻り値であって、mapper XML の resultType と単純比較できるとは限らない
 — `List<User>` を返すメソッドの resultType は `User` であるのが普通、など)
