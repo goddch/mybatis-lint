@@ -1,0 +1,76 @@
+name: Package extension
+
+# Java ランタイムを同梱したプラットフォーム別の VSIX を作る。
+# jlink は実行した OS 向けのランタイムしか作れないため、対象ごとにその OS のランナーで実行する。
+# Marketplace への公開はまだ行わない(成果物の VSIX を Actions からダウンロードできる)。
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  analyzer-jar:
+    name: Build analyzer jar
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analyzer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: ./gradlew test jar --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: analyzer-jar
+          path: analyzer/build/libs/analyzer.jar
+
+  package:
+    name: Package ${{ matrix.target }}
+    needs: analyzer-jar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: win32-x64
+            os: windows-latest
+          - target: darwin-arm64
+            os: macos-latest
+          - target: darwin-x64
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: analyzer-jar
+          path: analyzer/build/libs
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run bundle
+      - run: npx vsce package --skip-license --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: vscode-extension/*.vsix

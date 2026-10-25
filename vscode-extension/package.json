@@ -3,8 +3,12 @@
   "displayName": "MyBatis Lint",
   "description": "Static analysis diagnostics for MyBatis mapper XML files.",
   "version": "0.0.1",
-  "private": true,
   "publisher": "goddch",
+  "preview": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goddch/mybatis-lint.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -28,12 +32,12 @@
         "mybatisLint.analyzerJarPath": {
           "type": "string",
           "default": "",
-          "description": "Path to the mybatis-lint analyzer jar (analyzer/build/libs/analyzer.jar). If empty, the extension looks for a bundled jar next to the extension."
+          "description": "Path to the mybatis-lint analyzer jar. Leave empty to use the jar bundled with the extension."
         },
         "mybatisLint.javaPath": {
           "type": "string",
-          "default": "java",
-          "description": "Path to the Java executable used to run the analyzer jar."
+          "default": "",
+          "description": "Path to the Java executable used to run the analyzer. Leave empty to use the Java runtime bundled with the extension."
         }
       }
     }
@@ -43,13 +47,16 @@
     "watch": "tsc -w -p ./",
     "lint": "eslint src test",
     "pretest": "npm run compile",
-    "test": "node --test out/test/*.test.js"
+    "test": "node --test out/test/*.test.js",
+    "bundle": "bash scripts/prepare-bundle.sh",
+    "package": "vsce package --skip-license"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/vsce": "4.0.0",
     "eslint": "^10.0.0",
     "typescript": "^5.9.3"
   }

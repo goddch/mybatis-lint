@@ -40,6 +40,7 @@ analyzer/build/libs/analyzer.jar
 3. 自動検出されない場合は、設定画面を開き、`mybatisLint.analyzerJarPath` に
    [`analyzer/build/libs/analyzer.jar`](../analyzer/build/libs/analyzer.jar) の絶対パスを設定します。
 4. 通常は `JAVA_HOME` または SDKMAN の current Java を自動検出します。
+   ただし `npm run bundle` で `vscode-extension/jre/` を作った場合は、同梱用の Java が優先されます。
 5. 自動検出されない場合は、`mybatisLint.javaPath` に Java 実行ファイルの絶対パスを設定します。
 
 ## スモークテスト A: 不正な fixture で診断が出ることを確認する
