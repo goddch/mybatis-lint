@@ -120,8 +120,11 @@ java -jar build/libs/analyzer.jar ../fixtures/parameter-validation
 期待結果:
 
 - [`InvalidMapper.xml`](../fixtures/parameter-validation/src/main/resources/com/example/InvalidMapper.xml)
-  の `findByIds` ステートメントで
-  `mybatis-lint/undefined-parameter` 診断が出ます。
+  で error が **3 件** 出ます。`<foreach>` に関係するのは 3 件目です。
+  - `findWithStatus` の `#{missing}`: `mybatis-lint/undefined-parameter`
+  - `findWithStatus` の `<choose>` の外にある `<when>`: `mybatis-lint/when-outside-choose`
+  - `findByIds` の `<foreach collection="missingIds">`: `mybatis-lint/undefined-parameter`
+- `findByIds` の診断について:
   メッセージは
   `Undefined parameter 'missingIds' in mapper method 'findByIds'.` です。
   これは対応する
@@ -141,8 +144,8 @@ java -jar build/libs/analyzer.jar ../fixtures/parameter-validation
 VS Code 拡張から確認したい場合は、
 [`fixtures/parameter-validation/`](../fixtures/parameter-validation/) フォルダを
 Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
-実行してください。Problems パネルに `InvalidMapper.xml` の `findByIds` の
-位置に診断が表示されれば成功です。
+実行してください。Problems パネルに `InvalidMapper.xml` の error 3 件が表示され、
+そのうち 1 件が `findByIds` の位置にあれば成功です。
 
 ## スモークテスト D: `<include refid>` と `resultMap`/`resultType` 警告を確認する
 
@@ -299,8 +302,8 @@ Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
 `mybatis-lint/result-type-mismatch` ルールは、`resultMap` を持たない
 `<select resultType="...">` かつ一意に解決できた Java Mapper メソッドの
 戻り値が「単一オブジェクト型」または「単純な `List<T>`」のときだけ、
-resultType の simple name と食い違っていないかを検証します(クレジット節約の
-ため、今回はこのごく狭いケースだけに絞っています)。
+resultType の simple name と食い違っていないかを検証します(誤検知を避けるため、
+このごく狭いケースだけに絞っています)。
 [`fixtures/result-type-validation/`](../fixtures/result-type-validation/) には
 正常系・異常系・フェイルオープン系をまとめたサンプルがあります。
 
@@ -320,12 +323,14 @@ java -jar build/libs/analyzer.jar ../fixtures/result-type-validation
 期待結果:
 
 - [`ResultTypeInvalidMapper.xml`](../fixtures/result-type-validation/src/main/resources/com/example/ResultTypeInvalidMapper.xml)
-  で `mybatis-lint/result-type-mismatch` の warning が **2 件** 出ます
-  (`findById`: resultType="Order" vs 戻り値 `User`、`findAllOrders`:
-  resultType="Order" vs 戻り値 `List<User>`)。同じファイルの
-  `findWithResultMap`(resultMap あり)と `findWithDynamicAlias`
-  (`resultType="${resultTypeAlias}"`)はフェイルオープン方針により
-  報告されません。
+  で warning が **3 件** 出ます。
+  - `mybatis-lint/result-type-mismatch` が 2 件(`findById`: resultType="Order"
+    vs 戻り値 `User`、`findAllOrders`: resultType="Order" vs 戻り値 `List<User>`)
+  - `findWithResultMap` は resultMap と resultType を両方指定しているので
+    `mybatis-lint/result-map-and-type` が 1 件。resultMap があるため
+    `result-type-mismatch` の対象からは外れます
+  - `findWithDynamicAlias`(`resultType="${resultTypeAlias}"`)は
+    フェイルオープン方針により報告されません
 - [`ResultTypeValidMapper.xml`](../fixtures/result-type-validation/src/main/resources/com/example/ResultTypeValidMapper.xml)
   では `mybatis-lint/result-type-mismatch` は一切出ません
   (`resultType="User"` / `resultType="com.example.User"` が、対応する
@@ -334,7 +339,7 @@ java -jar build/libs/analyzer.jar ../fixtures/result-type-validation
 VS Code 拡張から確認したい場合は、
 [`fixtures/result-type-validation/`](../fixtures/result-type-validation/) フォルダを
 Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
-実行してください。Problems パネルに warning 2 件が表示されれば成功です。
+実行してください。Problems パネルに warning 3 件が表示されれば成功です。
 
 ## トラブルシューティング
 

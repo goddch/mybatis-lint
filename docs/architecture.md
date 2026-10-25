@@ -7,13 +7,13 @@ mybatis-lint/
 ├─ analyzer/            Java 17 Gradle project - the analysis engine + CLI
 ├─ vscode-extension/     TypeScript VS Code extension - a thin client
 ├─ fixtures/             Sample mapper XML used by both tests and manual runs
-├─ docs/                 This file, the roadmap, and the diagnostics schema
-└─ .github/workflows/    CI
+├─ docs/                 This file, the roadmap, the diagnostics schema, rule details
+└─ .github/workflows/    CI and platform-specific VSIX packaging
 ```
 
 ## Why a CLI instead of an LSP?
 
-The initial slice deliberately avoids building a Language Server. A
+The project deliberately avoids building a Language Server. A
 JSON-emitting CLI is much faster to build, is trivially testable with plain
 JUnit, and can already be reused from a terminal, a CI pipeline, or a
 pre-commit hook — not just from VS Code. If/when incremental,
@@ -26,39 +26,47 @@ Kept as **one** Gradle module for now. Packages are already split along the
 lines a future split would follow, so extracting modules later (e.g. a
 `sql-parser` module) is mostly a matter of moving packages:
 
-- `discovery` — walks the workspace for candidate mapper XML files, skipping
+- `discovery` — walks the workspace for candidate mapper XML files
+  (`MapperFileScanner`) and Java sources (`JavaFileScanner`), skipping
   `.git`, `.gradle`, `build`, `target`, `node_modules`.
-- `xml` — safe SAX-based parsing (`SafeXmlParserFactory`) plus the actual
-  rule checks (`MapperXmlAnalyzer`). Rules are currently implemented inline
-  in the SAX handler rather than as a separate `Rule` abstraction, since
-  there are only a handful of them; if the rule set grows, extracting a
-  `Rule` interface with one implementation per rule is the natural next step.
+- `javaindex` — parses the Java sources with JavaParser (the only runtime
+  dependency). `JavaMapperIndex` records Mapper interface methods (parameter
+  names, `@Param` values, parameter and return types); `JavaTypeIndex`
+  records classes and their fields/setters. Nothing is compiled or resolved
+  against a classpath, so ambiguous or unresolved types are skipped.
+- `xml` — the rule checks. `MapperXmlAnalyzer` parses each file with SAX
+  (`SafeXmlParserFactory`) for the basic structural rules, then runs the
+  DOM-based validators:
+  - `MapperReferenceValidator` — `<include>`, resultMap references,
+    inheritance, duplicate IDs, typeAlias candidates, resultMap properties
+  - `MapperParameterValidator` — undefined parameter references
+  - `MapperParameterTypeValidator` — `parameterType` vs. Java argument type
+  - `MapperResultTypeValidator` — `resultType` vs. Java return type
+
+  `MapperSqlFragmentIndex` and `MapperResultMapIndex` are built once over all
+  mapper files, so references across files can be resolved.
 - `model` — `Diagnostic`, `Range`, `Position`, `Severity`, and the canonical
   list of rule IDs (`RuleIds`).
 - `json` — a small hand-written JSON writer (see below for why).
-- `cli` — `AnalyzerCli` ties discovery + analysis together; `Main` is the
-  thin `public static void main` entry point.
+- `cli` — `AnalyzerCli` builds the indexes, analyzes every mapper file, and
+  writes the JSON report; `Main` is the thin `public static void main` entry
+  point.
 
 ### Why no JSON library dependency?
 
-The analyzer's only third-party runtime dependency would otherwise be a JSON
-library, purely to serialize a small, fixed-shape list of diagnostics. A
-~70-line hand-written writer (`JsonWriter`) avoids that dependency entirely,
-which keeps the jar small and avoids adding license/dependency notes for a
+Runtime dependencies are kept to a minimum (currently JavaParser only). A
+JSON library would be used purely to serialize a small, fixed-shape list of
+diagnostics, so a short hand-written writer (`JsonWriter`) is used instead.
+This keeps the jar small and avoids adding license/dependency notes for a
 task this simple. This is deliberately not a general-purpose JSON library;
 if the output shape grows significantly more complex, revisit this decision.
 
 ### Extension points for future work
 
-- **SQL parsing** (Oracle syntax validation): not implemented in this PR.
+- **SQL parsing** (Oracle syntax validation): not implemented yet.
   The plan is to add a `sqlparser` package with a small `SqlParser`
   interface, and an adapter around a third-party Oracle-capable parser
   (candidates: Druid's SQL parser, or JSqlParser). See `roadmap.md`.
-- **Java symbol analysis** (Mapper interface parameter resolution,
-  `resultType` property validation): not implemented in this PR. The plan is
-  a `javasymbols` package using the JDK's own `javax.lang.model`/compiler
-  APIs (or a small subset of the Eclipse JDT parser) to resolve interface
-  method signatures without a full build.
 - **Dynamic SQL branch expansion** (`<if>`/`<choose>` producing invalid SQL
   only in some branches): not implemented in this PR; requires both of the
   above extension points to be useful, since expanding branches without
@@ -76,8 +84,13 @@ if the output shape grows significantly more complex, revisit this decision.
 - `src/diagnosticsMapper.ts` — pure conversion from the analyzer's 1-based
   JSON schema to 0-based, VS-Code-shaped diagnostics, grouped by file URI.
 - `src/jarPathResolver.ts` — resolves the analyzer jar path from the
-  `mybatisLint.analyzerJarPath` setting, falling back to a jar bundled next
-  to the extension.
+  `mybatisLint.analyzerJarPath` setting, falling back to the bundled jar and
+  then to `analyzer/build/libs/analyzer.jar` during development.
+- `src/javaPathResolver.ts` — resolves the Java executable: the
+  `mybatisLint.javaPath` setting, then the bundled `jre/`, then `JAVA_HOME`,
+  SDKMAN, and finally `java` on the PATH.
+- `src/summaryMessage.ts` — builds the notification shown after a check,
+  including the "no mapper XML found" case.
 
 Everything except `extension.ts` is free of any `vscode` import, so it can
 be unit tested with the Node.js built-in test runner (`node --test`)
