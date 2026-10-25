@@ -19,8 +19,10 @@ if [ ! -f "$source_jar" ]; then
   exit 1
 fi
 
-rm -rf jre analyzer.jar
+rm -rf jre analyzer.jar LICENSE
 cp "$source_jar" analyzer.jar
+# vsce は拡張機能のフォルダ内の LICENSE しか同梱しないため、リポジトリ直下のものをコピーする。
+cp ../LICENSE LICENSE
 
 # モジュール一覧を固定で書くと、analyzer の依存が増えたときに実行時エラーになる。
 # jdeps で jar から毎回算出して、必要なモジュールだけを含める。

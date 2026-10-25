@@ -5,6 +5,7 @@
   "version": "0.0.1",
   "publisher": "goddch",
   "preview": true,
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/goddch/mybatis-lint.git"
@@ -49,7 +50,7 @@
     "pretest": "npm run compile",
     "test": "node --test out/test/*.test.js",
     "bundle": "bash scripts/prepare-bundle.sh",
-    "package": "vsce package --skip-license"
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",

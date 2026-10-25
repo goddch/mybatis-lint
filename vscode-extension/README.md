@@ -39,3 +39,9 @@ MyBatis の設定ファイルやコンパイル済みのクラスは読み込ま
 ## 不具合の報告
 
 [GitHub Issues](https://github.com/goddch/mybatis-lint/issues) へお願いします。
+
+## ライセンス
+
+[Apache License 2.0](https://github.com/goddch/mybatis-lint/blob/main/LICENSE)
+
+同梱している Java ランタイム（OpenJDK）は、OpenJDK 自体のライセンス（GPLv2 + Classpath Exception）に従います。ライセンス文書は拡張機能内の `jre/legal/` に含まれています。
