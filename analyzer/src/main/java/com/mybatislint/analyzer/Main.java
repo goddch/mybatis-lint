@@ -33,7 +33,7 @@ public final class Main {
         AnalyzerCli.Result result = new AnalyzerCli().run(workspaceRoot);
 
         PrintStream stdout = new PrintStream(System.out, true, StandardCharsets.UTF_8);
-        stdout.print(JsonWriter.write(result.getDiagnostics()));
+        stdout.print(JsonWriter.write(result.getDiagnostics(), result.getMapperFileCount()));
         stdout.flush();
 
         System.exit(result.hasErrors() ? 1 : 0);

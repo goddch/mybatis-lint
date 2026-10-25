@@ -24,7 +24,7 @@ class JsonWriterTest {
                 RuleIds.MISSING_NAMESPACE,
                 "namespace is missing \"quoted\"");
 
-        String json = JsonWriter.write(List.of(diagnostic));
+        String json = JsonWriter.write(List.of(diagnostic), 2);
 
         assertTrue(json.contains("\"file\": \"mappers/UserMapper.xml\""));
         assertTrue(json.contains("\"uri\": \"file:///workspace/mappers/UserMapper.xml\""));
@@ -35,13 +35,16 @@ class JsonWriterTest {
         assertTrue(json.contains("\\\"quoted\\\""));
         assertTrue(json.contains("\"errorCount\": 1"));
         assertTrue(json.contains("\"warningCount\": 0"));
+        assertTrue(json.contains("\"mapperFileCount\": 2"));
+        assertTrue(json.contains("\"fileCount\": 1"));
     }
 
     @Test
     void writesEmptyDiagnosticsArrayWithoutError() {
-        String json = JsonWriter.write(List.of());
+        String json = JsonWriter.write(List.of(), 0);
         assertTrue(json.contains("\"diagnostics\": ["));
         assertTrue(json.contains("\"errorCount\": 0"));
         assertTrue(json.contains("\"fileCount\": 0"));
+        assertTrue(json.contains("\"mapperFileCount\": 0"));
     }
 }

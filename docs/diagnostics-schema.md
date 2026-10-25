@@ -7,6 +7,7 @@ written to stdout, so the output is always safe to parse directly.
 {
   "schemaVersion": 1,
   "summary": {
+    "mapperFileCount": 3, // number of analyzed files whose root element is <mapper> (malformed XML is not counted)
     "fileCount": 4,      // number of distinct files that produced at least one diagnostic
     "errorCount": 6,      // number of diagnostics with severity "error"
     "warningCount": 0     // number of diagnostics with severity "warning"
@@ -37,6 +38,9 @@ Notes:
   wider ranges.
 - The process exit code is non-zero whenever `summary.errorCount > 0`. The
   JSON is always emitted first, regardless of the exit code.
+- `mapperFileCount` was added after the initial v1 schema. It distinguishes a
+  workspace with no mapper XML from a clean one (both have `fileCount: 0`).
+  Consumers should treat it as optional, since older analyzer jars omit it.
 - Rule IDs are stable strings under the `mybatis-lint/` namespace; see
   `analyzer/src/main/java/com/mybatislint/analyzer/model/RuleIds.java` for the
   authoritative list.
