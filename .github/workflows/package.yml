@@ -8,6 +8,12 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
+  # パッケージ作成まわりを変えた PR では、全プラットフォームで VSIX が作れることを確認する。
+  pull_request:
+    branches: [main]
+    paths:
+      - 'vscode-extension/**'
+      - '.github/workflows/package.yml'
 
 permissions:
   contents: read
