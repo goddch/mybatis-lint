@@ -2,7 +2,9 @@ name: Package extension
 
 # Java ランタイムを同梱したプラットフォーム別の VSIX を作る。
 # jlink は実行した OS 向けのランタイムしか作れないため、対象ごとにその OS のランナーで実行する。
-# v* タグを push したときだけ、作った VSIX を Marketplace に公開する(publish ジョブ)。
+# v* タグを push したときだけ、作った VSIX を GitHub Release に添付する(release ジョブ)。
+# Marketplace への公開は、Release から VSIX をダウンロードして管理画面から手動で行う。
+# (トークンによる自動公開には Azure サブスクリプションが必要なため、今は使わない)
 
 on:
   workflow_dispatch:
@@ -81,38 +83,28 @@ jobs:
           name: vsix-${{ matrix.target }}
           path: vscode-extension/*.vsix
 
-  publish:
-    name: Publish to Marketplace
+  release:
+    name: Create GitHub Release
     needs: package
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    # marketplace 環境には Required reviewers を設定している。誤ってタグが付いても、
-    # 承認するまでは公開されない。VSCE_PAT もこの環境のシークレットとして登録する。
-    environment: marketplace
-    defaults:
-      run:
-        working-directory: vscode-extension
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: vscode-extension/package-lock.json
       - name: Check that the tag matches package.json version
         run: |
-          expected="v$(node -p "require('./package.json').version")"
+          expected="v$(node -p "require('./vscode-extension/package.json').version")"
           if [ "$GITHUB_REF_NAME" != "$expected" ]; then
             echo "Tag $GITHUB_REF_NAME does not match package.json version ($expected)." >&2
             exit 1
           fi
-      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           pattern: vsix-*
           merge-multiple: true
           path: vsix
-      - name: Publish
-        run: npx vsce publish --packagePath ../vsix/*.vsix
+      - name: Create release with VSIX files
+        run: gh release create "$GITHUB_REF_NAME" vsix/*.vsix --prerelease --generate-notes --title "$GITHUB_REF_NAME"
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          GH_TOKEN: ${{ github.token }}

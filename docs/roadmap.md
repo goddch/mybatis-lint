@@ -199,9 +199,10 @@ working in user-facing docs until they land:
   values and type compatibility remain unvalidated.
 - **Incremental / as-you-type diagnostics** via a Language Server, once the
   analyzer core has stabilized enough to justify the added complexity.
-- **First Marketplace release.** Publishing is automated by
-  `.github/workflows/package.yml` on `v*` tags (with a manual approval step),
-  but no version has been published yet.
+- **First Marketplace release.** `v*` tags attach platform-specific VSIX files
+  to a GitHub Release; they are uploaded to the Marketplace manually. No version
+  has been published yet. Automated publishing would need an Azure DevOps
+  token, which now requires an Azure subscription.
 
 ## Design decisions carried forward
 

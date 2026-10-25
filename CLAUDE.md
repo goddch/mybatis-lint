@@ -61,10 +61,11 @@ CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後�
 
 1. PR で `vscode-extension/package.json` の `version` を上げてマージする
 2. main の最新コミットに `vX.Y.Z` タグを付けて push する（`package.json` の version と一致しないと失敗する）
-3. `package.yml` が全プラットフォームの VSIX を作り、`marketplace` 環境の承認待ちになる
-4. 承認すると Marketplace（publisher `goddch`）に公開される
+3. `package.yml` が全プラットフォームの VSIX を作り、GitHub Release（プレリリース）に添付する
+4. ユーザーが Release から VSIX をダウンロードし、Marketplace の管理画面（publisher `goddch`）から手動でアップロードする
 
-タグの push と承認は、ユーザーの明示的な指示があるときだけ行う。
+自動公開には Azure DevOps のトークンが必要で、その発行には Azure サブスクリプションが要るため使っていない。
+タグの push は、ユーザーの明示的な指示があるときだけ行う。
 
 ## 基本方針
 
