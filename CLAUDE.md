@@ -62,9 +62,11 @@ CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後�
 1. PR で `vscode-extension/package.json` の `version` を上げてマージする
 2. main の最新コミットに `vX.Y.Z` タグを付けて push する（`package.json` の version と一致しないと失敗する）
 3. `package.yml` が全プラットフォームの VSIX を作り、GitHub Release（プレリリース）に添付する
-4. ユーザーが Release から VSIX をダウンロードし、Marketplace の管理画面（publisher `goddch`）から手動でアップロードする
+4. 続けて `publish` ジョブが `vsce publish --oidc`（OIDC trusted publishing）で Marketplace に公開する
+5. `publish` ジョブが失敗したときは、ユーザーが Release から VSIX をダウンロードし、Marketplace の管理画面（publisher `goddch`）から手動でアップロードする
 
-自動公開には Azure DevOps のトークンが必要で、その発行には Azure サブスクリプションが要るため使っていない。
+トークン（PAT）による公開は Azure サブスクリプションが必要で、2026-12-01 で廃止されるため使わない。
+OIDC 方式は vsce 4.0.0 ではまだ実験的な扱いで、Marketplace 側に信頼された公開元の登録が要る。
 タグの push は、ユーザーの明示的な指示があるときだけ行う。
 
 ## 基本方針

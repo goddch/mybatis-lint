@@ -2,9 +2,12 @@ name: Package extension
 
 # Java ランタイムを同梱したプラットフォーム別の VSIX を作る。
 # jlink は実行した OS 向けのランタイムしか作れないため、対象ごとにその OS のランナーで実行する。
-# v* タグを push したときだけ、作った VSIX を GitHub Release に添付する(release ジョブ)。
-# Marketplace への公開は、Release から VSIX をダウンロードして管理画面から手動で行う。
-# (トークンによる自動公開には Azure サブスクリプションが必要なため、今は使わない)
+# v* タグを push したときだけ、作った VSIX を GitHub Release に添付し(release ジョブ)、
+# そのあと Marketplace への公開を試す(publish ジョブ)。
+# 公開は vsce の OIDC trusted publishing を使う。トークンの方式は Azure サブスクリプションが
+# 必要で、しかも 2026-12-01 で廃止されるため使わない。OIDC 方式は vsce 4.0.0 では
+# まだ実験的な扱いで、Marketplace 側に信頼された公開元の登録も要る。publish ジョブが
+# 失敗したときは、これまでどおり Release の VSIX を管理画面から手動でアップロードする。
 
 on:
   workflow_dispatch:
@@ -108,3 +111,31 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" vsix/*.vsix --prerelease --generate-notes --title "$GITHUB_REF_NAME"
         env:
           GH_TOKEN: ${{ github.token }}
+
+  publish:
+    name: Publish to Marketplace
+    # Release を先に作っておけば、公開に失敗しても手動アップロード用の VSIX は残る。
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # GitHub Actions の OIDC トークンを Marketplace のトークンと交換するのに要る。
+      id-token: write
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+          path: vsix
+      - name: Publish all platform VSIX files
+        run: npx vsce publish --oidc --packagePath ../vsix/*.vsix
