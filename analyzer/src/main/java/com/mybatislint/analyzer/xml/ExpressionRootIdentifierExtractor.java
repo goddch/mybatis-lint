@@ -36,6 +36,22 @@ public final class ExpressionRootIdentifierExtractor {
                 i++;
                 continue;
             }
+            // 'ACTIVE' のような文字列リテラルの中身は変数参照ではない。
+            if (c == '\'' || c == '"') {
+                i = skipStringLiteral(text, i);
+                continue;
+            }
+            // 0L や 1.5d、0x1F の末尾の英字を識別子として拾わないよう、数値リテラルは丸ごと飛ばす。
+            if (Character.isDigit(c)) {
+                i = skipNumberLiteral(text, i);
+                continue;
+            }
+            // @jp.example.Const@VALUE や @@abs(x) は OGNL の static メンバー参照で、
+            // パッケージ名・クラス名・メンバー名はどれもパラメータではない。
+            if (c == '@') {
+                i = skipStaticReference(text, i);
+                continue;
+            }
             if (Character.isJavaIdentifierStart(c) || c == '_' || c == '$') {
                 int start = i;
                 i++;
@@ -55,7 +71,7 @@ public final class ExpressionRootIdentifierExtractor {
             if (c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}' || c == ','
                     || c == ':' || c == ';' || c == '?' || c == '+' || c == '-' || c == '*' || c == '/'
                     || c == '%' || c == '&' || c == '|' || c == '^' || c == '!' || c == '<' || c == '>'
-                    || c == '=' || c == '\'' || c == '"' || c == '@') {
+                    || c == '=') {
                 i++;
                 continue;
             }
@@ -70,6 +86,51 @@ public final class ExpressionRootIdentifierExtractor {
             roots.add(token.value);
         }
         return roots;
+    }
+
+    private static int skipStringLiteral(String text, int start) {
+        char quote = text.charAt(start);
+        int i = start + 1;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (c == '\\') {
+                i += 2;
+                continue;
+            }
+            i++;
+            if (c == quote) {
+                break;
+            }
+        }
+        return Math.min(i, text.length());
+    }
+
+    private static int skipNumberLiteral(String text, int start) {
+        int i = start;
+        while (i < text.length() && (Character.isJavaIdentifierPart(text.charAt(i)) || text.charAt(i) == '.')) {
+            i++;
+        }
+        return i;
+    }
+
+    /**
+     * {@code @クラス名@メンバー名} を読み飛ばす。クラス名を省略した {@code @@メンバー名}
+     * ({@code java.lang.Math} の省略形)にも対応する。メソッド呼び出しの引数部分
+     * ({@code @Util@format(name)} の {@code name})は通常の式として検証させたいので、
+     * メンバー名の直後で止める。
+     */
+    private static int skipStaticReference(String text, int start) {
+        int i = start + 1;
+        while (i < text.length() && (Character.isJavaIdentifierPart(text.charAt(i)) || text.charAt(i) == '.')) {
+            i++;
+        }
+        if (i < text.length() && text.charAt(i) == '@') {
+            i++;
+            while (i < text.length() && Character.isJavaIdentifierPart(text.charAt(i))) {
+                i++;
+            }
+        }
+        return i;
     }
 
     private static int previousSignificantCharacter(String text, int index) {

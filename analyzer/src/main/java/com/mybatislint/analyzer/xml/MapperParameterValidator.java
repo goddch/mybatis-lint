@@ -36,6 +36,8 @@ public final class MapperParameterValidator {
 
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("#\\{([^}]*)\\}|\\$\\{([^}]*)\\}");
     private static final Set<String> STATEMENT_TAGS = Set.of("select", "insert", "update", "delete");
+    private static final Set<String> COLLECTION_TYPES = Set.of(
+            "Collection", "List", "ArrayList", "LinkedList", "Set", "HashSet", "LinkedHashSet", "TreeSet");
 
     private final JavaMapperIndex index;
 
@@ -71,7 +73,12 @@ public final class MapperParameterValidator {
                 if (method == null || method.hasMapLikeParameter()) {
                     continue;
                 }
-                Set<String> allowedNames = method.availableNames();
+                Set<String> allowedNames = method.isSingleUnannotatedParameter()
+                        ? namesForSingleUnannotatedParameter(method)
+                        : method.availableNames();
+                if (allowedNames == null) {
+                    continue;
+                }
                 Set<String> statementScope = new LinkedHashSet<>(allowedNames);
                 addScopedNames(statement, statementScope);
                 validateIfAndWhenTests(statement, statementScope, method, xml, displayFile, uri, diagnostics);
@@ -97,7 +104,9 @@ public final class MapperParameterValidator {
         int searchOffset = statementOffset;
         while (matcher.find()) {
             String raw = matcher.group();
-            String expression = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
+            String expression = matcher.group(1) == null
+                    ? matcher.group(2)
+                    : propertyPartOfParameterExpression(matcher.group(1));
             if (expression == null) {
                 continue;
             }
@@ -119,6 +128,53 @@ public final class MapperParameterValidator {
                 searchOffset = nextIndex + raw.length();
             }
         }
+    }
+
+    /**
+     * {@code #{item.id,jdbcType=NUMERIC}} や旧形式の {@code #{id:NUMERIC}} から、
+     * パラメータを指す先頭部分だけを取り出す。{@code jdbcType} や {@code NUMERIC} は
+     * マッピングの指定であって変数参照ではない。{@code #{(expr)}} 形式は中身を
+     * 正しく解釈できないので null を返して検証しない。
+     */
+    private static String propertyPartOfParameterExpression(String expression) {
+        String trimmed = expression.trim();
+        if (trimmed.startsWith("(")) {
+            return null;
+        }
+        int end = trimmed.length();
+        int comma = trimmed.indexOf(',');
+        if (comma >= 0) {
+            end = comma;
+        }
+        int colon = trimmed.indexOf(':');
+        if (colon >= 0 && colon < end) {
+            end = colon;
+        }
+        return trimmed.substring(0, end);
+    }
+
+    /**
+     * 引数が 1 つで {@code @Param} がないときの扱いを決める。MyBatis はこの場合、
+     * 引数オブジェクトそのものをパラメータにするので、Bean なら {@code #{name}} は
+     * そのプロパティを、単純型なら任意の名前で値そのものを指す。プロパティを
+     * 確かめる手段がないため、検証自体をしない(null を返す)。
+     * コレクションと配列だけは MyBatis が {@code collection} / {@code list} /
+     * {@code array} という名前で包むので、それらを許可して検証を続ける。
+     */
+    private static Set<String> namesForSingleUnannotatedParameter(MapperMethodInfo method) {
+        String type = method.getParameterTypes().get(0).trim();
+        String raw = type.contains("<") ? type.substring(0, type.indexOf('<')).trim() : type;
+        String simple = raw.contains(".") ? raw.substring(raw.lastIndexOf('.') + 1) : raw;
+        boolean array = type.endsWith("[]") || method.isSingleParameterVarArgs();
+        boolean collection = COLLECTION_TYPES.contains(simple);
+        if (!array && !collection) {
+            return null;
+        }
+        Set<String> names = new LinkedHashSet<>(method.availableNames());
+        names.add("collection");
+        names.add("list");
+        names.add("array");
+        return names;
     }
 
     private static void validateIfAndWhenTests(Element statement,
