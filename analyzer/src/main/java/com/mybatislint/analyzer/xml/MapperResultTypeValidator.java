@@ -157,6 +157,10 @@ public final class MapperResultTypeValidator {
      * 個別登録の可能性を否定できないためフェイルオープン。
      */
     private static boolean matches(String xmlValue, ReturnShape javaShape) {
+        // Object(や List<Object>)はどんな resultType の結果でも受け取れる。
+        if ("Object".equals(javaShape.elementSimpleName)) {
+            return true;
+        }
         Set<String> aliasTypes = BUILTIN_ALIAS_JAVA_TYPES.get(xmlValue.toLowerCase(Locale.ROOT));
         if (aliasTypes != null) {
             return aliasTypes.contains(javaShape.elementSimpleName);
@@ -167,7 +171,29 @@ public final class MapperResultTypeValidator {
         String xmlSimpleName = xmlValue.contains(".")
                 ? xmlValue.substring(xmlValue.lastIndexOf('.') + 1)
                 : xmlValue;
-        return xmlSimpleName.equals(javaShape.elementSimpleName);
+        // int を返すメソッドに resultType="java.lang.Integer" と書くのは正しい。
+        if (boxedName(xmlSimpleName).equals(boxedName(javaShape.elementSimpleName))) {
+            return true;
+        }
+        // Map を返すメソッドに HashMap / LinkedHashMap などの実装クラスを指定するのは正しい。
+        if ("Map".equals(javaShape.elementSimpleName) && xmlSimpleName.endsWith("Map")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static String boxedName(String simpleName) {
+        return switch (simpleName) {
+            case "int" -> "Integer";
+            case "long" -> "Long";
+            case "short" -> "Short";
+            case "byte" -> "Byte";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "boolean" -> "Boolean";
+            case "char" -> "Character";
+            default -> simpleName;
+        };
     }
 
     /** Java 側の戻り値型のうち、今回比較対象にする「単一オブジェクト or 単純な List<T>」の形。 */

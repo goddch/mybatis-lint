@@ -40,4 +40,23 @@
       </foreach>
     </foreach>
   </select>
+  <select id="findByCodes">
+    SELECT * FROM users
+    <where>
+      <if test="status == @com.example.StatusCodes@ACTIVE or status == 'HOLD'">
+        AND status = #{status,jdbcType=VARCHAR}
+      </if>
+      AND code IN
+      <foreach collection="codes" item="item" open="(" separator="," close=")">
+        #{item,jdbcType=NUMERIC}
+      </foreach>
+    </where>
+  </select>
+  <select id="findByModel">
+    SELECT * FROM users WHERE id = #{userId}
+  </select>
+  <select id="findByList">
+    SELECT * FROM users WHERE id IN
+    <foreach collection="list" item="value" open="(" separator="," close=")">#{value}</foreach>
+  </select>
 </mapper>

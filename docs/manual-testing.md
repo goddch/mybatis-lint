@@ -140,6 +140,12 @@ java -jar build/libs/analyzer.jar ../fixtures/parameter-validation
     外側の `<foreach item="group">` の変数を内側の
     `<foreach collection="group">` から参照する、ネストした `<foreach>` の
     ケース。どちらも診断は出ません。
+  - `findByCodes` ステートメント: `#{item,jdbcType=NUMERIC}` の `jdbcType` 指定、
+    `@com.example.StatusCodes@ACTIVE` という static 定数の参照、`'HOLD'` という
+    文字列リテラルは変数参照ではないので、診断は出ません。
+  - `findByModel` / `findByList` ステートメント: `@Param` のない単一引数のケース。
+    Bean のプロパティ(`#{userId}`)や MyBatis が付ける `list` という名前は、
+    診断されません。
 
 VS Code 拡張から確認したい場合は、
 [`fixtures/parameter-validation/`](../fixtures/parameter-validation/) フォルダを

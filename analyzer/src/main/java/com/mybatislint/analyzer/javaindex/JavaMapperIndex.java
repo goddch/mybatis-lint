@@ -266,6 +266,11 @@ public final class JavaMapperIndex {
             return mapLikeParameter;
         }
 
+        /** 引数がちょうど 1 つで、{@code @Param} が付いていないか。 */
+        public boolean isSingleUnannotatedParameter() {
+            return parameterNames.size() == 1 && paramAliases.isEmpty();
+        }
+
         public int getParameterCount() {
             return parameterNames.size();
         }

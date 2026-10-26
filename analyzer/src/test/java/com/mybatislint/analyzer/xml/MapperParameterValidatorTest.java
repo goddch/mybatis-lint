@@ -338,4 +338,153 @@ class MapperParameterValidatorTest {
         assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId())),
                 () -> diagnostics.toString());
     }
+
+    @Test
+    void ignoresJdbcTypeAndOtherParameterMappingOptions(@TempDir Path tempDir) throws IOException {
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    List<Object> findByIds(@Param("ids") List<Long> ids);
+                    int update(@Param("name") String name);
+                """, """
+                    <select id="findByIds">
+                        SELECT * FROM users WHERE id IN
+                        <foreach collection="ids" item="item" open="(" separator="," close=")">
+                            #{item.id,jdbcType=NUMERIC}
+                        </foreach>
+                    </select>
+                    <update id="update">
+                        UPDATE users SET name = #{name, javaType=String, jdbcType=VARCHAR}, memo = #{name:VARCHAR}
+                    </update>
+                """);
+        assertTrue(undefined.isEmpty(), () -> undefined.toString());
+    }
+
+    @Test
+    void reportsUndefinedRootEvenWhenJdbcTypeIsGiven(@TempDir Path tempDir) throws IOException {
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    int update(@Param("name") String name);
+                """, """
+                    <update id="update">
+                        UPDATE users SET name = #{naem,jdbcType=VARCHAR}
+                    </update>
+                """);
+        assertEquals(1, undefined.size(), () -> undefined.toString());
+        assertTrue(undefined.get(0).getMessage().contains("'naem'"));
+    }
+
+    @Test
+    void ignoresStaticMemberReferencesAndLiterals(@TempDir Path tempDir) throws IOException {
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    List<Object> find(@Param("status") String status, @Param("count") int count);
+                """, """
+                    <select id="find">
+                        SELECT * FROM users
+                        <where>
+                            <if test="status == @jp.example.Const@ACTIVE">AND a = '${@jp.example.Const@ACTIVE}'</if>
+                            <if test="status == 'DONE' or status == &quot;HOLD&quot;">AND b = #{status}</if>
+                            <if test="count > 0L and count &lt; 0x1F and @@abs(count) > 1.5d">AND c = #{count}</if>
+                        </where>
+                    </select>
+                """);
+        assertTrue(undefined.isEmpty(), () -> undefined.toString());
+    }
+
+    @Test
+    void stillChecksArgumentsOfStaticMethodCalls(@TempDir Path tempDir) throws IOException {
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    List<Object> find(@Param("status") String status);
+                """, """
+                    <select id="find">
+                        SELECT * FROM users
+                        <if test="@jp.example.Util@isEmpty(stauts)">WHERE a = 1</if>
+                    </select>
+                """);
+        assertEquals(1, undefined.size(), () -> undefined.toString());
+        assertTrue(undefined.get(0).getMessage().contains("'stauts'"));
+    }
+
+    @Test
+    void skipsSingleUnannotatedBeanOrSimpleParameter(@TempDir Path tempDir) throws IOException {
+        // @Param なしの単一引数では、MyBatis は引数オブジェクトそのものを使うので
+        // #{name} は Bean のプロパティ(単純型なら値そのもの)を指す。
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    List<Object> findByCondition(Condition condition);
+                    List<Object> findByName(String name);
+                """, """
+                    <select id="findByCondition">
+                        SELECT * FROM users WHERE name = #{name}
+                        <foreach collection="ids" item="item">#{item}</foreach>
+                    </select>
+                    <select id="findByName">
+                        SELECT * FROM users WHERE name = #{value}
+                    </select>
+                """);
+        assertTrue(undefined.isEmpty(), () -> undefined.toString());
+    }
+
+    @Test
+    void acceptsBuiltInNamesForSingleUnannotatedCollectionOrArray(@TempDir Path tempDir) throws IOException {
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    List<Object> findByList(List<Long> ids);
+                    List<Object> findByCollection(java.util.Collection<Long> ids);
+                    List<Object> findByArray(Long[] ids);
+                """, """
+                    <select id="findByList">
+                        SELECT * FROM users WHERE id IN <foreach collection="list" item="id">#{id}</foreach>
+                    </select>
+                    <select id="findByCollection">
+                        SELECT * FROM users WHERE id IN <foreach collection="collection" item="id">#{id}</foreach>
+                    </select>
+                    <select id="findByArray">
+                        SELECT * FROM users WHERE id IN <foreach collection="array" item="id">#{id}</foreach>
+                    </select>
+                """);
+        assertTrue(undefined.isEmpty(), () -> undefined.toString());
+    }
+
+    @Test
+    void reportsTypoForSingleUnannotatedCollection(@TempDir Path tempDir) throws IOException {
+        List<Diagnostic> undefined = analyzeUndefined(tempDir, """
+                    List<Object> findByList(List<Long> ids);
+                """, """
+                    <select id="findByList">
+                        SELECT * FROM users WHERE id IN <foreach collection="lsit" item="id">#{id}</foreach>
+                    </select>
+                """);
+        assertEquals(1, undefined.size(), () -> undefined.toString());
+        assertTrue(undefined.get(0).getMessage().contains("'lsit'"));
+    }
+
+    private static List<Diagnostic> analyzeUndefined(Path tempDir, String methods, String statements)
+            throws IOException {
+        Path javaFile = tempDir.resolve("src/main/java/com/example/SampleMapper.java");
+        Files.createDirectories(javaFile.getParent());
+        Files.writeString(javaFile, """
+                package com.example;
+
+                import java.util.List;
+                import org.apache.ibatis.annotations.Param;
+
+                public interface SampleMapper {
+                %s}
+
+                class Condition {
+                    private String name;
+                    private List<Long> ids;
+                }
+                """.formatted(methods), StandardCharsets.UTF_8);
+
+        Path xmlFile = tempDir.resolve("src/main/resources/com/example/SampleMapper.xml");
+        Files.createDirectories(xmlFile.getParent());
+        Files.writeString(xmlFile, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.SampleMapper">
+                %s</mapper>
+                """.formatted(statements), StandardCharsets.UTF_8);
+
+        JavaMapperIndex index = JavaMapperIndex.build(tempDir);
+        return new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index)
+                .stream()
+                .filter(d -> RuleIds.UNDEFINED_PARAMETER.equals(d.getRuleId()))
+                .toList();
+    }
 }

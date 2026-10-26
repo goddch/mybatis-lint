@@ -317,6 +317,58 @@ class MapperResultTypeValidatorTest {
                 () -> diagnostics.toString());
     }
 
+    @Test
+    void acceptsObjectBoxedAndMapImplementationResultTypes(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                import java.util.List;
+                import java.util.Map;
+
+                public interface UserMapper {
+                    List<Object> findAnything();
+                    int countUsers();
+                    Long maxId();
+                    Map<String, Object> findRow();
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findAnything" resultType="map">SELECT * FROM users</select>
+                    <select id="countUsers" resultType="Integer">SELECT COUNT(*) FROM users</select>
+                    <select id="maxId" resultType="long">SELECT MAX(id) FROM users</select>
+                    <select id="findRow" resultType="HashMap">SELECT * FROM users</select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void stillReportsBoxedTypeMismatch(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                public interface UserMapper {
+                    int countUsers();
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="countUsers" resultType="Long">SELECT COUNT(*) FROM users</select>
+                </mapper>
+                """);
+
+        assertEquals(1, diagnostics.stream()
+                .filter(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId()))
+                .count(), () -> diagnostics.toString());
+    }
+
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
         Files.createDirectories(javaFile.getParent());
