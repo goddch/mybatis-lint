@@ -308,8 +308,10 @@ Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
 `mybatis-lint/result-type-mismatch` ルールは、`resultMap` を持たない
 `<select resultType="...">` かつ一意に解決できた Java Mapper メソッドの
 戻り値が「単一オブジェクト型」または「単純な `List<T>`」のときだけ、
-resultType の simple name と食い違っていないかを検証します(誤検知を避けるため、
-このごく狭いケースだけに絞っています)。
+resultType がその型に代入できないと確実に言えるかを検証します(誤検知を避けるため、
+このごく狭いケースだけに絞っています)。名前が違っても、resultType が戻り値型の
+子クラスやインターフェースの実装なら報告しません。ワークスペースのソースから
+親子関係をたどれない組み合わせも報告しません。
 [`fixtures/result-type-validation/`](../fixtures/result-type-validation/) には
 正常系・異常系・フェイルオープン系をまとめたサンプルがあります。
 
@@ -340,7 +342,9 @@ java -jar build/libs/analyzer.jar ../fixtures/result-type-validation
 - [`ResultTypeValidMapper.xml`](../fixtures/result-type-validation/src/main/resources/com/example/ResultTypeValidMapper.xml)
   では `mybatis-lint/result-type-mismatch` は一切出ません
   (`resultType="User"` / `resultType="com.example.User"` が、対応する
-  Java メソッドの戻り値型(単一オブジェクト or `List<User>`)と一致するため)。
+  Java メソッドの戻り値型(単一オブジェクト or `List<User>`)と一致するため。
+  `findAdmin` の `resultType="AdminUser"` は戻り値 `User` の子クラスなので、
+  名前が違っても報告されません)。
 
 VS Code 拡張から確認したい場合は、
 [`fixtures/result-type-validation/`](../fixtures/result-type-validation/) フォルダを

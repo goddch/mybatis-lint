@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
+import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.model.Diagnostic;
@@ -17,8 +18,11 @@ import javax.xml.parsers.DocumentBuilder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +42,13 @@ import java.util.Set;
  * 絞り、それ以外はすべてフェイルオープンする。{@link MapperParameterTypeValidator}
  * と設計は似ているが、比較対象(引数 vs 戻り値)も判定できる範囲も異なるため、
  * 無理に共通化はしていない。</p>
+ *
+ * <h2>親子関係のある型</h2>
+ *
+ * <p>戻り値が親クラスやインターフェースで、resultType にその子クラスを書くのは正しい。
+ * そのため名前が違うだけでは警告せず、ワークスペースのソースから親子関係をたどって
+ * 「代入できないと確実に言える」場合だけ警告する。ワークスペース外の型は親子関係が
+ * わからないので、判断できない組み合わせはフェイルオープンする。</p>
  */
 public final class MapperResultTypeValidator {
 
@@ -68,10 +79,22 @@ public final class MapperResultTypeValidator {
             Map.entry("bigdecimal", Set.of("BigDecimal")),
             Map.entry("biginteger", Set.of("BigInteger")));
 
+    // 互いに親子関係がないとわかっている JDK の型。戻り値型と resultType の両方が
+    // ここに含まれ、名前が違えば代入できない(Map だけは実装クラスを別に扱う)。
+    private static final Set<String> UNRELATED_JDK_TYPES = Set.of(
+            "String", "Byte", "Long", "Short", "Integer", "Double", "Float", "Boolean", "Character",
+            "Date", "BigDecimal", "BigInteger", "Map");
+
     private final JavaMapperIndex index;
+    private final JavaTypeIndex typeIndex;
 
     public MapperResultTypeValidator(JavaMapperIndex index) {
+        this(index, JavaTypeIndex.empty());
+    }
+
+    public MapperResultTypeValidator(JavaMapperIndex index, JavaTypeIndex typeIndex) {
         this.index = index == null ? JavaMapperIndex.empty() : index;
+        this.typeIndex = typeIndex == null ? JavaTypeIndex.empty() : typeIndex;
     }
 
     public List<Diagnostic> validate(Path actualFile, Path displayFile, String uri) {
@@ -135,7 +158,7 @@ public final class MapperResultTypeValidator {
                     continue;
                 }
 
-                if (!matches(trimmedXmlType, javaShape)) {
+                if (!matches(trimmedXmlType, javaShape, typeIndex)) {
                     diagnostics.add(new Diagnostic(displayFile, uri,
                             rangeForAttributeValue(xml, select, "resultType", resultType, elementStart),
                             Severity.WARNING,
@@ -152,32 +175,92 @@ public final class MapperResultTypeValidator {
     }
 
     /**
-     * XML 側 resultType の文字列を、Java 側の戻り値の要素 simple name と比較する。
-     * 既知の built-in alias は対応する Java 型と比較し、未知の小文字 alias は
-     * 個別登録の可能性を否定できないためフェイルオープン。
+     * XML 側 resultType が、Java 側の戻り値の要素型に代入できる可能性があるか。
+     * 「確実に代入できない」と言えるときだけ false を返す。
      */
-    private static boolean matches(String xmlValue, ReturnShape javaShape) {
+    private static boolean matches(String xmlValue, ReturnShape javaShape, JavaTypeIndex typeIndex) {
+        String returnName = boxedName(javaShape.elementSimpleName);
         // Object(や List<Object>)はどんな resultType の結果でも受け取れる。
-        if ("Object".equals(javaShape.elementSimpleName)) {
+        if ("Object".equals(returnName)) {
             return true;
         }
+        Set<String> xmlNames;
         Set<String> aliasTypes = BUILTIN_ALIAS_JAVA_TYPES.get(xmlValue.toLowerCase(Locale.ROOT));
         if (aliasTypes != null) {
-            return aliasTypes.contains(javaShape.elementSimpleName);
+            xmlNames = new HashSet<>();
+            aliasTypes.forEach(name -> xmlNames.add(boxedName(name)));
+        } else {
+            // 未知の小文字 alias は個別登録の可能性を否定できない。
+            if (!Character.isUpperCase(xmlValue.charAt(0))) {
+                return true;
+            }
+            String xmlSimpleName = xmlValue.contains(".")
+                    ? xmlValue.substring(xmlValue.lastIndexOf('.') + 1)
+                    : xmlValue;
+            // Map を返すメソッドに HashMap / LinkedHashMap などの実装クラスを指定するのは正しい。
+            if ("Map".equals(returnName) && xmlSimpleName.endsWith("Map")) {
+                return true;
+            }
+            xmlNames = Set.of(boxedName(xmlSimpleName));
         }
-        if (!Character.isUpperCase(xmlValue.charAt(0))) {
+        if (xmlNames.contains(returnName)) {
             return true;
         }
-        String xmlSimpleName = xmlValue.contains(".")
-                ? xmlValue.substring(xmlValue.lastIndexOf('.') + 1)
-                : xmlValue;
-        // int を返すメソッドに resultType="java.lang.Integer" と書くのは正しい。
-        if (boxedName(xmlSimpleName).equals(boxedName(javaShape.elementSimpleName))) {
-            return true;
+
+        if (typeIndex.declaresType(returnName)) {
+            // 戻り値がワークスペースの型なら、ワークスペース外の型(JDK やライブラリ)が
+            // その子になることはない。ワークスペース内の親子関係だけをたどれば判断できる。
+            for (String xmlName : xmlNames) {
+                if (aliasTypes == null && reachesSupertype(xmlName, returnName, typeIndex, true)) {
+                    return true;
+                }
+            }
+            return false;
         }
-        // Map を返すメソッドに HashMap / LinkedHashMap などの実装クラスを指定するのは正しい。
-        if ("Map".equals(javaShape.elementSimpleName) && xmlSimpleName.endsWith("Map")) {
-            return true;
+        // ここから先は戻り値がワークスペース外の型。
+        boolean xmlIsWorkspaceType = aliasTypes == null && typeIndex.declaresType(xmlNames.iterator().next());
+        if (!xmlIsWorkspaceType) {
+            // 両方ワークスペース外なら、親子関係がないとわかっている JDK の型同士だけ判断する。
+            return !(UNRELATED_JDK_TYPES.contains(returnName) && UNRELATED_JDK_TYPES.containsAll(xmlNames));
+        }
+        // resultType がワークスペースの型なら、親をたどった先がすべてワークスペース内で
+        // 戻り値型に行き着かない場合だけ、代入できないと言える。
+        return reachesSupertype(xmlNames.iterator().next(), returnName, typeIndex, false);
+    }
+
+    /**
+     * {@code start} から親クラス/インターフェースをたどって {@code target} に行き着くか。
+     * 行き着かないと断定できない場合(一意に決まらない型や、たどれない型がある場合)も
+     * true を返して警告を避ける。
+     *
+     * @param ignoreExternalTypes ワークスペース外の型をたどれなくても無視してよいか。
+     *                            target がワークスペースの型なら、外部の型はその子になりえない
+     */
+    private static boolean reachesSupertype(String start, String target, JavaTypeIndex typeIndex,
+                                            boolean ignoreExternalTypes) {
+        Deque<String> pending = new ArrayDeque<>();
+        Set<String> visited = new HashSet<>();
+        pending.add(start);
+        while (!pending.isEmpty()) {
+            String name = pending.poll();
+            if (name.equals(target)) {
+                return true;
+            }
+            if (!visited.add(name)) {
+                continue;
+            }
+            if (!typeIndex.declaresType(name)) {
+                if (ignoreExternalTypes) {
+                    continue;
+                }
+                return true;
+            }
+            Set<String> supertypes = typeIndex.findDirectSupertypes(name);
+            if (supertypes == null) {
+                // 同じ simple name の型が複数あり、どれの親をたどればよいか決められない。
+                return true;
+            }
+            pending.addAll(supertypes);
         }
         return false;
     }

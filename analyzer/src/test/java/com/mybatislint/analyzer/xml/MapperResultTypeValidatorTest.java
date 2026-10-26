@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
+import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.RuleIds;
 import org.junit.jupiter.api.Test;
@@ -369,6 +370,140 @@ class MapperResultTypeValidatorTest {
                 .count(), () -> diagnostics.toString());
     }
 
+    @Test
+    void acceptsSubtypesOfTheReturnType(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                import java.io.Serializable;
+                import java.util.List;
+
+                public interface UserMapper {
+                    BaseDto findBase();
+                    List<Named> findNamed();
+                    Serializable findSerializable();
+                    Comparable<Status> findStatus();
+                }
+
+                class BaseDto {
+                }
+
+                interface Named {
+                }
+
+                class UserDto extends BaseDto implements Named {
+                }
+
+                class AdminDto extends UserDto {
+                }
+
+                enum Status implements Comparable<Status> {
+                    ACTIVE
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findBase" resultType="com.example.AdminDto">SELECT * FROM users</select>
+                    <select id="findNamed" resultType="UserDto">SELECT * FROM users</select>
+                    <select id="findSerializable" resultType="String">SELECT name FROM users</select>
+                    <select id="findStatus" resultType="Status">SELECT status FROM users</select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void skipsWhenTheHierarchyCannotBeFollowed(@TempDir Path tempDir) throws IOException {
+        // ExternalBase はワークスペースにないので、その先で Serializable を実装しているかもしれない。
+        // OrderDto は同じ simple name の型が 2 つあり、どちらの親をたどればよいか決められない。
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                import java.io.Serializable;
+                import java.util.Map;
+
+                public interface UserMapper {
+                    Serializable findSerializable();
+                    Map<String, Object> findRow();
+                    Number countUsers();
+                    BaseDto findOrder();
+                }
+
+                class BaseDto {
+                }
+
+                class UserDto extends ExternalBase {
+                }
+
+                class RowDto extends java.util.HashMap<String, Object> {
+                }
+                """);
+        Path other = tempDir.resolve("src/main/java/com/example/a/OrderDto.java");
+        Files.createDirectories(other.getParent());
+        Files.writeString(other, "package com.example.a;\npublic class OrderDto extends com.example.BaseDto {}\n",
+                StandardCharsets.UTF_8);
+        Path another = tempDir.resolve("src/main/java/com/example/b/OrderDto.java");
+        Files.createDirectories(another.getParent());
+        Files.writeString(another, "package com.example.b;\npublic class OrderDto {}\n", StandardCharsets.UTF_8);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findSerializable" resultType="UserDto">SELECT * FROM users</select>
+                    <select id="findRow" resultType="RowDto">SELECT * FROM users</select>
+                    <select id="countUsers" resultType="int">SELECT COUNT(*) FROM users</select>
+                    <select id="findOrder" resultType="OrderDto">SELECT * FROM orders</select>
+                </mapper>
+                """);
+
+        assertTrue(diagnostics.stream().noneMatch(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId())),
+                () -> diagnostics.toString());
+    }
+
+    @Test
+    void reportsUnrelatedTypesWhenTheHierarchyIsKnown(@TempDir Path tempDir) throws IOException {
+        writeJavaMapper(tempDir, """
+                package com.example;
+
+                import java.io.Serializable;
+                import java.util.List;
+
+                public interface UserMapper {
+                    UserDto findUser();
+                    List<UserDto> findUsers();
+                    Serializable findSerializable();
+                    String findName();
+                }
+
+                class BaseDto {
+                }
+
+                class UserDto extends BaseDto {
+                }
+
+                class OrderDto extends BaseDto {
+                }
+                """);
+
+        List<Diagnostic> diagnostics = analyze(tempDir, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <mapper namespace="com.example.UserMapper">
+                    <select id="findUser" resultType="BaseDto">SELECT * FROM users</select>
+                    <select id="findUsers" resultType="OrderDto">SELECT * FROM users</select>
+                    <select id="findSerializable" resultType="OrderDto">SELECT * FROM users</select>
+                    <select id="findName" resultType="OrderDto">SELECT name FROM users</select>
+                </mapper>
+                """);
+
+        assertEquals(4, diagnostics.stream()
+                .filter(d -> RuleIds.RESULT_TYPE_MISMATCH.equals(d.getRuleId()))
+                .count(), () -> diagnostics.toString());
+    }
+
     private static void writeJavaMapper(Path tempDir, String source) throws IOException {
         Path javaFile = tempDir.resolve("src/main/java/com/example/UserMapper.java");
         Files.createDirectories(javaFile.getParent());
@@ -381,6 +516,7 @@ class MapperResultTypeValidatorTest {
         Files.writeString(xmlFile, xmlContent, StandardCharsets.UTF_8);
 
         JavaMapperIndex index = JavaMapperIndex.build(tempDir);
-        return new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index);
+        return new MapperXmlAnalyzer().analyze(xmlFile, xmlFile.getFileName(), xmlFile.toUri().toString(), index,
+                MapperSqlFragmentIndex.empty(), JavaTypeIndex.build(tempDir));
     }
 }
