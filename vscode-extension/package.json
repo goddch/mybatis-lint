@@ -2,7 +2,7 @@
   "name": "mybatis-lint",
   "displayName": "MyBatis Lint",
   "description": "Static analysis diagnostics for MyBatis mapper XML files.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "goddch",
   "preview": true,
   "license": "Apache-2.0",
