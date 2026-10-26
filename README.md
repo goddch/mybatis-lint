@@ -124,9 +124,10 @@ npm test          # unit tests (node --test), no Extension Host required
 3. The extension finds `analyzer/build/libs/analyzer.jar` automatically when
    no jar is bundled. To use another jar, set `mybatisLint.analyzerJarPath` to
    its absolute path.
-4. If `java` is not on your VS Code PATH, the extension also tries `JAVA_HOME`
-   and SDKMAN's current Java automatically; otherwise set
-   `mybatisLint.javaPath` explicitly.
+4. The extension looks for Java in this order: the `mybatisLint.javaPath`
+   setting, the bundled runtime in `vscode-extension/jre/` (created by
+   `npm run bundle`; delete it to go back to auto-detection), `JAVA_HOME`,
+   SDKMAN's current Java, and finally `java` on the PATH.
 5. Press F5 (uses `.vscode/launch.json`) to launch an Extension Development
    Host window, open a folder containing mapper XML (e.g. this repo's
    `fixtures/` folder), and run **MyBatis Lint: Check Workspace** from the
@@ -150,11 +151,11 @@ npx vsce package --target linux-x64   # Node 20+ required
 `.github/workflows/package.yml` builds VSIX files for `linux-x64`, `win32-x64`,
 `darwin-arm64`, and `darwin-x64` on manual dispatch or `v*` tags and uploads
 them as workflow artifacts. Pushing a `v*` tag additionally attaches them to a
-GitHub Release (the tag must match the `package.json` version). Publishing to
-the Marketplace (publisher `goddch`) is done manually by uploading those VSIX
-files on the Marketplace management page.
-Once `vscode-extension/jre/` exists, the extension prefers it over `JAVA_HOME`
-during development too; delete it to go back to auto-detection.
+GitHub Release (the tag must match the `package.json` version), then tries to
+publish them to the Marketplace (publisher `goddch`) with
+`vsce publish --oidc` (OIDC trusted publishing, no stored token). This is still
+experimental in vsce 4.0.0; if that job fails, the VSIX files on the Release are
+uploaded manually on the Marketplace management page.
 
 ## License
 
