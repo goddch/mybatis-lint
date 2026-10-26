@@ -141,7 +141,7 @@ public final class MapperXmlAnalyzer {
                 .validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterValidator(javaIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterTypeValidator(javaIndex).validate(actualFile, displayFile, uri));
-        diagnostics.addAll(new MapperResultTypeValidator(javaIndex).validate(actualFile, displayFile, uri));
+        diagnostics.addAll(new MapperResultTypeValidator(javaIndex, typeIndex).validate(actualFile, displayFile, uri));
         return new FileResult(diagnostics, handler.sawMapperRoot);
     }
 

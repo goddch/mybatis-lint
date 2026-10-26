@@ -16,4 +16,8 @@ public interface ResultTypeValidMapper {
     // 単純な List<T> の一致: XML 側 resultType="User" と、この戻り値
     // List<User> の要素型 User が一致するため OK。
     java.util.List<User> findAll();
+
+    // 子クラスの指定: XML 側 resultType="AdminUser" は戻り値 User の子クラスなので、
+    // 名前が違っても代入できるため OK。
+    User findAdmin(Long id);
 }

@@ -5,9 +5,11 @@ import com.github.javaparser.ParseResult;
 import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
@@ -17,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +58,9 @@ public final class JavaTypeIndex {
     private final Set<String> simpleNamesLowerCase = new HashSet<>();
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
     private final Map<String, Map<String, String>> resultPropertyTypesByQualifiedName = new HashMap<>();
+    // resultType と戻り値型の代入互換性を見るための、simple name ごとの直接の親型(simple name)。
+    // 同じ simple name の型が複数あるとどれを指すか決められないので値を null にする。
+    private final Map<String, Set<String>> directSupertypesBySimpleName = new HashMap<>();
 
     public static JavaTypeIndex empty() {
         return new JavaTypeIndex();
@@ -81,6 +87,20 @@ public final class JavaTypeIndex {
 
     public boolean isEmpty() {
         return simpleNamesLowerCase.isEmpty();
+    }
+
+    /** この simple name(大文字小文字を区別)の型がワークスペースで宣言されているか。 */
+    public boolean declaresType(String simpleName) {
+        return directSupertypesBySimpleName.containsKey(simpleName);
+    }
+
+    /**
+     * 型の直接の親クラス/インターフェースの simple name。宣言されていない、または
+     * 同じ simple name の型が複数あって一意に決められない場合は null。
+     * enum と record は暗黙の親(Enum / Record)も含める。
+     */
+    public Set<String> findDirectSupertypes(String simpleName) {
+        return directSupertypesBySimpleName.get(simpleName);
     }
 
     /** FQCN で一意に解決できた通常クラスのプロパティ。判断できない型は null。 */
@@ -111,6 +131,9 @@ public final class JavaTypeIndex {
             // (enum は今回のスコープでは対象外。まずは小さく始める方針のため)。
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
+                Set<String> supertypes = new HashSet<>(simpleNamesOf(type.getExtendedTypes()));
+                supertypes.addAll(simpleNamesOf(type.getImplementedTypes()));
+                addDirectSupertypes(type.getNameAsString(), supertypes);
                 if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
                     type.getFullyQualifiedName().ifPresent(name -> {
                         // 同じ FQCN が複数のソースルートにある場合も決め打ちしない。
@@ -131,15 +154,38 @@ public final class JavaTypeIndex {
             // 明示的に拾っておく。
             for (RecordDeclaration recordDeclaration : unit.findAll(RecordDeclaration.class)) {
                 simpleNamesLowerCase.add(recordDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
+                Set<String> supertypes = new HashSet<>(simpleNamesOf(recordDeclaration.getImplementedTypes()));
+                supertypes.add("Record");
+                addDirectSupertypes(recordDeclaration.getNameAsString(), supertypes);
                 if (recordDeclaration.getParentNode().orElse(null) instanceof CompilationUnit) {
                     recordDeclaration.getFullyQualifiedName()
                             .ifPresent(name -> resultPropertiesByQualifiedName.put(name, null));
                 }
             }
+            // enum は typeAlias の候補には入れないが、親子関係だけは記録する。記録しないと
+            // ワークスペース外の型と区別できず、resultType の検証で誤検知になりうる。
+            for (EnumDeclaration enumDeclaration : unit.findAll(EnumDeclaration.class)) {
+                Set<String> supertypes = new HashSet<>(simpleNamesOf(enumDeclaration.getImplementedTypes()));
+                supertypes.add("Enum");
+                addDirectSupertypes(enumDeclaration.getNameAsString(), supertypes);
+            }
         } catch (IOException e) {
             // 1 ファイル読めないだけでワークスペース全体の索引作りを止めたくないため、
             // このファイルの分は諦めて次のファイルに進むフェイルオープン方針。
         }
+    }
+
+    private void addDirectSupertypes(String simpleName, Set<String> supertypes) {
+        if (directSupertypesBySimpleName.containsKey(simpleName)) {
+            directSupertypesBySimpleName.put(simpleName, null);
+        } else {
+            directSupertypesBySimpleName.put(simpleName, Set.copyOf(supertypes));
+        }
+    }
+
+    private static List<String> simpleNamesOf(List<ClassOrInterfaceType> types) {
+        // getNameAsString() はパッケージ部分と型引数を除いた名前を返す。
+        return types.stream().map(ClassOrInterfaceType::getNameAsString).toList();
     }
 
     private static Set<String> collectResultProperties(ClassOrInterfaceDeclaration type) {

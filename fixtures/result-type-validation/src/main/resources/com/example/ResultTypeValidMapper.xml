@@ -23,4 +23,12 @@
   <select id="findAll" resultType="User">
     SELECT * FROM users
   </select>
+
+  <!--
+    resultType="AdminUser" は戻り値 User の子クラスなので、名前が違っても
+    代入できる。親子関係をたどって判断するため報告されない(正常系)。
+  -->
+  <select id="findAdmin" resultType="AdminUser">
+    SELECT * FROM users WHERE id = #{id} AND role IS NOT NULL
+  </select>
 </mapper>
