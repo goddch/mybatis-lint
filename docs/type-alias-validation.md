@@ -59,19 +59,23 @@ MyBatis の `typeAlias` は、次のいずれか(または複数)によって実
    個別に登録された小文字 alias である可能性を否定できないため、
    「誤検知を出すくらいなら報告しない」という本プロジェクトの一貫した方針に
    合わせている。
-6. ここまで残った値は「大文字始まりの DTO/Entity らしい simple name」。
-   `JavaTypeIndex` に同じ simple name(大文字小文字は無視)のクラス/インターフェースが
-   見つかれば解決済みとし、見つからなければ
+6. ワークスペースに Java ソースが 1 つもない場合(XML だけのフォルダを開いた場合)は、
+   どの型があるのか何もわからないので対象外にする。
+7. ここまで残った値は「大文字始まりの DTO/Entity らしい simple name」。
+   次のどれかと一致すれば(大文字小文字は無視)解決済みとし、見つからなければ
    `mybatis-lint/unresolved-type-alias` を warning として報告する。
+   - ワークスペースのクラス/インターフェース/record/enum の simple name
+   - `@Alias("...")` で付けた名前
+   - ワークスペースの MyBatis 設定ファイル(`<configuration>` がルートの XML)で
+     `<typeAlias alias="...">` として登録した名前
 
 ## 誤検知(false positive)と見逃し(false negative)のトレードオフ
 
-- **誤検知**: mybatis-config.xml 側で明示的に登録された大文字始まりの alias
-  (例: `<typeAlias alias="UserAlias" type="com.example.dto.UserDto"/>`)は、
-  ワークスペース内に `UserAlias` という simple name のクラスが実在しなくても
-  正当な設定です。このケースはこのルールでは誤って warning が出ます。
-  そのため severity を `error` ではなく `warning` にとどめ、利用者が
-  「候補として一応知らせる」レベルの情報として扱えるようにしています。
+- **誤検知**: ワークスペースの外(別モジュールや jar)にあるクラスや、Java コード・
+  Spring Boot の設定など XML 以外の方法で登録された大文字始まりの alias は、
+  正当な設定でも warning が出ます。そのため severity を `error` ではなく
+  `warning` にとどめ、利用者が「候補として一応知らせる」レベルの情報として
+  扱えるようにしています。
 - **見逃し**: 逆に、workspace 内にたまたま同じ simple name のクラスが
   存在してしまえば(パッケージが違うだけの同名クラスなど)、実際には
   タイプミスであっても解決済みとみなして見逃します。これは

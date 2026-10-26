@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.cli.AnalyzerCli;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -20,6 +21,12 @@ class MapperDiscriminatorTypeAliasValidationTest {
 
     @TempDir
     Path workspace;
+
+    @BeforeEach
+    void writeUnrelatedJavaType() throws IOException {
+        // Java ソースが 1 つもないと typeAlias の推測自体をしないので、無関係な型を置いておく。
+        write("Unrelated.java", "package com.example; public class Unrelated {}");
+    }
 
     @Test
     void reportsDiscriminatorAndInlineCaseAliasesAtAttributeValues() throws IOException {

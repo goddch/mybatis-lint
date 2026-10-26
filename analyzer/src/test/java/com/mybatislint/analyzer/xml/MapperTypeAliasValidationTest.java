@@ -125,6 +125,8 @@ class MapperTypeAliasValidationTest {
 
     @Test
     void reportsNestedMappingTypeAliasesAtEachAttributeValue(@TempDir Path tempDir) throws IOException {
+        // Java ソースが 1 つもないと typeAlias の推測自体をしないので、無関係な型を置いておく。
+        writeJavaClass(tempDir, "Unrelated");
         Path xmlFile = writeMapperXml(tempDir, "NestedMapper.xml", """
                 <mapper namespace="com.example.NestedMapper">
                     <sql id="fragment"><association javaType="Ignored"/></sql>

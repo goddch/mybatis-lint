@@ -9,6 +9,10 @@ import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.NormalAnnotationExpr;
+import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
@@ -56,6 +60,9 @@ public final class JavaTypeIndex {
     // MyBatis の TypeAliasRegistry も内部的には alias 文字列を小文字化して
     // 管理しているため、この索引の比較方法を合わせておくと自然な挙動になる。
     private final Set<String> simpleNamesLowerCase = new HashSet<>();
+    // 設定ファイルで登録された alias。Java ソースが 1 つもないかどうか(isEmpty)の
+    // 判断には使わないので、simple name とは分けて持つ。
+    private final Set<String> registeredAliasesLowerCase = new HashSet<>();
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
     private final Map<String, Map<String, String>> resultPropertyTypesByQualifiedName = new HashMap<>();
     // resultType と戻り値型の代入互換性を見るための、simple name ごとの直接の親型(simple name)。
@@ -82,11 +89,24 @@ public final class JavaTypeIndex {
         if (simpleName == null || simpleName.isBlank()) {
             return false;
         }
-        return simpleNamesLowerCase.contains(simpleName.toLowerCase(Locale.ROOT));
+        String lowerCase = simpleName.toLowerCase(Locale.ROOT);
+        return simpleNamesLowerCase.contains(lowerCase) || registeredAliasesLowerCase.contains(lowerCase);
     }
 
     public boolean isEmpty() {
         return simpleNamesLowerCase.isEmpty();
+    }
+
+    /**
+     * mybatis-config.xml の {@code <typeAlias alias="...">} など、Java ソース以外で
+     * 登録された alias を追加する。simple name と同じく小文字で比較する。
+     */
+    public void addRegisteredAliases(Set<String> aliases) {
+        for (String alias : aliases) {
+            if (alias != null && !alias.isBlank()) {
+                registeredAliasesLowerCase.add(alias.trim().toLowerCase(Locale.ROOT));
+            }
+        }
     }
 
     /** この simple name(大文字小文字を区別)の型がワークスペースで宣言されているか。 */
@@ -131,6 +151,7 @@ public final class JavaTypeIndex {
             // (enum は今回のスコープでは対象外。まずは小さく始める方針のため)。
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
+                addAliasAnnotation(type);
                 Set<String> supertypes = new HashSet<>(simpleNamesOf(type.getExtendedTypes()));
                 supertypes.addAll(simpleNamesOf(type.getImplementedTypes()));
                 addDirectSupertypes(type.getNameAsString(), supertypes);
@@ -154,6 +175,7 @@ public final class JavaTypeIndex {
             // 明示的に拾っておく。
             for (RecordDeclaration recordDeclaration : unit.findAll(RecordDeclaration.class)) {
                 simpleNamesLowerCase.add(recordDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
+                addAliasAnnotation(recordDeclaration);
                 Set<String> supertypes = new HashSet<>(simpleNamesOf(recordDeclaration.getImplementedTypes()));
                 supertypes.add("Record");
                 addDirectSupertypes(recordDeclaration.getNameAsString(), supertypes);
@@ -162,9 +184,11 @@ public final class JavaTypeIndex {
                             .ifPresent(name -> resultPropertiesByQualifiedName.put(name, null));
                 }
             }
-            // enum は typeAlias の候補には入れないが、親子関係だけは記録する。記録しないと
-            // ワークスペース外の型と区別できず、resultType の検証で誤検知になりうる。
+            // enum も resultType / parameterType に書ける(パッケージ単位の alias 登録の
+            // 対象にもなる)。見落とすと enum を指定した箇所が誤検知になる。
             for (EnumDeclaration enumDeclaration : unit.findAll(EnumDeclaration.class)) {
+                simpleNamesLowerCase.add(enumDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
+                addAliasAnnotation(enumDeclaration);
                 Set<String> supertypes = new HashSet<>(simpleNamesOf(enumDeclaration.getImplementedTypes()));
                 supertypes.add("Enum");
                 addDirectSupertypes(enumDeclaration.getNameAsString(), supertypes);
@@ -172,6 +196,29 @@ public final class JavaTypeIndex {
         } catch (IOException e) {
             // 1 ファイル読めないだけでワークスペース全体の索引作りを止めたくないため、
             // このファイルの分は諦めて次のファイルに進むフェイルオープン方針。
+        }
+    }
+
+    /**
+     * {@code @Alias("Member")} が付いた型は、simple name ではなくその名前で登録される。
+     * 名前を読み取れない書き方(定数の参照など)は無視する。
+     */
+    private void addAliasAnnotation(NodeWithAnnotations<?> type) {
+        for (AnnotationExpr annotation : type.getAnnotations()) {
+            String name = annotation.getNameAsString();
+            if (!"Alias".equals(name) && !name.endsWith(".Alias")) {
+                continue;
+            }
+            if (annotation instanceof SingleMemberAnnotationExpr single
+                    && single.getMemberValue() instanceof StringLiteralExpr literal) {
+                simpleNamesLowerCase.add(literal.getValue().toLowerCase(Locale.ROOT));
+            } else if (annotation instanceof NormalAnnotationExpr normal) {
+                normal.getPairs().stream()
+                        .filter(pair -> "value".equals(pair.getNameAsString()))
+                        .filter(pair -> pair.getValue() instanceof StringLiteralExpr)
+                        .forEach(pair -> simpleNamesLowerCase.add(
+                                ((StringLiteralExpr) pair.getValue()).getValue().toLowerCase(Locale.ROOT)));
+            }
         }
     }
 

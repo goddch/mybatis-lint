@@ -6,8 +6,12 @@ exactly what each one checks and when it stays silent (fail-open).
 
 All of these rules work only from the mapper XML and Java sources in the
 workspace. MyBatis configuration, annotations, and compiled classes are not
-loaded, so resultMaps or aliases registered elsewhere can produce warnings.
-Warnings do not change the CLI exit code.
+loaded. A fully-qualified reference such as `other.CommonMapper.BaseMap` whose
+namespace has no mapper XML in the workspace (for example, it lives in another
+module or a jar) is never reported, because its contents cannot be checked.
+Missing IDs in namespaces that are in the workspace are still reported, so a
+resultMap registered there by other means (annotations, Java code) can produce
+a warning. Warnings do not change the CLI exit code.
 
 ## Explicit resultMap property validation
 

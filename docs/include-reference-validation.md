@@ -39,9 +39,17 @@ MyBatis では、再利用したい SQL 断片を次のように定義できま�
 
 このため、次のように判定しています。
 
-- `refid` にドットがない場合: 同じ mapper ファイル内の `<sql id>` だけを探す
+- `refid` にドットがない場合: 同じ namespace の `<sql id>` を探す。同じ namespace の
+  mapper が複数ファイルに分かれていれば、それらも探す
 - `refid` が現在の `namespace.sqlId` 形式の場合: 同じ mapper ファイル内の `<sql id>` と照合する
 - `refid` が別 `namespace.sqlId` 形式の場合: ワークスペース全体から作った索引で照合する
+
+次の場合は、見つからなくても報告しません(フェイルオープン)。
+
+- 別 `namespace.sqlId` 形式で、その namespace の mapper がワークスペースにない場合。
+  別モジュールや jar にある断片かもしれず、中身を確かめられないため
+- `<sql>` の中にある短い `refid` が見つからない場合。その断片を取り込む側の
+  mapper の文脈で解決されることがあり、どこから取り込まれるかまでは追わないため
 
 namespace 自体にもドットが入るため、索引では namespace を長い順に見ています。
 これにより、`com.example.UserMapper.BaseColumns` を誤って `com.example` +
