@@ -107,6 +107,12 @@ This prints a JSON diagnostics report to stdout and exits non-zero if any
 error-severity diagnostics were found (the `fixtures/invalid` files are
 intentionally invalid, so this is expected when scanning `fixtures/`).
 
+To skip part of the workspace, pass `--exclude <glob>` before the workspace
+path, once per pattern (for example `--exclude docker --exclude 'modules/*/generated'`).
+Globs are relative to the workspace and use `/`; a pattern without `/` matches
+a folder or file name at any depth. Folders that cannot be read are skipped
+automatically. In VS Code, use the `mybatisLint.exclude` setting.
+
 ### VS Code extension
 
 ```sh

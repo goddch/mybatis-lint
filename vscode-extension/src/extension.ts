@@ -79,7 +79,13 @@ async function checkWorkspace(
   diagnosticCollection.clear();
 
   try {
-    const { stdout } = await runAnalyzer({ javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath });
+    const excludes = config.get<unknown>('exclude');
+    const { stdout } = await runAnalyzer({
+      javaPath,
+      jarPath,
+      workspacePath: workspaceFolder.uri.fsPath,
+      excludes: Array.isArray(excludes) ? excludes.filter((value): value is string => typeof value === 'string') : [],
+    });
     const result = parseAnalyzerOutput(stdout);
     const grouped = groupDiagnosticsByUri(result.diagnostics);
 

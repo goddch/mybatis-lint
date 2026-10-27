@@ -11,6 +11,7 @@ import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
+import com.mybatislint.analyzer.discovery.ExcludePatterns;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
 import java.io.IOException;
@@ -67,11 +68,15 @@ public final class JavaTypeIndex {
     }
 
     public static JavaTypeIndex build(Path workspaceRoot) {
+        return build(workspaceRoot, ExcludePatterns.none());
+    }
+
+    public static JavaTypeIndex build(Path workspaceRoot, ExcludePatterns excludes) {
         JavaTypeIndex index = new JavaTypeIndex();
         if (workspaceRoot == null || !Files.isDirectory(workspaceRoot)) {
             return index;
         }
-        for (Path file : new JavaFileScanner().scan(workspaceRoot)) {
+        for (Path file : new JavaFileScanner(excludes).scan(workspaceRoot)) {
             index.indexJavaFile(file);
         }
         return index;

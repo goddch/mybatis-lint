@@ -4,6 +4,18 @@ import { test } from 'node:test';
 
 import { buildAnalyzerArgs, runAnalyzer } from '../src/analyzerRunner';
 
+test('passes each non-blank exclude pattern before the workspace path', () => {
+  assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace', ['docker', ' ', ' modules/*/generated ']), [
+    '-jar',
+    '/path/analyzer.jar',
+    '--exclude',
+    'docker',
+    '--exclude',
+    'modules/*/generated',
+    '/workspace',
+  ]);
+});
+
 test('builds the expected java CLI arguments', () => {
   assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace'), [
     '-jar',
