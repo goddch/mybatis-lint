@@ -131,6 +131,15 @@ public final class MapperReferenceValidator {
             if (isResolved(refid, namespace, localSqlIds)) {
                 continue;
             }
+            if (isInOtherNamespace(refid, namespace)) {
+                // 開いたフォルダにない mapper(別モジュールや jar)の断片かもしれない。
+                continue;
+            }
+            if (!refid.contains(".") && isInsideSqlFragment(include)) {
+                // <sql> の中の短い refid は、その断片を取り込む側の文脈で解決されることがある。
+                // どこから取り込まれるかまでは追わないので、見つからなくても報告しない。
+                continue;
+            }
             diagnostics.add(new Diagnostic(displayFile, uri,
                     rangeForAttributeValue(xml, include, "refid", refid, includeStart),
                     Severity.ERROR,
@@ -261,6 +270,11 @@ public final class MapperReferenceValidator {
             // ここで断定的に error を出すと、実際には正しく動いている設定を
             // 誤検知してしまうため、「大文字始まりの DTO/Entity らしい名前」
             // だけを候補として扱うフェイルオープン方針にしている。
+            return;
+        }
+        if (typeIndex.isEmpty()) {
+            // Java ソースが 1 つも見つからない(XML だけのフォルダを開いた)場合は、
+            // どの型があるのか何もわからないので推測しない。
             return;
         }
         if (typeIndex.containsSimpleName(trimmed)) {
@@ -606,12 +620,40 @@ public final class MapperReferenceValidator {
         String qualifiedId = id.contains(".") ? id : namespace + "." + id;
         String prefix = namespace + ".";
         return (qualifiedId.startsWith(prefix) && localIds.contains(qualifiedId.substring(prefix.length())))
-                || resultMapIndex.contains(qualifiedId);
+                || resultMapIndex.contains(qualifiedId)
+                // 開いたフォルダにない mapper(別モジュールや jar)の resultMap かもしれない。
+                // あるかないか判断できないので、解決できたものとして扱う。
+                || isInOtherNamespace(id, namespace);
+    }
+
+    /**
+     * {@code namespace.id} 形式の参照で、その namespace の mapper がワークスペースに
+     * 見つからないか。見つからない namespace の中身は確かめようがない。
+     */
+    private boolean isInOtherNamespace(String reference, String currentNamespace) {
+        int lastDot = reference.lastIndexOf('.');
+        if (lastDot <= 0) {
+            return false;
+        }
+        String referencedNamespace = reference.substring(0, lastDot);
+        return !referencedNamespace.equals(currentNamespace)
+                && !sqlFragmentIndex.containsNamespace(referencedNamespace);
+    }
+
+    private static boolean isInsideSqlFragment(Element element) {
+        for (Node node = element.getParentNode(); node instanceof Element parent; node = parent.getParentNode()) {
+            if ("sql".equals(parent.getTagName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isResolved(String refid, String namespace, Set<String> localSqlIds) {
         if (!refid.contains(".")) {
-            return localSqlIds.contains(refid);
+            // 同じ namespace の <sql> が別ファイルに分かれていることもある。
+            return localSqlIds.contains(refid)
+                    || (namespace != null && sqlFragmentIndex.contains(namespace, refid));
         }
         String currentNamespacePrefix = namespace == null || namespace.isBlank() ? "" : namespace + ".";
         if (!currentNamespacePrefix.isEmpty() && refid.startsWith(currentNamespacePrefix)) {

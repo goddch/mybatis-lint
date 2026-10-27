@@ -52,6 +52,8 @@ class MapperResultMapExtendsValidationTest {
 
     @Test
     void reportsMissingParentsAtTheirAttributeValues() throws IOException {
+        // other.Mapper はワークスペースにあるが、参照先の resultMap は宣言していない。
+        write("Other.xml", "<mapper namespace=\"other.Mapper\"/>");
         Path file = write("Mapper.xml", """
                 <mapper namespace="example.Mapper">
                     <resultMap id="Empty" type="map" extends=""/>

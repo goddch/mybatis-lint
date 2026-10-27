@@ -56,6 +56,11 @@ public final class MapperSqlFragmentIndex {
         return sqlIds != null && sqlIds.contains(sqlId);
     }
 
+    /** この namespace の mapper がワークスペースにあるか(<sql> の有無は問わない)。 */
+    public boolean containsNamespace(String namespace) {
+        return sqlIdsByNamespace.containsKey(namespace);
+    }
+
     public boolean containsQualifiedRefid(String refid) {
         if (refid == null || refid.isBlank()) {
             return false;

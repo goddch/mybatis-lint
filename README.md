@@ -8,9 +8,10 @@ attempt full MyBatis/Oracle support yet, and false positives are possible.
 
 The analyzer favors silence over false positives: whenever something cannot be
 decided statically (`${...}` values, unresolved or ambiguous Java types,
-aliases registered in MyBatis configuration, and so on) it reports nothing.
-Only the mapper XML and Java sources in the workspace are read; MyBatis
-configuration files and compiled classes are not loaded.
+references to mappers that are not in the opened folder, and so on) it reports
+nothing. Only the XML and Java sources in the workspace are read; from MyBatis
+configuration files only `<typeAlias alias>` names are used, and compiled
+classes and other modules are not loaded.
 
 ## Installing
 
@@ -38,7 +39,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `when-outside-choose` | error | `<when>` that is not a direct child of `<choose>` |
 | `otherwise-outside-choose` | error | `<otherwise>` that is not a direct child of `<choose>` |
 | `undefined-parameter` | error | `#{...}`, `${...}`, `<if test>`, `<when test>`, or `<foreach collection>` referring to a name that is not a parameter of the resolved Java mapper method ([details](docs/foreach-collection-validation.md)) |
-| `unresolved-include` | error | `<include refid>` with no matching `<sql id>`, including `namespace.sqlId` references across files ([details](docs/include-reference-validation.md)) |
+| `unresolved-include` | error | `<include refid>` with no matching `<sql id>`, including `namespace.sqlId` references across files; namespaces with no mapper in the workspace are skipped ([details](docs/include-reference-validation.md)) |
 | `duplicate-result-map-id` | error | the same top-level resultMap id twice in one namespace, across files |
 | `result-map-and-type` | warning | a statement with both `resultMap` and `resultType` |
 | `unresolved-type-alias` | warning | a type that looks like a custom alias but matches no workspace class (heuristic; [details](docs/type-alias-validation.md)) |

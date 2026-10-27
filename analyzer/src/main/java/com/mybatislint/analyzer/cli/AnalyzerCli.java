@@ -9,6 +9,7 @@ import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperSqlFragmentIndex;
 import com.mybatislint.analyzer.xml.MapperResultMapIndex;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
+import com.mybatislint.analyzer.xml.MybatisConfigAliases;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -75,6 +76,9 @@ public final class AnalyzerCli {
         // 知る必要があるため、専用の索引を別途作る。
         JavaTypeIndex typeIndex = JavaTypeIndex.build(workspaceRoot, excludes);
         List<Path> mapperFiles = scanner.scan(workspaceRoot);
+        // mybatis-config.xml の <typeAlias alias="..."> で登録された alias も、
+        // ワークスペースにある型として扱う。
+        typeIndex.addRegisteredAliases(MybatisConfigAliases.collect(mapperFiles));
         // <include refid="namespace.sqlId"> は別ファイルの <sql id> を参照できる。
         // そのため、各ファイルを個別に解析する前にワークスペース内の SQL fragment を
         // 一度だけ索引化し、全ファイルの解析で共有する。
