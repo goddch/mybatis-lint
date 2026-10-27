@@ -4,7 +4,6 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.model.Diagnostic;
-import com.mybatislint.analyzer.model.Position;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -339,15 +338,20 @@ public final class MapperParameterValidator {
                                                      String root,
                                                      String rawSnippet,
                                                      int lowerBound) {
-        int positionIndex = xml.indexOf(rawSnippet, lowerBound);
-        if (positionIndex < 0) {
-            positionIndex = xml.indexOf(root, lowerBound);
+        // エディタでは未定義の名前そのものに波線を引きたいので、式の中からその名前を探す。
+        // 見つからなければ式全体、それも見つからなければ幅 0 の位置にする。
+        Range range;
+        int snippetStart = xml.indexOf(rawSnippet, lowerBound);
+        int searchEnd = snippetStart >= 0 ? snippetStart + rawSnippet.length() : xml.length();
+        int rootIndex = findIdentifier(xml, root, snippetStart >= 0 ? snippetStart : lowerBound, searchEnd);
+        if (rootIndex >= 0) {
+            range = XmlPositions.range(xml, rootIndex, rootIndex + root.length());
+        } else if (snippetStart >= 0) {
+            range = XmlPositions.range(xml, snippetStart, searchEnd);
+        } else {
+            range = XmlPositions.range(xml, lowerBound, lowerBound);
         }
-        if (positionIndex < 0) {
-            positionIndex = lowerBound;
-        }
-        Position pos = toPosition(xml, positionIndex);
-        return new Diagnostic(displayFile, uri, Range.at(pos.getLine(), pos.getCharacter()), Severity.ERROR,
+        return new Diagnostic(displayFile, uri, range, Severity.ERROR,
                 RuleIds.UNDEFINED_PARAMETER,
                 "Undefined parameter '" + root + "' in mapper method '" + method.getName() + "'.");
     }
@@ -375,17 +379,20 @@ public final class MapperParameterValidator {
         return lowerBound;
     }
 
-    private static Position toPosition(String xml, int index) {
-        int line = 1;
-        int column = 1;
-        for (int i = 0; i < index && i < xml.length(); i++) {
-            if (xml.charAt(i) == '\n') {
-                line++;
-                column = 1;
-            } else {
-                column++;
+    /** {@code [from, to)} の範囲で、前後が識別子の文字でない {@code name} を探す。 */
+    private static int findIdentifier(String xml, String name, int from, int to) {
+        int index = xml.indexOf(name, from);
+        while (index >= 0 && index + name.length() <= to) {
+            int before = index - 1;
+            int after = index + name.length();
+            boolean startsWord = before < 0
+                    || (!Character.isJavaIdentifierPart(xml.charAt(before)) && xml.charAt(before) != '.');
+            boolean endsWord = after >= xml.length() || !Character.isJavaIdentifierPart(xml.charAt(after));
+            if (startsWord && endsWord) {
+                return index;
             }
+            index = xml.indexOf(name, index + 1);
         }
-        return new Position(line, column);
+        return -1;
     }
 }

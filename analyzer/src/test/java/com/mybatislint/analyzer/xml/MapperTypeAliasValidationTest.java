@@ -153,8 +153,9 @@ class MapperTypeAliasValidationTest {
             int character = lines.get(line - 1).indexOf(value) + 1;
             assertEquals(line, warning.getRange().getStart().getLine());
             assertEquals(character, warning.getRange().getStart().getCharacter());
+            // 属性値全体に波線が引けるよう、終了位置は値の末尾(の次の桁)。
             assertEquals(line, warning.getRange().getEnd().getLine());
-            assertEquals(character, warning.getRange().getEnd().getCharacter());
+            assertEquals(character + value.length(), warning.getRange().getEnd().getCharacter());
             assertEquals(Severity.WARNING, warning.getSeverity());
             assertEquals(xmlFile.toUri().toString(), warning.getUri());
             assertTrue(warning.getMessage().contains("'" + value + "'"));
