@@ -144,24 +144,33 @@ class MapperResultPropertyValidationTest {
     }
 
     @Test
-    void skipsInheritedAnnotatedAndRecordTypes(@TempDir Path tempDir) throws IOException {
+    void checksInheritedAndLombokTypesButSkipsRecords(@TempDir Path tempDir) throws IOException {
         writeJavaType(tempDir);
         Path types = tempDir.resolve("src/main/java/com/example/Types.java");
         Files.writeString(types, """
                 package com.example;
-                class Child extends User {}
-                @Data class Generated {}
+                import lombok.Data;
+                class Child extends User { private String role; }
+                @Data class Generated { private String title; public String getLabel() { return title; } }
                 record Summary(Long id) {}
                 """, StandardCharsets.UTF_8);
         Path xmlFile = writeMapper(tempDir, """
                 <mapper namespace="com.example.UserMapper">
-                    <resultMap id="Child" type="com.example.Child"><id property="id"/></resultMap>
-                    <resultMap id="Generated" type="com.example.Generated"><result property="name"/></resultMap>
-                    <resultMap id="Summary" type="com.example.Summary"><id property="id"/></resultMap>
+                    <resultMap id="Child" type="com.example.Child">
+                        <id property="id"/><result property="role"/><result property="rol"/>
+                    </resultMap>
+                    <resultMap id="Generated" type="com.example.Generated">
+                        <result property="title"/><result property="label"/>
+                    </resultMap>
+                    <resultMap id="Summary" type="com.example.Summary"><id property="missing"/></resultMap>
                 </mapper>
                 """);
 
-        assertTrue(propertyDiagnostics(analyze(tempDir, xmlFile)).isEmpty());
+        // 親クラス User の id は見つかる。getter しかない label は値を書き込めないので警告する。
+        List<Diagnostic> diagnostics = propertyDiagnostics(analyze(tempDir, xmlFile));
+        assertEquals(List.of("rol", "label"), diagnostics.stream()
+                .map(d -> d.getMessage().replaceAll(".*property '([^']+)'.*", "$1")).toList(),
+                diagnostics::toString);
     }
 
     @Test
@@ -255,10 +264,12 @@ class MapperResultPropertyValidationTest {
         writeJavaType(tempDir);
         Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
                 package com.example;
-                class Child extends User {}
-                @Data class Generated {}
+                // 親クラスがワークスペースになく、@Accessors(prefix) は setter 名を変えるので、
+                // どちらもプロパティを決められない。
+                class Child extends ExternalBase {}
+                @lombok.experimental.Accessors(prefix = "m") class Generated {}
                 record Summary(Long id) {}
-                class Generic<T> {}
+                class Generic<T> extends ExternalBase {}
                 interface Contract {}
                 abstract class AbstractUser {}
                 class Outer { class Inner {} }
@@ -431,10 +442,12 @@ class MapperResultPropertyValidationTest {
         writeJavaType(tempDir);
         Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
                 package com.example;
-                class Child extends User {}
-                @Data class Generated {}
+                // 親クラスがワークスペースになく、@Accessors(prefix) は setter 名を変えるので、
+                // どちらもプロパティを決められない。
+                class Child extends ExternalBase {}
+                @lombok.experimental.Accessors(prefix = "m") class Generated {}
                 record Summary(Long id) {}
-                class Generic<T> {}
+                class Generic<T> extends ExternalBase {}
                 interface Contract {}
                 abstract class AbstractUser {}
                 class Outer { class Inner {} }
@@ -546,7 +559,7 @@ class MapperResultPropertyValidationTest {
         writeJavaType(tempDir);
         Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
                 package com.example;
-                @Data class Generated {}
+                @lombok.experimental.Accessors(prefix = "m") class Generated {}
                 class Duplicate {}
                 """, StandardCharsets.UTF_8);
         Files.writeString(tempDir.resolve("Duplicate.java"),
@@ -722,10 +735,12 @@ class MapperResultPropertyValidationTest {
         writeJavaType(tempDir);
         Files.writeString(tempDir.resolve("src/main/java/com/example/Types.java"), """
                 package com.example;
-                class Child extends User {}
-                @Data class Generated {}
+                // 親クラスがワークスペースになく、@Accessors(prefix) は setter 名を変えるので、
+                // どちらもプロパティを決められない。
+                class Child extends ExternalBase {}
+                @lombok.experimental.Accessors(prefix = "m") class Generated {}
                 record Summary(Long id) {}
-                class Generic<T> {}
+                class Generic<T> extends ExternalBase {}
                 interface Contract {}
                 abstract class AbstractUser {}
                 class Outer { class Inner {} }

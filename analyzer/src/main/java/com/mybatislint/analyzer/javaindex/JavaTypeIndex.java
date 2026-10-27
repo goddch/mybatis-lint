@@ -64,7 +64,12 @@ public final class JavaTypeIndex {
     // 設定ファイルで登録された alias。Java ソースが 1 つもないかどうか(isEmpty)の
     // 判断には使わないので、simple name とは分けて持つ。
     private final Set<String> registeredAliasesLowerCase = new HashSet<>();
+    // クラス自身が宣言しているプロパティ(親クラスの分は含まない)。判断できないクラスは null。
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
+    // 親クラスの FQCN。親がなければキー自体がなく、親を解決できなければ値が null。
+    private final Map<String, String> superclassByQualifiedName = new HashMap<>();
+    // resultMap の type に書けるクラス(抽象クラスは MyBatis がインスタンスを作れない)。
+    private final Set<String> instantiableQualifiedNames = new HashSet<>();
     private final Map<String, Map<String, String>> resultPropertyTypesByQualifiedName = new HashMap<>();
     // resultType と戻り値型の代入互換性を見るための、simple name ごとの直接の親型(simple name)。
     // 同じ simple name の型が複数あるとどれを指すか決められないので値を null にする。
@@ -128,9 +133,39 @@ public final class JavaTypeIndex {
         return directSupertypesBySimpleName.get(simpleName);
     }
 
-    /** FQCN で一意に解決できた通常クラスのプロパティ。判断できない型は null。 */
+    /**
+     * FQCN で一意に解決できたクラスに書き込めるプロパティ(親クラスの分を含む)。
+     * 判断できない型は null。
+     */
     public Set<String> findResultProperties(String qualifiedName) {
-        return resultPropertiesByQualifiedName.get(qualifiedName);
+        if (qualifiedName == null || !instantiableQualifiedNames.contains(qualifiedName)) {
+            return null;
+        }
+        return collectInheritedProperties(qualifiedName, new HashSet<>());
+    }
+
+    private Set<String> collectInheritedProperties(String qualifiedName, Set<String> visited) {
+        // 継承が循環している(コンパイルできないコード)場合も、止まって判断を諦める。
+        if (!visited.add(qualifiedName)) {
+            return null;
+        }
+        Set<String> own = resultPropertiesByQualifiedName.get(qualifiedName);
+        if (own == null) {
+            return null;
+        }
+        if (!superclassByQualifiedName.containsKey(qualifiedName)) {
+            return own;
+        }
+        // 親クラスがワークスペースにない(フレームワークの基底クラスなど)と、
+        // 親が持つプロパティがわからないので判断しない。
+        String superclass = superclassByQualifiedName.get(qualifiedName);
+        Set<String> inherited = superclass == null ? null : collectInheritedProperties(superclass, visited);
+        if (inherited == null) {
+            return null;
+        }
+        Set<String> all = new HashSet<>(own);
+        all.addAll(inherited);
+        return Set.copyOf(all);
     }
 
     /** 通常クラスの単純なプロパティ型。一意に解決できない場合は null。 */
@@ -153,7 +188,7 @@ public final class JavaTypeIndex {
             CompilationUnit unit = parseResult.getResult().get();
             // クラス/インターフェースの両方を対象にする。DTO/Entity は class、
             // まれに interface で宣言されることもあるため、どちらも候補として拾う
-            // (enum は今回のスコープでは対象外。まずは小さく始める方針のため)。
+            // (record と enum は下で別に拾う)。
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
                 addAliasAnnotation(type);
@@ -167,6 +202,13 @@ public final class JavaTypeIndex {
                             resultPropertiesByQualifiedName.put(name, null);
                         } else {
                             resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
+                            if (!type.isInterface() && !type.isAbstract()) {
+                                instantiableQualifiedNames.add(name);
+                            }
+                            if (!type.isInterface() && !type.getExtendedTypes().isEmpty()) {
+                                superclassByQualifiedName.put(name,
+                                        resolveSuperclass(type.getExtendedTypes().get(0), unit));
+                            }
                             if (findResultProperties(name) != null) {
                                 resultPropertyTypesByQualifiedName.put(name, collectResultPropertyTypes(type, unit));
                             }
@@ -240,17 +282,44 @@ public final class JavaTypeIndex {
         return types.stream().map(ClassOrInterfaceType::getNameAsString).toList();
     }
 
+    /**
+     * クラス自身が宣言している、MyBatis が値を書き込めるプロパティ。
+     *
+     * <p>MyBatis は setter があれば setter を、なければフィールドに直接書き込む
+     * (private でもよい)。そのため「フィールド名」と「setter から求めた名前」の
+     * 両方がプロパティになる。getter は結果の書き込みには使われないので数えない。
+     * Lombok の {@code @Data} / {@code @Setter} などが作る setter はフィールド名から
+     * 決まるので、フィールドを数えれば足りる。</p>
+     *
+     * <p>実装しているインターフェースは数えない。インターフェースはフィールドを持てず、
+     * setter を default メソッドで持たせることもまずないため。</p>
+     */
     private static Set<String> collectResultProperties(ClassOrInterfaceDeclaration type) {
-        if (type.isInterface() || type.isAbstract()
-                || !type.getExtendedTypes().isEmpty() || !type.getImplementedTypes().isEmpty()
-                || !type.getTypeParameters().isEmpty() || !type.findAll(AnnotationExpr.class).isEmpty()) {
-            // 継承やコード生成で追加されるプロパティはソース単体では断定できない。
+        // 型引数(class BaseEntity<ID>)はプロパティの名前には関係しないので、
+        // ジェネリクスのクラスも数える。
+        if (type.isInterface()) {
             return null;
+        }
+        for (AnnotationExpr annotation : type.findAll(AnnotationExpr.class)) {
+            String name = annotation.getName().getIdentifier();
+            // @Accessors(prefix = "m") はフィールド名と違う名前の setter を作り、
+            // @Delegate は別の型の setter をまるごと追加する。どちらも
+            // フィールドからは名前を決められない。
+            if ("Accessors".equals(name) || "Delegate".equals(name)) {
+                return null;
+            }
         }
         Set<String> properties = new HashSet<>();
         for (var field : type.getFields()) {
-            // MyBatis は private フィールドにも直接アクセスできる。
-            field.getVariables().forEach(variable -> properties.add(variable.getNameAsString()));
+            field.getVariables().forEach(variable -> {
+                String name = variable.getNameAsString();
+                properties.add(name);
+                // Lombok は boolean の isActive フィールドに setActive を作る。
+                if (variable.getType().asString().equals("boolean")
+                        && name.length() > 2 && name.startsWith("is") && Character.isUpperCase(name.charAt(2))) {
+                    properties.add(Character.toLowerCase(name.charAt(2)) + name.substring(3));
+                }
+            });
         }
         for (var method : type.getMethods()) {
             String name = method.getNameAsString();
@@ -263,6 +332,15 @@ public final class JavaTypeIndex {
             }
         }
         return Set.copyOf(properties);
+    }
+
+    /** 親クラスの FQCN。型引数は名前に関係しないので外す。解決できなければ null。 */
+    private static String resolveSuperclass(ClassOrInterfaceType superclass, CompilationUnit unit) {
+        String name = superclass.getNameWithScope();
+        if (name.contains(".")) {
+            return name;
+        }
+        return resolveSimpleName(name, unit);
     }
 
     private static Map<String, String> collectResultPropertyTypes(ClassOrInterfaceDeclaration type,
@@ -312,6 +390,11 @@ public final class JavaTypeIndex {
         if (name.contains(".")) {
             return name;
         }
+        return resolveSimpleName(name, unit);
+    }
+
+    /** import と同じパッケージから simple name の FQCN を決める。決められなければ null。 */
+    private static String resolveSimpleName(String name, CompilationUnit unit) {
         String imported = null;
         for (var declaration : unit.getImports()) {
             if (declaration.isAsterisk() || declaration.isStatic()) {

@@ -45,7 +45,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `unresolved-type-alias` | warning | a type that looks like a custom alias but matches no workspace class (heuristic; [details](docs/type-alias-validation.md)) |
 | `parameter-type-mismatch` | warning | `parameterType` that disagrees with the single argument of the Java mapper method ([details](docs/parameter-type-validation.md)) |
 | `result-type-mismatch` | warning | `resultType` on a `<select>` that cannot be assigned to the Java mapper method's return type (simple cases only; subclasses and implementations are accepted, and types whose hierarchy cannot be followed in the workspace are skipped) |
-| `unknown-result-property` | warning | a resultMap `property` with no matching field or setter on the mapped workspace class |
+| `unknown-result-property` | warning | a resultMap `property` with no matching field or setter on the mapped workspace class (Lombok and superclasses in the workspace are supported) |
 | `unresolved-result-map-extends` | warning | `<resultMap extends>` pointing to a resultMap that does not exist |
 | `result-map-inheritance-cycle` | warning | resultMaps whose `extends` chain loops |
 | `unresolved-statement-result-map` | warning | a statement's `resultMap` pointing to a resultMap that does not exist |

@@ -69,11 +69,22 @@ are skipped. Properties outside inline cases in resultMaps containing
 discriminators remain fail-open; a property owner containing another discriminator
 is also skipped rather than expanding its possible case types.
 
+The properties of a class are what MyBatis can write to: its fields (private
+included) and the names derived from one-argument `setXxx` methods. Getters are
+not used for writing results, so a getter-only name is reported. Lombok
+(`@Data`, `@Setter`, ...) is supported because its setters are named after the
+fields; for a primitive `boolean isActive` field, Lombok's `active` name is also
+accepted. Fields and setters of superclasses in the workspace are included,
+including abstract and generic base classes. Implemented interfaces are not
+considered.
+
 This is a conservative first step toward result mapping validation, not SQL
 column validation. It skips aliases (including simple class names), unresolved
-or duplicate Java types, interfaces, abstract/generic/nested classes, records,
-classes with inheritance or annotations (including annotated members and
-Lombok), `resultMap extends`, discriminated mappings outside explicit inline cases,
+or duplicate Java types, interfaces, abstract/nested classes, records,
+classes whose superclass is not in the workspace or cannot be resolved (for
+example through a wildcard import), classes using Lombok `@Accessors` or
+`@Delegate` (which create setters not named after the fields),
+`resultMap extends`, discriminated mappings outside explicit inline cases,
 blank/dynamic/nested/indexed properties,
 constructor mappings, and properties whose immediate parent has no explicit
 or safely inferred supported FQCN type. No MyBatis

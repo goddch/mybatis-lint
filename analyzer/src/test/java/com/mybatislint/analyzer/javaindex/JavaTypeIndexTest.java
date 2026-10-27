@@ -185,11 +185,59 @@ class JavaTypeIndexTest {
 
         JavaTypeIndex index = JavaTypeIndex.build(tempDir);
 
-        for (String name : Set.of("Child", "Contract", "Implementation", "AbstractDto", "GenericDto",
-                "GeneratedDto", "DelegatingDto", "Summary", "Outer.Nested")) {
+        for (String name : Set.of("Contract", "AbstractDto",
+                "DelegatingDto", "Summary", "Outer.Nested")) {
             assertNull(index.findResultProperties("com.example." + name), name);
         }
         assertEquals(Set.of("id"), index.findResultProperties("com.example.Base"));
+    }
+
+    @Test
+    void includesLombokInheritedAndSetterProperties(@TempDir Path tempDir) throws IOException {
+        writeJavaFile(tempDir, "com/example/base/BaseEntity.java", """
+                package com.example.base;
+                public abstract class BaseEntity<ID> {
+                    private ID id;
+                    private java.time.LocalDateTime createdAt;
+                }
+                """);
+        writeJavaFile(tempDir, "com/example/Types.java", """
+                package com.example;
+                import com.example.base.BaseEntity;
+                import lombok.Data;
+                import lombok.EqualsAndHashCode;
+                @Data
+                @EqualsAndHashCode(callSuper = true)
+                class User extends BaseEntity<Long> {
+                    private String name;
+                    private boolean isActive;
+                    public String getDisplayName() { return name; }
+                    public void setNickname(String nickname) {}
+                }
+                class Admin extends User { private String role; }
+                interface Contract { void setName(String name); }
+                class Implementation implements Contract { public void setName(String name) {} }
+                class FromFramework extends org.springframework.Base { private String name; }
+                class Unimported extends Unknown { private String name; }
+                @lombok.experimental.Accessors(prefix = "m")
+                class Prefixed { private String mName; }
+                """);
+
+        JavaTypeIndex index = JavaTypeIndex.build(tempDir);
+
+        // 親クラスのフィールド、Lombok の boolean 用 setter 名、自作 setter を含める。
+        // getter だけの displayName は書き込めないので含めない。
+        assertEquals(Set.of("id", "createdAt", "name", "isActive", "active", "nickname"),
+                index.findResultProperties("com.example.User"));
+        assertEquals(Set.of("id", "createdAt", "name", "isActive", "active", "nickname", "role"),
+                index.findResultProperties("com.example.Admin"));
+        assertEquals(Set.of("name"), index.findResultProperties("com.example.Implementation"));
+        // 抽象クラスは resultMap の type に書けないが、親としては使う。
+        assertNull(index.findResultProperties("com.example.base.BaseEntity"));
+        // 親クラスがワークスペースにない、または解決できないと、親のプロパティがわからない。
+        assertNull(index.findResultProperties("com.example.FromFramework"));
+        assertNull(index.findResultProperties("com.example.Unimported"));
+        assertNull(index.findResultProperties("com.example.Prefixed"));
     }
 
     @Test
