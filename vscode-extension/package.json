@@ -2,7 +2,7 @@
   "name": "mybatis-lint",
   "displayName": "MyBatis Lint",
   "description": "Static analysis diagnostics for MyBatis mapper XML files.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "goddch",
   "preview": true,
   "license": "Apache-2.0",
@@ -25,6 +25,10 @@
       {
         "command": "mybatisLint.checkWorkspace",
         "title": "MyBatis Lint: Check Workspace"
+      },
+      {
+        "command": "mybatisLint.showLog",
+        "title": "MyBatis Lint: Show Log"
       }
     ],
     "configuration": {
@@ -34,6 +38,19 @@
           "type": "string",
           "default": "",
           "description": "Path to the mybatis-lint analyzer jar. Leave empty to use the jar bundled with the extension."
+        },
+        "mybatisLint.runOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the workspace again whenever a mapper XML or Java file is saved."
+        },
+        "mybatisLint.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Folders or files to skip, as globs relative to the workspace folder (for example `docker` or `modules/*/generated`). A pattern without `/` matches a folder or file name at any depth. Folders that cannot be read are always skipped."
         },
         "mybatisLint.javaPath": {
           "type": "string",

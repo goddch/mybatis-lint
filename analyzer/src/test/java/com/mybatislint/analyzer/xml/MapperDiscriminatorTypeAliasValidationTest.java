@@ -66,7 +66,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
             assertEquals(line, diagnostic.getRange().getStart().getLine());
             assertEquals(character, diagnostic.getRange().getStart().getCharacter());
             assertEquals(line, diagnostic.getRange().getEnd().getLine());
-            assertEquals(character, diagnostic.getRange().getEnd().getCharacter());
+            assertEquals(character + values.get(i).length(), diagnostic.getRange().getEnd().getCharacter());
             assertEquals(Severity.WARNING, diagnostic.getSeverity());
             assertEquals(file.getFileName(), diagnostic.getFile());
             assertEquals(file.toUri().toString(), diagnostic.getUri());

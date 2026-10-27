@@ -2,7 +2,6 @@ package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
-import com.mybatislint.analyzer.model.Position;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -722,86 +721,12 @@ public final class MapperReferenceValidator {
                                                 String attributeName,
                                                 String attributeValue,
                                                 int elementStart) {
-        // 呼び出し側では、同名タグが複数あっても正しい要素を指せるように
-        // 文書順の searchOffset を使って開始位置を確定済み。ここで再検索すると
-        // 意図が読みにくくなるため、受け取った開始位置から属性値だけを探す。
-        int valueStart = findAttributeValueStart(xml, elementStart, attributeName, attributeValue);
-        if (valueStart < 0) {
-            valueStart = elementStart;
-        }
-        Position position = toPosition(xml, valueStart);
-        return Range.at(position.getLine(), position.getCharacter());
+        return XmlPositions.rangeForAttributeValue(xml, attributeName, attributeValue, elementStart);
     }
 
-    private static int findAttributeValueStart(String xml, int elementStart, String attributeName, String attributeValue) {
-        int tagEnd = findStartTagEnd(xml, elementStart);
-        if (tagEnd < 0) {
-            return -1;
-        }
-        String startTag = xml.substring(elementStart, tagEnd + 1);
-        int attrIndex = startTag.indexOf(attributeName);
-        while (attrIndex >= 0) {
-            // 単純な indexOf だけだと、たとえば "id" を探したときに "refid" の
-            // 末尾にも一致してしまう。XML 属性名としての境界を確認し、将来この
-            // helper を別属性へ再利用しても安全な位置を返すようにしている。
-            if (!isAttributeNameBoundaryBefore(startTag, attrIndex)) {
-                attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
-                continue;
-            }
-            int cursor = attrIndex + attributeName.length();
-            if (cursor < startTag.length() && isXmlNameChar(startTag.charAt(cursor))) {
-                attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
-                continue;
-            }
-            while (cursor < startTag.length() && Character.isWhitespace(startTag.charAt(cursor))) {
-                cursor++;
-            }
-            if (cursor < startTag.length() && startTag.charAt(cursor) == '=') {
-                cursor++;
-                while (cursor < startTag.length() && Character.isWhitespace(startTag.charAt(cursor))) {
-                    cursor++;
-                }
-                if (cursor < startTag.length() && (startTag.charAt(cursor) == '"' || startTag.charAt(cursor) == '\'')) {
-                    char quote = startTag.charAt(cursor);
-                    int valueStartInTag = cursor + 1;
-                    int valueEndInTag = startTag.indexOf(quote, valueStartInTag);
-                    if (valueEndInTag >= 0 && startTag.substring(valueStartInTag, valueEndInTag).equals(attributeValue)) {
-                        return elementStart + valueStartInTag;
-                    }
-                }
-            }
-            attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
-        }
-        return -1;
-    }
 
-    private static boolean isAttributeNameBoundaryBefore(String startTag, int attrIndex) {
-        if (attrIndex <= 0) {
-            return true;
-        }
-        return !isXmlNameChar(startTag.charAt(attrIndex - 1));
-    }
 
-    private static boolean isXmlNameChar(char c) {
-        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':';
-    }
 
-    private static int findStartTagEnd(String xml, int elementStart) {
-        char quote = 0;
-        for (int i = elementStart; i < xml.length(); i++) {
-            char c = xml.charAt(i);
-            if (quote != 0) {
-                if (c == quote) {
-                    quote = 0;
-                }
-            } else if (c == '"' || c == '\'') {
-                quote = c;
-            } else if (c == '>') {
-                return i;
-            }
-        }
-        return -1;
-    }
 
     private static int findStartOfElement(String xml, Element element, int lowerBound) {
         String tag = element.getTagName();
@@ -826,10 +751,10 @@ public final class MapperReferenceValidator {
             // 採用することで range が別要素へずれるのを防ぐ。
             int afterName = index + search.length();
             if (index >= lowerBound && xml.startsWith(search, index)
-                    && (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName)))) {
+                    && (afterName >= xml.length() || !XmlPositions.isXmlNameChar(xml.charAt(afterName)))) {
                 return index;
             }
-            int end = findStartTagEnd(xml, index);
+            int end = XmlPositions.findStartTagEnd(xml, index);
             if (end < 0) {
                 return lowerBound;
             }
@@ -838,19 +763,4 @@ public final class MapperReferenceValidator {
         return lowerBound;
     }
 
-    private static Position toPosition(String xml, int index) {
-        int safeIndex = Math.max(0, Math.min(index, xml.length()));
-        int line = 1;
-        int lastLineStart = 0;
-        for (int i = 0; i < safeIndex; i++) {
-            if (xml.charAt(i) == '\n') {
-                line++;
-                lastLineStart = i + 1;
-            }
-        }
-        // column は 1-based。最後に見つけた改行の次の文字を 1 桁目として数えると、
-        // 「改行直後の文字は 1 列目」という editor 表示と同じ定義になる。
-        int column = safeIndex - lastLineStart + 1;
-        return new Position(line, column);
-    }
 }

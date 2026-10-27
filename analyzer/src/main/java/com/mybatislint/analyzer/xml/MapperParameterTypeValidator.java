@@ -4,7 +4,6 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.model.Diagnostic;
-import com.mybatislint.analyzer.model.Position;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -459,7 +458,7 @@ public final class MapperParameterTypeValidator {
         int index = xml.indexOf(search, lowerBound);
         while (index >= 0) {
             int afterName = index + search.length();
-            if (afterName >= xml.length() || !isXmlNameChar(xml.charAt(afterName))) {
+            if (afterName >= xml.length() || !XmlPositions.isXmlNameChar(xml.charAt(afterName))) {
                 return index;
             }
             index = xml.indexOf(search, afterName);
@@ -472,92 +471,11 @@ public final class MapperParameterTypeValidator {
                                                 String attributeName,
                                                 String attributeValue,
                                                 int elementStart) {
-        int valueStart = findAttributeValueStart(xml, elementStart, attributeName, attributeValue);
-        if (valueStart < 0) {
-            valueStart = elementStart;
-        }
-        Position position = toPosition(xml, valueStart);
-        return Range.at(position.getLine(), position.getCharacter());
+        return XmlPositions.rangeForAttributeValue(xml, attributeName, attributeValue, elementStart);
     }
 
-    private static int findAttributeValueStart(String xml, int elementStart, String attributeName, String attributeValue) {
-        int tagEnd = findStartTagEnd(xml, elementStart);
-        if (tagEnd < 0) {
-            return -1;
-        }
-        String startTag = xml.substring(elementStart, tagEnd + 1);
-        int attrIndex = startTag.indexOf(attributeName);
-        while (attrIndex >= 0) {
-            if (!isAttributeNameBoundaryBefore(startTag, attrIndex)) {
-                attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
-                continue;
-            }
-            int cursor = attrIndex + attributeName.length();
-            if (cursor < startTag.length() && isXmlNameChar(startTag.charAt(cursor))) {
-                attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
-                continue;
-            }
-            while (cursor < startTag.length() && Character.isWhitespace(startTag.charAt(cursor))) {
-                cursor++;
-            }
-            if (cursor < startTag.length() && startTag.charAt(cursor) == '=') {
-                cursor++;
-                while (cursor < startTag.length() && Character.isWhitespace(startTag.charAt(cursor))) {
-                    cursor++;
-                }
-                if (cursor < startTag.length() && (startTag.charAt(cursor) == '"' || startTag.charAt(cursor) == '\'')) {
-                    char quote = startTag.charAt(cursor);
-                    int valueStartInTag = cursor + 1;
-                    int valueEndInTag = startTag.indexOf(quote, valueStartInTag);
-                    if (valueEndInTag >= 0 && startTag.substring(valueStartInTag, valueEndInTag).equals(attributeValue)) {
-                        return elementStart + valueStartInTag;
-                    }
-                }
-            }
-            attrIndex = startTag.indexOf(attributeName, attrIndex + attributeName.length());
-        }
-        return -1;
-    }
 
-    private static boolean isAttributeNameBoundaryBefore(String startTag, int attrIndex) {
-        if (attrIndex <= 0) {
-            return true;
-        }
-        return !isXmlNameChar(startTag.charAt(attrIndex - 1));
-    }
 
-    private static boolean isXmlNameChar(char c) {
-        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':';
-    }
 
-    private static int findStartTagEnd(String xml, int elementStart) {
-        char quote = 0;
-        for (int i = elementStart; i < xml.length(); i++) {
-            char c = xml.charAt(i);
-            if (quote != 0) {
-                if (c == quote) {
-                    quote = 0;
-                }
-            } else if (c == '"' || c == '\'') {
-                quote = c;
-            } else if (c == '>') {
-                return i;
-            }
-        }
-        return -1;
-    }
 
-    private static Position toPosition(String xml, int index) {
-        int safeIndex = Math.max(0, Math.min(index, xml.length()));
-        int line = 1;
-        int lastLineStart = 0;
-        for (int i = 0; i < safeIndex; i++) {
-            if (xml.charAt(i) == '\n') {
-                line++;
-                lastLineStart = i + 1;
-            }
-        }
-        int column = safeIndex - lastLineStart + 1;
-        return new Position(line, column);
-    }
 }

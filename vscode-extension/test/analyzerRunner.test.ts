@@ -4,6 +4,18 @@ import { test } from 'node:test';
 
 import { buildAnalyzerArgs, runAnalyzer } from '../src/analyzerRunner';
 
+test('passes each non-blank exclude pattern before the workspace path', () => {
+  assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace', ['docker', ' ', ' modules/*/generated ']), [
+    '-jar',
+    '/path/analyzer.jar',
+    '--exclude',
+    'docker',
+    '--exclude',
+    'modules/*/generated',
+    '/workspace',
+  ]);
+});
+
 test('builds the expected java CLI arguments', () => {
   assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace'), [
     '-jar',
@@ -34,6 +46,23 @@ test('resolves with stdout and exit code even when the exit code is non-zero', a
   const result = await resultPromise;
   assert.equal(result.exitCode, 1);
   assert.equal(result.stdout, '{"diagnostics":[]}');
+});
+
+test('passes the analyzer stderr through for logging', async () => {
+  const child = fakeChildProcess();
+  const spawnFn = (() => child) as unknown as typeof import('child_process').spawn;
+
+  const resultPromise = runAnalyzer(
+    { javaPath: 'java', jarPath: 'analyzer.jar', workspacePath: '/workspace' },
+    spawnFn,
+  );
+
+  child.stderr.emit('data', Buffer.from('Skipped unreadable path: docker/volume\n'));
+  child.stdout.emit('data', Buffer.from('{"diagnostics":[]}'));
+  child.emit('close', 0);
+
+  const result = await resultPromise;
+  assert.equal(result.stderr, 'Skipped unreadable path: docker/volume\n');
 });
 
 test('rejects with a descriptive error when the process fails to launch', async () => {
