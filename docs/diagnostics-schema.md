@@ -33,9 +33,13 @@ Notes:
 - `line`/`character` are **1-based**, matching common editor conventions.
   Consumers that need 0-based positions (such as the VS Code API) must
   subtract 1 from each before constructing a `vscode.Position`.
-- `range.start` and `range.end` are currently always equal (a zero-width
-  position at the offending element's opening tag). Future rules may report
-  wider ranges.
+- `range.end` is exclusive. Diagnostics about an attribute value (for example
+  an unresolved `refid` or a mismatched `resultType`) cover the whole value,
+  and `undefined-parameter` covers the undefined name itself. The structural
+  checks (`malformed-xml`, `missing-namespace`, `duplicate-statement-id`,
+  `duplicate-otherwise`, `when-outside-choose`, `otherwise-outside-choose`)
+  still report a zero-width position (`start` equals `end`); consumers must
+  accept both.
 - The process exit code is non-zero whenever `summary.errorCount > 0`. The
   JSON is always emitted first, regardless of the exit code.
 - `mapperFileCount` was added after the initial v1 schema. It distinguishes a

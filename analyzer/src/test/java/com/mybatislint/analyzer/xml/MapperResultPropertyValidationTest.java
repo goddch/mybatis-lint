@@ -671,7 +671,9 @@ class MapperResultPropertyValidationTest {
             String line = xml.lines().toList().get(lines[i] - 1);
             int start = line.indexOf("property=") + "property=".length() + 2;
             assertEquals(start, diagnostic.getRange().getStart().getCharacter());
-            assertEquals(start, diagnostic.getRange().getEnd().getCharacter());
+            char quote = line.charAt(start - 2);
+            int valueLength = line.indexOf(quote, start - 1) - (start - 1);
+            assertEquals(start + valueLength, diagnostic.getRange().getEnd().getCharacter());
             assertTrue(diagnostic.getMessage().contains(types[i]));
             assertEquals(xmlFile.getFileName(), diagnostic.getFile());
             assertEquals(xmlFile.toUri().toString(), diagnostic.getUri());
