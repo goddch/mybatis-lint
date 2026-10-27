@@ -10,6 +10,8 @@ export interface AnalyzerRunOptions {
 
 export interface AnalyzerRunResult {
   stdout: string;
+  /** Notes from the analyzer, such as folders it skipped because they could not be read. */
+  stderr: string;
   exitCode: number | null;
 }
 
@@ -71,7 +73,7 @@ export function runAnalyzer(
         );
         return;
       }
-      resolve({ stdout, exitCode });
+      resolve({ stdout, stderr, exitCode });
     });
   });
 }

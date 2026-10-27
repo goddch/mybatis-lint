@@ -20,7 +20,9 @@ to be installed. Platform-specific VSIX files are attached to each
 also uploaded to the VS Code Marketplace (publisher `goddch`). After
 installing, open a folder containing mapper XML and run
 **MyBatis Lint: Check Workspace** from the Command Palette. Results appear in
-the Problems panel.
+the Problems panel, and the workspace is checked again whenever a mapper XML
+or Java file is saved (`mybatisLint.runOnSave`). **MyBatis Lint: Show Log**
+shows what each run did: files analyzed, time taken, and skipped folders.
 
 ## Rules
 

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 import { runAnalyzer } from './analyzerRunner';
+import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
@@ -9,15 +10,47 @@ import { resolveAnalyzerJarPath } from './jarPathResolver';
 import { buildSummaryMessage } from './summaryMessage';
 
 const COMMAND_ID = 'mybatisLint.checkWorkspace';
+const SHOW_LOG_COMMAND_ID = 'mybatisLint.showLog';
+const SHOW_LOG_ACTION = 'Show Log';
+// Long enough that "Save All" or a formatter's follow-up save starts one run, not several.
+const SAVE_DEBOUNCE_MS = 500;
+
+/** Why a check started: from the command palette, or because a file was saved. */
+type Trigger = 'command' | 'save';
+
+interface CheckContext {
+  extensionPath: string;
+  diagnosticCollection: vscode.DiagnosticCollection;
+  output: vscode.OutputChannel;
+  /** Last error shown for a save-triggered run, so the same failure is not shown on every save. */
+  lastSaveError?: string;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnosticCollection = vscode.languages.createDiagnosticCollection('mybatisLint');
-  context.subscriptions.push(diagnosticCollection);
+  const output = vscode.window.createOutputChannel('MyBatis Lint');
+  context.subscriptions.push(diagnosticCollection, output);
 
-  const disposable = vscode.commands.registerCommand(COMMAND_ID, () =>
-    checkWorkspace(context, diagnosticCollection),
+  const checkContext: CheckContext = { extensionPath: context.extensionPath, diagnosticCollection, output };
+  const scheduler = new CheckScheduler(() => checkWorkspace(checkContext, 'save'), SAVE_DEBOUNCE_MS);
+  context.subscriptions.push({ dispose: () => scheduler.dispose() });
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(COMMAND_ID, () => checkWorkspace(checkContext, 'command')),
+    vscode.commands.registerCommand(SHOW_LOG_COMMAND_ID, () => output.show(true)),
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (
+        !workspaceFolder ||
+        !vscode.workspace.getConfiguration('mybatisLint').get<boolean>('runOnSave', true) ||
+        !isRelevantForCheck(document.fileName) ||
+        vscode.workspace.getWorkspaceFolder(document.uri) !== workspaceFolder
+      ) {
+        return;
+      }
+      scheduler.request();
+    }),
   );
-  context.subscriptions.push(disposable);
 }
 
 export function deactivate(): void {
@@ -44,10 +77,31 @@ function ensureExecutable(filePath: string): void {
   }
 }
 
-async function checkWorkspace(
-  context: vscode.ExtensionContext,
-  diagnosticCollection: vscode.DiagnosticCollection,
-): Promise<void> {
+function log(output: vscode.OutputChannel, message: string): void {
+  output.appendLine(`[${new Date().toLocaleTimeString()}] ${message}`);
+}
+
+/**
+ * Shows a failure. Command runs always show it; save-triggered runs show a
+ * given failure once, so a broken setup does not pop up on every save.
+ */
+function reportFailure(checkContext: CheckContext, trigger: Trigger, message: string): void {
+  log(checkContext.output, `Failed: ${message}`);
+  if (trigger === 'save') {
+    if (checkContext.lastSaveError === message) {
+      return;
+    }
+    checkContext.lastSaveError = message;
+  }
+  void vscode.window.showErrorMessage(message, SHOW_LOG_ACTION).then((choice) => {
+    if (choice === SHOW_LOG_ACTION) {
+      checkContext.output.show(true);
+    }
+  });
+}
+
+async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Promise<void> {
+  const { extensionPath, diagnosticCollection, output } = checkContext;
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     void vscode.window.showErrorMessage('MyBatis Lint: open a folder/workspace before running this command.');
@@ -59,36 +113,51 @@ async function checkWorkspace(
     config.inspect<string>('javaPath')?.workspaceFolderValue ??
       config.inspect<string>('javaPath')?.workspaceValue ??
       config.inspect<string>('javaPath')?.globalValue,
-    context.extensionPath,
+    extensionPath,
   );
-  if (javaPath === bundledJavaPath(context.extensionPath)) {
+  if (javaPath === bundledJavaPath(extensionPath)) {
     ensureExecutable(javaPath);
   }
-  const jarPath = resolveAnalyzerJarPath(config.get<string>('analyzerJarPath'), context.extensionPath);
+  const jarPath = resolveAnalyzerJarPath(config.get<string>('analyzerJarPath'), extensionPath);
+  const configuredExcludes = config.get<unknown>('exclude');
+  const excludes = Array.isArray(configuredExcludes)
+    ? configuredExcludes.filter((value): value is string => typeof value === 'string')
+    : [];
+
+  log(output, `Checking ${workspaceFolder.uri.fsPath} (${trigger === 'save' ? 'on save' : 'command'})`);
+  log(output, `  Java: ${javaPath}`);
+  log(output, `  Analyzer: ${jarPath}`);
+  if (excludes.length > 0) {
+    log(output, `  Excluded: ${excludes.join(', ')}`);
+  }
 
   if (!fs.existsSync(jarPath)) {
-    void vscode.window.showErrorMessage(
+    reportFailure(
+      checkContext,
+      trigger,
       `MyBatis Lint: analyzer jar not found at "${jarPath}". ` +
         'Build it with "./gradlew jar" under analyzer/, then set "mybatisLint.analyzerJarPath".',
     );
     return;
   }
 
-  // Clear stale diagnostics up front so a failed/aborted run never leaves
-  // outdated squiggles behind.
-  diagnosticCollection.clear();
-
+  const startedAt = Date.now();
   try {
-    const excludes = config.get<unknown>('exclude');
-    const { stdout } = await runAnalyzer({
-      javaPath,
-      jarPath,
-      workspacePath: workspaceFolder.uri.fsPath,
-      excludes: Array.isArray(excludes) ? excludes.filter((value): value is string => typeof value === 'string') : [],
-    });
+    // The status bar spinner tells save-triggered runs apart from an idle
+    // extension; the notification is reserved for runs the user asked for.
+    const { stdout, stderr } = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: 'MyBatis Lint: checking…' },
+      () => runAnalyzer({ javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath, excludes }),
+    );
+    for (const line of stderr.split(/\r?\n/).filter((text) => text.trim().length > 0)) {
+      log(output, `  ${line}`);
+    }
     const result = parseAnalyzerOutput(stdout);
     const grouped = groupDiagnosticsByUri(result.diagnostics);
 
+    // Replace everything at once, after the new results are ready, so the
+    // Problems panel does not flicker empty on every save.
+    diagnosticCollection.clear();
     for (const { uri, diagnostics } of grouped) {
       const vscodeDiagnostics = diagnostics.map((diagnostic) => {
         const vscodeDiagnostic = new vscode.Diagnostic(
@@ -111,13 +180,21 @@ async function checkWorkspace(
     }
 
     const summaryMessage = buildSummaryMessage(result.summary);
+    const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+    log(output, `Done in ${seconds}s. ${summaryMessage.text.replace(/^MyBatis Lint: /, '')}`);
+    checkContext.lastSaveError = undefined;
+
+    if (trigger === 'save') {
+      return;
+    }
     if (summaryMessage.level === 'warning') {
       void vscode.window.showWarningMessage(summaryMessage.text);
     } else {
       void vscode.window.showInformationMessage(summaryMessage.text);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    void vscode.window.showErrorMessage(message);
+    // Stale diagnostics would look like current results, so drop them.
+    diagnosticCollection.clear();
+    reportFailure(checkContext, trigger, error instanceof Error ? error.message : String(error));
   }
 }

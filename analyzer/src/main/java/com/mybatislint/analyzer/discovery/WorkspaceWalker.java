@@ -12,11 +12,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * mapper XML と Java ソースの探索で共通の、ワークスペースの走査処理。
  *
- * <p>読めないディレクトリやファイルは黙って飛ばす。Docker のボリュームのように
+ * <p>読めないディレクトリやファイルは飛ばし、飛ばしたパスを stderr に出す。Docker のボリュームのように
  * 権限のないディレクトリがワークスペースにあっても、解析全体を止めないためである。
  * そうした場所に mapper があることはまず考えにくく、読めないものは判定もできない。</p>
  */
@@ -25,6 +26,8 @@ final class WorkspaceWalker {
     /** Directory names that are never descended into. */
     static final Set<String> IGNORED_DIRECTORY_NAMES = Set.of(
             ".git", ".gradle", "build", "target", "node_modules");
+
+    private static final Set<Path> REPORTED_UNREADABLE = ConcurrentHashMap.newKeySet();
 
     private WorkspaceWalker() {
     }
@@ -64,6 +67,11 @@ final class WorkspaceWalker {
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) {
                     // 権限がなく中を開けないディレクトリなどがここに来る。
+                    // stdout は JSON 専用なので、何を飛ばしたかは stderr に出す(拡張機能のログに表示される)。
+                    // XML と Java で 2〜3 回走査するため、同じパスは 1 回だけ出す。
+                    if (REPORTED_UNREADABLE.add(file.toAbsolutePath().normalize())) {
+                        System.err.println("Skipped unreadable path: " + workspaceRoot.relativize(file));
+                    }
                     return FileVisitResult.CONTINUE;
                 }
             });

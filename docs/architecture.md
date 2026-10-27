@@ -94,6 +94,14 @@ if the output shape grows significantly more complex, revisit this decision.
   SDKMAN, and finally `java` on the PATH.
 - `src/summaryMessage.ts` — builds the notification shown after a check,
   including the "no mapper XML found" case.
+- `src/checkScheduler.ts` — decides when save-triggered checks run: saves are
+  debounced, and a save during a run queues a single follow-up run instead
+  of a concurrent one.
+
+`extension.ts` also writes each run (paths used, analyzer stderr such as
+skipped unreadable folders, duration, summary) to the "MyBatis Lint" output
+channel. The analyzer keeps stdout for JSON only, so these notes travel on
+stderr.
 
 Everything except `extension.ts` is free of any `vscode` import, so it can
 be unit tested with the Node.js built-in test runner (`node --test`)

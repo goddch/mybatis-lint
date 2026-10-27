@@ -25,6 +25,10 @@
       {
         "command": "mybatisLint.checkWorkspace",
         "title": "MyBatis Lint: Check Workspace"
+      },
+      {
+        "command": "mybatisLint.showLog",
+        "title": "MyBatis Lint: Show Log"
       }
     ],
     "configuration": {
@@ -34,6 +38,11 @@
           "type": "string",
           "default": "",
           "description": "Path to the mybatis-lint analyzer jar. Leave empty to use the jar bundled with the extension."
+        },
+        "mybatisLint.runOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the workspace again whenever a mapper XML or Java file is saved."
         },
         "mybatisLint.exclude": {
           "type": "array",
