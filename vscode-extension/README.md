@@ -31,8 +31,11 @@ MyBatis の設定ファイルやコンパイル済みのクラスは読み込ま
 
 ## 設定
 
+権限がなく読めないフォルダ（Docker のボリュームなど）は、自動的に飛ばして解析を続けます。
+
 | 設定 | 説明 |
 |---|---|
+| `mybatisLint.exclude` | 解析しないフォルダやファイル。ワークスペースからの相対パスで、`*` や `**` が使えます（例: `docker`、`modules/*/generated`）。`/` を含まない名前は、どの階層のフォルダ名・ファイル名にも一致します |
 | `mybatisLint.javaPath` | 解析に使う Java のパス。空なら同梱の Java を使います |
 | `mybatisLint.analyzerJarPath` | 解析エンジンの jar のパス。空なら同梱の jar を使います |
 

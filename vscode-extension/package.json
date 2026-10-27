@@ -35,6 +35,14 @@
           "default": "",
           "description": "Path to the mybatis-lint analyzer jar. Leave empty to use the jar bundled with the extension."
         },
+        "mybatisLint.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Folders or files to skip, as globs relative to the workspace folder (for example `docker` or `modules/*/generated`). A pattern without `/` matches a folder or file name at any depth. Folders that cannot be read are always skipped."
+        },
         "mybatisLint.javaPath": {
           "type": "string",
           "default": "",

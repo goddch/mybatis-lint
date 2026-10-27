@@ -28,7 +28,9 @@ lines a future split would follow, so extracting modules later (e.g. a
 
 - `discovery` — walks the workspace for candidate mapper XML files
   (`MapperFileScanner`) and Java sources (`JavaFileScanner`), skipping
-  `.git`, `.gradle`, `build`, `target`, `node_modules`.
+  `.git`, `.gradle`, `build`, `target`, `node_modules`, paths given with
+  `--exclude` (`ExcludePatterns`), and anything that cannot be read (for
+  example Docker volumes owned by another user).
 - `javaindex` — parses the Java sources with JavaParser (the only runtime
   dependency). `JavaMapperIndex` records Mapper interface methods (parameter
   names, `@Param` values, parameter and return types); `JavaTypeIndex`
@@ -77,7 +79,8 @@ if the output shape grows significantly more complex, revisit this decision.
 - `src/extension.ts` — the only file that imports `vscode`. Registers the
   `mybatisLint.checkWorkspace` command, resolves settings, spawns the
   analyzer, and publishes results to a `vscode.DiagnosticCollection`.
-- `src/analyzerRunner.ts` — spawns `java -jar <jar> <workspace>` and collects
+- `src/analyzerRunner.ts` — spawns `java -jar <jar> [--exclude <glob>]... <workspace>`
+  (one `--exclude` per entry of the `mybatisLint.exclude` setting) and collects
   stdout; a non-zero exit code is *expected* whenever diagnostics exist, so
   it is not itself treated as failure.
 - `src/parseAnalyzerOutput.ts` — parses/validates the analyzer's JSON.

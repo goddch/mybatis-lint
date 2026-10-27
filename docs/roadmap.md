@@ -8,8 +8,8 @@ extension descriptions never overstate current capabilities.
 ## Implemented
 
 - Recursive discovery of mapper XML files (ignoring `.git`, `.gradle`,
-  `build`, `target`, `node_modules`) and safe XML parsing (XXE disabled, no
-  external DTD download).
+  `build`, `target`, `node_modules`, `--exclude` globs, and unreadable
+  folders) and safe XML parsing (XXE disabled, no external DTD download).
 - The rules listed in the [README](../README.md#rules). Detailed behavior and
   fail-open conditions are in the per-rule documents under `docs/`, most
   notably [`result-map-validation.md`](result-map-validation.md).

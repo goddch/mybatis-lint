@@ -10,6 +10,7 @@ import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.mybatislint.analyzer.discovery.ExcludePatterns;
 import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
 import java.io.IOException;
@@ -37,11 +38,15 @@ public final class JavaMapperIndex {
     }
 
     public static JavaMapperIndex build(Path workspaceRoot) {
+        return build(workspaceRoot, ExcludePatterns.none());
+    }
+
+    public static JavaMapperIndex build(Path workspaceRoot, ExcludePatterns excludes) {
         JavaMapperIndex index = new JavaMapperIndex();
         if (workspaceRoot == null || !Files.isDirectory(workspaceRoot)) {
             return index;
         }
-        for (Path file : new JavaFileScanner().scan(workspaceRoot)) {
+        for (Path file : new JavaFileScanner(excludes).scan(workspaceRoot)) {
             index.indexJavaFile(file);
         }
         return index;

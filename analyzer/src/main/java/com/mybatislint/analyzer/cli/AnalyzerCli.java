@@ -1,5 +1,6 @@
 package com.mybatislint.analyzer.cli;
 
+import com.mybatislint.analyzer.discovery.ExcludePatterns;
 import com.mybatislint.analyzer.discovery.MapperFileScanner;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
@@ -20,14 +21,24 @@ import java.util.List;
  */
 public final class AnalyzerCli {
 
+    private final ExcludePatterns excludes;
     private final MapperFileScanner scanner;
     private final MapperXmlAnalyzer analyzer;
 
     public AnalyzerCli() {
-        this(new MapperFileScanner(), new MapperXmlAnalyzer());
+        this(ExcludePatterns.none());
+    }
+
+    public AnalyzerCli(ExcludePatterns excludes) {
+        this(excludes, new MapperFileScanner(excludes), new MapperXmlAnalyzer());
     }
 
     public AnalyzerCli(MapperFileScanner scanner, MapperXmlAnalyzer analyzer) {
+        this(ExcludePatterns.none(), scanner, analyzer);
+    }
+
+    private AnalyzerCli(ExcludePatterns excludes, MapperFileScanner scanner, MapperXmlAnalyzer analyzer) {
+        this.excludes = excludes;
         this.scanner = scanner;
         this.analyzer = analyzer;
     }
@@ -58,11 +69,11 @@ public final class AnalyzerCli {
 
     public Result run(Path workspaceRoot) {
         List<Diagnostic> diagnostics = new ArrayList<>();
-        JavaMapperIndex javaIndex = JavaMapperIndex.build(workspaceRoot);
+        JavaMapperIndex javaIndex = JavaMapperIndex.build(workspaceRoot, excludes);
         // typeAlias 検証(未解決候補の検出)は、Mapper インターフェースだけでなく
         // ワークスペース内の Java クラス/インターフェース全般の simple name を
         // 知る必要があるため、専用の索引を別途作る。
-        JavaTypeIndex typeIndex = JavaTypeIndex.build(workspaceRoot);
+        JavaTypeIndex typeIndex = JavaTypeIndex.build(workspaceRoot, excludes);
         List<Path> mapperFiles = scanner.scan(workspaceRoot);
         // <include refid="namespace.sqlId"> は別ファイルの <sql id> を参照できる。
         // そのため、各ファイルを個別に解析する前にワークスペース内の SQL fragment を
