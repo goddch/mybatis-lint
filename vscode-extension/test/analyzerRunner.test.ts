@@ -48,6 +48,23 @@ test('resolves with stdout and exit code even when the exit code is non-zero', a
   assert.equal(result.stdout, '{"diagnostics":[]}');
 });
 
+test('passes the analyzer stderr through for logging', async () => {
+  const child = fakeChildProcess();
+  const spawnFn = (() => child) as unknown as typeof import('child_process').spawn;
+
+  const resultPromise = runAnalyzer(
+    { javaPath: 'java', jarPath: 'analyzer.jar', workspacePath: '/workspace' },
+    spawnFn,
+  );
+
+  child.stderr.emit('data', Buffer.from('Skipped unreadable path: docker/volume\n'));
+  child.stdout.emit('data', Buffer.from('{"diagnostics":[]}'));
+  child.emit('close', 0);
+
+  const result = await resultPromise;
+  assert.equal(result.stderr, 'Skipped unreadable path: docker/volume\n');
+});
+
 test('rejects with a descriptive error when the process fails to launch', async () => {
   const child = fakeChildProcess();
   const spawnFn = (() => child) as unknown as typeof import('child_process').spawn;
