@@ -20,7 +20,9 @@ to be installed. Platform-specific VSIX files are attached to each
 also uploaded to the VS Code Marketplace (publisher `goddch`). After
 installing, open a folder containing mapper XML and run
 **MyBatis Lint: Check Workspace** from the Command Palette. Results appear in
-the Problems panel.
+the Problems panel, and the workspace is checked again whenever a mapper XML
+or Java file is saved (`mybatisLint.runOnSave`). **MyBatis Lint: Show Log**
+shows what each run did: files analyzed, time taken, and skipped folders.
 
 ## Rules
 
@@ -106,6 +108,12 @@ java -jar build/libs/analyzer.jar ../fixtures
 This prints a JSON diagnostics report to stdout and exits non-zero if any
 error-severity diagnostics were found (the `fixtures/invalid` files are
 intentionally invalid, so this is expected when scanning `fixtures/`).
+
+To skip part of the workspace, pass `--exclude <glob>` before the workspace
+path, once per pattern (for example `--exclude docker --exclude 'modules/*/generated'`).
+Globs are relative to the workspace and use `/`; a pattern without `/` matches
+a folder or file name at any depth. Folders that cannot be read are skipped
+automatically. In VS Code, use the `mybatisLint.exclude` setting.
 
 ### VS Code extension
 

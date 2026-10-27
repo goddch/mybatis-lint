@@ -6,10 +6,13 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class MapperFileScannerTest {
 
@@ -33,6 +36,40 @@ class MapperFileScannerTest {
     void returnsEmptyListWhenRootDoesNotExist(@TempDir Path root) {
         List<Path> found = new MapperFileScanner().scan(root.resolve("missing"));
         assertTrue(found.isEmpty());
+    }
+
+    @Test
+    void skipsUnreadableDirectoriesInsteadOfFailing(@TempDir Path root) throws IOException {
+        assumeTrue(root.getFileSystem().supportedFileAttributeViews().contains("posix"));
+        write(root.resolve("mappers/UserMapper.xml"), "<mapper/>");
+        Path locked = root.resolve("docker/volume");
+        write(locked.resolve("Hidden.xml"), "<mapper/>");
+        Files.setPosixFilePermissions(locked, PosixFilePermissions.fromString("---------"));
+        try {
+            // root で実行していると権限に関係なく読めてしまい、このテストの前提が成り立たない。
+            assumeFalse(Files.isReadable(locked));
+
+            List<Path> found = new MapperFileScanner().scan(root);
+
+            assertEquals(1, found.size(), found::toString);
+            assertTrue(found.get(0).toString().endsWith("UserMapper.xml"));
+        } finally {
+            Files.setPosixFilePermissions(locked, PosixFilePermissions.fromString("rwx------"));
+        }
+    }
+
+    @Test
+    void skipsExcludedPaths(@TempDir Path root) throws IOException {
+        write(root.resolve("src/main/resources/UserMapper.xml"), "<mapper/>");
+        write(root.resolve("docker/data/Skip.xml"), "<mapper/>");
+        write(root.resolve("modules/a/volumes/Skip.xml"), "<mapper/>");
+        write(root.resolve("modules/a/src/Old.xml"), "<mapper/>");
+
+        List<Path> found = new MapperFileScanner(ExcludePatterns.of(List.of("docker/", "volumes", "**/Old.xml")))
+                .scan(root);
+
+        assertEquals(1, found.size(), found::toString);
+        assertTrue(found.get(0).toString().endsWith("UserMapper.xml"));
     }
 
     private static void write(Path path, String content) throws IOException {

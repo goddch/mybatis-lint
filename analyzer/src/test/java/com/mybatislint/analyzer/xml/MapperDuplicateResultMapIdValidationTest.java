@@ -41,7 +41,7 @@ class MapperDuplicateResultMapIdValidationTest {
             String line = lines.get(diagnostic.getRange().getStart().getLine() - 1);
             String id = line.contains("example.Mapper.Base") ? "example.Mapper.Base" : "Base";
             assertEquals(line.indexOf(id) + 1, diagnostic.getRange().getStart().getCharacter());
-            assertEquals(diagnostic.getRange().getStart().getCharacter(),
+            assertEquals(diagnostic.getRange().getStart().getCharacter() + id.length(),
                     diagnostic.getRange().getEnd().getCharacter());
             assertEquals(file.getFileName(), diagnostic.getFile());
             assertEquals(file.toUri().toString(), diagnostic.getUri());

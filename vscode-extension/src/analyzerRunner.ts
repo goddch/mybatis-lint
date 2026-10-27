@@ -4,16 +4,24 @@ export interface AnalyzerRunOptions {
   javaPath: string;
   jarPath: string;
   workspacePath: string;
+  /** Globs relative to the workspace that the analyzer should skip. */
+  excludes?: string[];
 }
 
 export interface AnalyzerRunResult {
   stdout: string;
+  /** Notes from the analyzer, such as folders it skipped because they could not be read. */
+  stderr: string;
   exitCode: number | null;
 }
 
 /** Builds the `java` CLI arguments used to invoke the analyzer jar. */
-export function buildAnalyzerArgs(jarPath: string, workspacePath: string): string[] {
-  return ['-jar', jarPath, workspacePath];
+export function buildAnalyzerArgs(jarPath: string, workspacePath: string, excludes: string[] = []): string[] {
+  const excludeArgs = excludes
+    .map((pattern) => pattern.trim())
+    .filter((pattern) => pattern.length > 0)
+    .flatMap((pattern) => ['--exclude', pattern]);
+  return ['-jar', jarPath, ...excludeArgs, workspacePath];
 }
 
 type SpawnFn = typeof defaultSpawn;
@@ -31,8 +39,8 @@ export function runAnalyzer(
   options: AnalyzerRunOptions,
   spawnFn: SpawnFn = defaultSpawn,
 ): Promise<AnalyzerRunResult> {
-  const { javaPath, jarPath, workspacePath } = options;
-  const args = buildAnalyzerArgs(jarPath, workspacePath);
+  const { javaPath, jarPath, workspacePath, excludes } = options;
+  const args = buildAnalyzerArgs(jarPath, workspacePath, excludes);
 
   return new Promise((resolve, reject) => {
     const child = spawnFn(javaPath, args);
@@ -65,7 +73,7 @@ export function runAnalyzer(
         );
         return;
       }
-      resolve({ stdout, exitCode });
+      resolve({ stdout, stderr, exitCode });
     });
   });
 }

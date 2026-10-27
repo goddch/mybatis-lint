@@ -369,6 +369,14 @@ class MapperParameterValidatorTest {
                 """);
         assertEquals(1, undefined.size(), () -> undefined.toString());
         assertTrue(undefined.get(0).getMessage().contains("'naem'"));
+
+        // 波線は #{...} 全体ではなく、未定義の名前そのものに引く。
+        Diagnostic diagnostic = undefined.get(0);
+        String line = Files.readAllLines(Path.of(java.net.URI.create(diagnostic.getUri())))
+                .get(diagnostic.getRange().getStart().getLine() - 1);
+        int start = line.indexOf("naem") + 1;
+        assertEquals(start, diagnostic.getRange().getStart().getCharacter());
+        assertEquals(start + "naem".length(), diagnostic.getRange().getEnd().getCharacter());
     }
 
     @Test

@@ -11,6 +11,12 @@ MyBatis の mapper XML を静的解析し、実行しないと気づきにくい
 2. コマンドパレット（`Ctrl+Shift+P` / `Cmd+Shift+P`）で **MyBatis Lint: Check Workspace** を実行します
 3. 結果が Problems パネルに表示されます
 
+以降は、mapper XML や Java ファイルを保存するたびに自動でチェックし直します（`mybatisLint.runOnSave` でオフにできます）。
+チェック中はステータスバーに表示が出ます。
+
+解析したファイル数、かかった時間、飛ばしたフォルダなどの実行ログは、**MyBatis Lint: Show Log** で確認できます。
+うまく動かないときは、このログの内容を不具合の報告に添えてください。
+
 **Java のインストールは不要です。** 解析に必要な Java ランタイムを拡張機能に同梱しています。
 
 ## 主な検出内容
@@ -31,8 +37,12 @@ MyBatis の設定ファイルやコンパイル済みのクラスは読み込ま
 
 ## 設定
 
+権限がなく読めないフォルダ（Docker のボリュームなど）は、自動的に飛ばして解析を続けます。
+
 | 設定 | 説明 |
 |---|---|
+| `mybatisLint.runOnSave` | mapper XML や Java ファイルを保存したときに自動でチェックするか（既定はオン） |
+| `mybatisLint.exclude` | 解析しないフォルダやファイル。ワークスペースからの相対パスで、`*` や `**` が使えます（例: `docker`、`modules/*/generated`）。`/` を含まない名前は、どの階層のフォルダ名・ファイル名にも一致します |
 | `mybatisLint.javaPath` | 解析に使う Java のパス。空なら同梱の Java を使います |
 | `mybatisLint.analyzerJarPath` | 解析エンジンの jar のパス。空なら同梱の jar を使います |
 
