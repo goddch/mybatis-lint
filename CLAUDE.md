@@ -9,10 +9,9 @@ MyBatis の mapper XML を静的解析する lint ツール。Java 製の解析�
 - `analyzer/` — Java 17 / Gradle（単一モジュール）。解析エンジン + CLI
   - `discovery` ワークスペースから mapper XML / Java ファイルを探す
   - `javaindex` JavaParser で Mapper インターフェースとクラスを索引化する
-  - `xml` SAX による基本チェック（`MapperXmlAnalyzer`）と、DOM ベースの各 validator
-    （`MapperReferenceValidator`、`MapperParameterValidator`、
-    `MapperParameterTypeValidator`、`MapperResultTypeValidator`、`MapperSelectAliasValidator`）と、Java ファイルに報告する
-    `MapperMethodStatementValidator`
+  - `xml` SAX による基本チェック（`MapperXmlAnalyzer`）と、ルールごとの DOM ベースの
+    validator（`Mapper*Validator`）。`MapperXmlAnalyzer.analyzeFile` が XML ファイルごとに呼ぶ。
+    Java ファイルに報告する `MapperMethodStatementValidator` だけは `AnalyzerCli` から呼ぶ
   - `model` `Diagnostic` などのデータ型と、ルール ID の一覧（`RuleIds`）
   - `json` 自前の JSON writer。`cli` `AnalyzerCli` が全体をつなぐ
 - `vscode-extension/` — TypeScript。`java -jar analyzer.jar <workspace>` を実行して
