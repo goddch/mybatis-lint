@@ -52,6 +52,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `result-type-mismatch` | warning | `resultType` on a `<select>` that cannot be assigned to the Java mapper method's return type (simple cases only; subclasses and implementations are accepted, and types whose hierarchy cannot be followed in the workspace are skipped) |
 | `unknown-result-property` | warning | a resultMap `property` with no matching field or setter on the mapped workspace class (Lombok and superclasses in the workspace are supported) |
 | `unknown-select-alias` | warning | a column alias written with `AS` in a `<select resultType>` that matches no property of the result class, so MyBatis silently drops the column ([details](docs/select-alias-validation.md)) |
+| `result-map-column-not-selected` | warning | a resultMap `column` missing from the SELECT list of the only `<select>` that uses the resultMap, so the property stays null ([details](docs/result-map-validation.md#columns-missing-from-the-select-list)) |
 | `unresolved-result-map-extends` | warning | `<resultMap extends>` pointing to a resultMap that does not exist |
 | `result-map-inheritance-cycle` | warning | resultMaps whose `extends` chain loops |
 | `unresolved-statement-result-map` | warning | a statement's `resultMap` pointing to a resultMap that does not exist |

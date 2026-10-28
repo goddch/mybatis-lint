@@ -54,6 +54,9 @@ import java.util.regex.Pattern;
 public final class MapperSelectAliasValidator {
 
     private static final Pattern ALIAS_NAME = Pattern.compile("[A-Za-z_$#][A-Za-z0-9_$#]*");
+    // 別名のない列: COLUMN、t.COLUMN、"Column"(t. は付いていてもよい)。
+    private static final Pattern PLAIN_COLUMN = Pattern.compile(
+            "(?:[A-Za-z_$#][A-Za-z0-9_$#]*\\.){0,2}(?:([A-Za-z_$#][A-Za-z0-9_$#]*)|\"([^\"]+)\")");
 
     private final JavaTypeIndex typeIndex;
 
@@ -142,7 +145,7 @@ public final class MapperSelectAliasValidator {
      * statement の先頭から、最初の子要素({@code <include>} や {@code <where>} など)の
      * 直前までの SQL。CDATA もテキストとして含め、XML コメントは除く。
      */
-    private static String leadingSql(Element select) {
+    static String leadingSql(Element select) {
         StringBuilder sql = new StringBuilder();
         NodeList children = select.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
@@ -162,6 +165,47 @@ public final class MapperSelectAliasValidator {
      * SELECT 句の列のうち、AS で付けた別名を順に返す。列が確定しない場合は null。
      */
     static List<String> extractSelectAliases(String rawSql) {
+        List<String> items = splitSelectItems(rawSql);
+        if (items == null) {
+            return null;
+        }
+        List<String> aliases = new ArrayList<>();
+        for (String item : items) {
+            String alias = explicitAlias(item);
+            if (alias != null) {
+                aliases.add(alias);
+            }
+        }
+        return aliases;
+    }
+
+    /**
+     * SELECT 句の列が結果で持つ名前(ラベル)を順に返す。AS の別名、なければ
+     * {@code t.COLUMN} や {@code COLUMN} の列名。式に別名がないなど、ラベルを
+     * 決められない列が 1 つでもあれば null。
+     */
+    static List<String> extractSelectLabels(String rawSql) {
+        List<String> items = splitSelectItems(rawSql);
+        if (items == null) {
+            return null;
+        }
+        List<String> labels = new ArrayList<>();
+        for (String item : items) {
+            String label = explicitAlias(item);
+            if (label == null) {
+                Matcher column = PLAIN_COLUMN.matcher(item);
+                if (!column.matches()) {
+                    return null;
+                }
+                label = column.group(1) != null ? column.group(1) : column.group(2);
+            }
+            labels.add(label);
+        }
+        return labels;
+    }
+
+    /** SELECT から最初の FROM までの列の式。列が確定しない場合は null。 */
+    private static List<String> splitSelectItems(String rawSql) {
         String sql = stripComments(rawSql).trim();
         if (!startsWithKeyword(sql, 0, "select")) {
             return null;
@@ -202,19 +246,16 @@ public final class MapperSelectAliasValidator {
             return null;
         }
 
-        List<String> aliases = new ArrayList<>();
+        List<String> trimmed = new ArrayList<>();
         for (String rawItem : items) {
             String item = rawItem.trim();
             if (item.isEmpty() || item.equals("*") || item.endsWith(".*") || item.contains("${")
                     || item.contains("#{")) {
                 return null;
             }
-            String alias = explicitAlias(item);
-            if (alias != null) {
-                aliases.add(alias);
-            }
+            trimmed.add(item);
         }
-        return aliases;
+        return trimmed;
     }
 
     /** 列の式のうち、最後の(括弧の外の)AS のあとの別名。AS がなければ null。 */

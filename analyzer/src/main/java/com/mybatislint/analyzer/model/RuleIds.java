@@ -48,6 +48,8 @@ public final class RuleIds {
     public static final String SINGLE_CHAR_LITERAL_COMPARISON = "mybatis-lint/single-char-literal-comparison";
     // OGNL で数値と '' を比べると '' が 0 として扱われ、値が 0 のときも条件が成り立たない。
     public static final String NUMERIC_EMPTY_STRING_COMPARISON = "mybatis-lint/numeric-empty-string-comparison";
+    // resultMap の column が、それを使う select の SELECT 句にないもの。プロパティは黙って null のままになる。
+    public static final String RESULT_MAP_COLUMN_NOT_SELECTED = "mybatis-lint/result-map-column-not-selected";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";

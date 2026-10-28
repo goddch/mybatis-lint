@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.OrderMapper">
+  <!--
+    異常系: orderMap は findOrder だけが使う。ORDER_DAET は ORDER_DATE のタイプミスで、
+    SELECT 句にないので orderDate は null のままになる(result-map-column-not-selected, warning)。
+  -->
+  <resultMap id="orderMap" type="map">
+    <id column="ORDER_ID" property="orderId"/>
+    <result column="order_no" property="orderNo"/>
+    <result column="ORDER_DAET" property="orderDate"/>
+  </resultMap>
+  <select id="findOrder" resultMap="orderMap">
+    SELECT o.ORDER_ID, o.ORDER_NO, o.ORDER_DATE FROM orders o WHERE o.ORDER_ID = #{orderId}
+  </select>
+
+  <!--
+    正常系: summaryMap は 2 つの select で使い回している。一覧の listOrders には
+    NOTE がないが、意図した使い分けかもしれないので報告しない。
+  -->
+  <resultMap id="summaryMap" type="map">
+    <id column="ORDER_ID" property="orderId"/>
+    <result column="NOTE" property="note"/>
+  </resultMap>
+  <select id="listOrders" resultMap="summaryMap">SELECT ORDER_ID FROM orders</select>
+  <select id="findSummary" resultMap="summaryMap">SELECT ORDER_ID, NOTE FROM orders WHERE ORDER_ID = #{id}</select>
+</mapper>

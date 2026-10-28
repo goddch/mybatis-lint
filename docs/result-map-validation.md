@@ -241,3 +241,39 @@ Missing/blank/dynamic (`${...}`) IDs, missing/blank/dynamic namespaces, nested
 declarations, and malformed/unreadable XML are not indexed for this check.
 This rule does not change resultMap reference existence checks or inspect
 externally registered resultMaps, inheritance cycles, or nested mapping types.
+
+## Columns missing from the SELECT list
+
+`mybatis-lint/result-map-column-not-selected` (warning) reports an `<id column>` or
+`<result column>` of a resultMap that is not in the SELECT list of the `<select>`
+using it. MyBatis does not fail; the property simply stays null.
+
+```xml
+<resultMap id="orderMap" type="map">
+  <result column="ORDER_DAET" property="orderDate"/>  <!-- typo: warning -->
+</resultMap>
+<select id="findOrder" resultMap="orderMap">
+  SELECT o.ORDER_ID, o.ORDER_DATE FROM orders o
+</select>
+```
+
+Reusing one resultMap for several selects with different columns is common, and a
+missing column may then be intended. So only resultMaps used by **exactly one**
+`<select resultMap>` in the whole workspace are checked; a reference from
+`extends`, an association/collection/case `resultMap`, or a comma-separated list
+also counts as a use and skips the check.
+
+The SELECT list is read the same way as `unknown-select-alias`
+([select-alias-validation.md](select-alias-validation.md)): from SELECT to the
+first top-level FROM, with comments, hints, and parenthesized expressions skipped.
+A column's name is its `AS` alias, or the column name of a plain `t.COLUMN` /
+`COLUMN` / `"Column"`. Names are compared ignoring case.
+
+Fail-open: the resultMap has `extends` or children other than `<id>`/`<result>`
+(association, collection, discriminator, constructor); any column name in the
+SELECT list cannot be determined (`*`, an expression without an alias, `<include>`
+or `<if>` before FROM, `${...}`); the `column` is blank, dynamic, or composite
+(`{a=A}`); duplicate resultMap IDs; or the resultMap's namespace has a mapper XML
+that cannot be parsed (a broken mapper XML without a readable namespace disables
+the rule).
+
