@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.SelectAliasValidMapper">
+  <!--
+    別名はすべて UserDomain(親クラスを含む)のプロパティに対応する。
+    大文字小文字とアンダースコアの違い(USER_NAME と userName)は、MyBatis の自動マッピングと
+    mapUnderscoreToCamelCase の設定次第で対応しうるので、警告しない。
+  -->
+  <select id="findById" resultType="com.example.UserDomain">
+    SELECT u.USER_ID AS userId,
+           u.USER_NAME AS USER_NAME,
+           u.CREATED_BY AS "createdBy"
+      FROM users u
+    <where>
+      <if test="userId != null">AND u.USER_ID = #{userId}</if>
+    </where>
+  </select>
+
+  <!-- * や <include> を含む SELECT 句は列が確定しないので検証しない。 -->
+  <select id="findAll" resultType="UserDomain">
+    SELECT u.*, 1 AS notChecked FROM users u
+  </select>
+</mapper>

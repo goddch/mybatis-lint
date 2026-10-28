@@ -46,6 +46,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `parameter-type-mismatch` | warning | `parameterType` that disagrees with the single argument of the Java mapper method ([details](docs/parameter-type-validation.md)) |
 | `result-type-mismatch` | warning | `resultType` on a `<select>` that cannot be assigned to the Java mapper method's return type (simple cases only; subclasses and implementations are accepted, and types whose hierarchy cannot be followed in the workspace are skipped) |
 | `unknown-result-property` | warning | a resultMap `property` with no matching field or setter on the mapped workspace class (Lombok and superclasses in the workspace are supported) |
+| `unknown-select-alias` | warning | a column alias written with `AS` in a `<select resultType>` that matches no property of the result class, so MyBatis silently drops the column ([details](docs/select-alias-validation.md)) |
 | `unresolved-result-map-extends` | warning | `<resultMap extends>` pointing to a resultMap that does not exist |
 | `result-map-inheritance-cycle` | warning | resultMaps whose `extends` chain loops |
 | `unresolved-statement-result-map` | warning | a statement's `resultMap` pointing to a resultMap that does not exist |
@@ -63,8 +64,9 @@ The CLI writes the diagnostics as JSON to stdout
 
 ## What is **not** implemented yet
 
-Oracle SQL syntax validation, SQL-column-to-DTO property validation, and
-dynamic SQL branch expansion are roadmap items — see
+Oracle SQL syntax validation, column-to-property validation beyond explicit
+`AS` aliases (unaliased columns, `resultMap` statements, `*` and `<include>`
+in the select list), and dynamic SQL branch expansion are roadmap items — see
 [`docs/roadmap.md`](docs/roadmap.md).
 Please don't rely on this tool for those checks yet.
 
