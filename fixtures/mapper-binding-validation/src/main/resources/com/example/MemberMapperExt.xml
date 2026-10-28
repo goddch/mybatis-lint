@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  MemberMapper.xml と同じ namespace の続き。insertMember は MemberMapper.xml にもあるので、
+  MyBatis は起動時に失敗する(duplicate-statement-id, 両方のファイルに error)。
+-->
+<mapper namespace="com.example.MemberMapper">
+  <insert id="insertMember">
+    INSERT INTO members (MEMBER_ID) VALUES (#{memberId})
+  </insert>
+</mapper>

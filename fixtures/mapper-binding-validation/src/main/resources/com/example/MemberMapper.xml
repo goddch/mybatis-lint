@@ -13,6 +13,14 @@
     UPDATE members SET MEMBER_NAME = #{member.memberNmae} WHERE MEMBER_ID = #{id}
   </update>
 
+  <insert id="insertAll">
+    INSERT ALL
+    <foreach collection="members" item="m">
+      INTO members (MEMBER_ID, MEMBER_NAME) VALUES (#{m.memberId}, #{m.memberNmae})
+    </foreach>
+    SELECT * FROM dual
+  </insert>
+
   <select id="findByName" resultType="com.example.MemberDomain">
     SELECT MEMBER_ID AS memberId, MEMBER_NAME AS memberName FROM members WHERE MEMBER_NAME = #{name}
   </select>

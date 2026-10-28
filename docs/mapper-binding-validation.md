@@ -34,6 +34,25 @@ int insertUser(UserDomain user);
 見て、`#{user.address.street}` の `street` 以降は見ません。`<if test>` の中の
 `user.userNmae` は、今は見ていません。
 
+### `<foreach>` の item の場合
+
+```java
+int insertAll(@Param("users") List<UserDomain> users);
+```
+
+```xml
+<foreach collection="users" item="u">(#{u.userId}, #{u.userNmae})</foreach>  <!-- userNmae → error -->
+```
+
+`collection` に引数の名前を書いたとき、その型が `List<UserDomain>` などのコレクションか
+`UserDomain[]`(可変長引数を含む)なら、要素の型 `UserDomain` のプロパティを見ます。
+`@Param` のない引数が 1 つだけなら、`list` / `collection` / `array` と書いた場合も同じです。
+`<if test>` の中にある `#{u.xxx}` も見ます。次の場合は見ません。
+
+- 要素の型が決まらない(`List<? extends X>`、`Map`、`List<List<X>>`、プロパティの先のコレクションなど)
+- 要素の型に、下の「検証しない場合」が当てはまる(子クラスがあるなど)
+- 内側の `<foreach>` が同じ名前の item を使っている、または同じ名前の `<bind>` の後ろ
+
 ### プロパティの決め方
 
 MyBatis が値を**読める**名前です。getter があれば getter を、なければフィールドから直接読むので、
@@ -83,6 +102,16 @@ public interface UserMapper {
 severity を warning にしているのは、呼ばれていないメソッドなら実害がないことと、
 ワークスペースの外にある仕組みで statement が追加される可能性を否定しきれないためです。
 
+## `mybatis-lint/duplicate-statement-id`(error)の別ファイルどうしの重複
+
+同じ namespace の mapper XML が複数のファイルに分かれていて、同じ id の statement が
+2 つ以上のファイルにあると、MyBatis はアプリの起動時に
+`Mapped Statements collection already contains value` で失敗します。それぞれのファイルの
+最初の宣言に、ほかのファイル名を添えて報告します。1 つのファイルの中の重複は、これまでどおり
+2 つ目以降を報告します。
+
+databaseId 属性を使っている id は、データベースごとに書き分けている可能性があるので見ません。
+
 ## 手動確認
 
 ```sh
@@ -91,5 +120,7 @@ cd analyzer
 java -jar build/libs/analyzer.jar ../fixtures/mapper-binding-validation
 ```
 
-`MemberMapper.xml` に error が 2 件(`#{memberNmae}` と `#{member.memberNmae}`)、
-`MemberMapper.java` に warning が 1 件(`findByNmae`)出ます。
+`MemberMapper.xml` に error が 4 件(`#{memberNmae}`、`#{member.memberNmae}`、
+`#{m.memberNmae}`、`MemberMapperExt.xml` と重複している `insertMember`)、
+`MemberMapperExt.xml` に error が 1 件(`insertMember` の重複)、`MemberMapper.java` に
+warning が 1 件(`findByNmae`)出ます。

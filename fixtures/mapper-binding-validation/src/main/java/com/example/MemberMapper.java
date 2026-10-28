@@ -16,6 +16,9 @@ public interface MemberMapper {
     // 異常系: XML の #{member.memberNmae} は @Param("member") の型にないプロパティ(error)。
     int updateById(@Param("member") MemberDomain member, @Param("id") Long id);
 
+    // 異常系: XML の foreach の #{m.memberNmae} は、要素の型 MemberDomain にないプロパティ(error)。
+    int insertAll(@Param("members") List<MemberDomain> members);
+
     // 異常系: XML の id は findByName なので、このメソッドの statement がない(warning)。
     List<MemberDomain> findByNmae(String name);
 }

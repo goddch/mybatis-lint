@@ -7,6 +7,7 @@ import org.w3c.dom.NodeList;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,20 +26,34 @@ public final class MapperStatementIndex {
     private static final Pattern MAPPER_NAMESPACE =
             Pattern.compile("<mapper\\b[^>]*?\\bnamespace\\s*=\\s*[\"']([^\"']*)[\"']");
 
+    /**
+     * statement が宣言されている場所。
+     *
+     * @param rawId          XML に書かれたままの id(namespace 付きのこともある)
+     * @param hasDatabaseId  databaseId 属性があるか
+     */
+    public record Occurrence(Path file, String rawId, boolean hasDatabaseId) {
+    }
+
     private final Map<String, Set<String>> statementIdsByNamespace;
+    // namespace → id → 宣言されている場所(ファイルの順)。
+    private final Map<String, Map<String, List<Occurrence>>> occurrencesByNamespace;
     // 壊れていて statement を読めなかった mapper XML の namespace。
     private final Set<String> unreadableNamespaces;
     private final boolean complete;
 
-    private MapperStatementIndex(Map<String, Set<String>> statementIdsByNamespace, Set<String> unreadableNamespaces,
-                                 boolean complete) {
+    private MapperStatementIndex(Map<String, Set<String>> statementIdsByNamespace,
+                                 Map<String, Map<String, List<Occurrence>>> occurrencesByNamespace,
+                                 Set<String> unreadableNamespaces, boolean complete) {
         this.statementIdsByNamespace = statementIdsByNamespace;
+        this.occurrencesByNamespace = occurrencesByNamespace;
         this.unreadableNamespaces = unreadableNamespaces;
         this.complete = complete;
     }
 
     public static MapperStatementIndex build(List<Path> xmlFiles) {
         Map<String, Set<String>> ids = new HashMap<>();
+        Map<String, Map<String, List<Occurrence>>> occurrences = new HashMap<>();
         Set<String> unreadable = new HashSet<>();
         boolean complete = true;
         for (Path file : xmlFiles) {
@@ -58,9 +73,15 @@ public final class MapperStatementIndex {
                 for (int i = 0; i < children.getLength(); i++) {
                     Node child = children.item(i);
                     if (child instanceof Element element && STATEMENT_TAGS.contains(element.getTagName())) {
-                        String id = element.getAttribute("id").trim();
+                        String rawId = element.getAttribute("id").trim();
                         // MyBatis は namespace 付きの id も受け付ける。
-                        namespaceIds.add(id.startsWith(namespace + ".") ? id.substring(namespace.length() + 1) : id);
+                        String id = rawId.startsWith(namespace + ".") ? rawId.substring(namespace.length() + 1) : rawId;
+                        namespaceIds.add(id);
+                        if (!id.isEmpty() && !id.contains("${")) {
+                            occurrences.computeIfAbsent(namespace, ignored -> new HashMap<>())
+                                    .computeIfAbsent(id, ignored -> new ArrayList<>())
+                                    .add(new Occurrence(file, rawId, !element.getAttribute("databaseId").isBlank()));
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -80,7 +101,7 @@ public final class MapperStatementIndex {
                 }
             }
         }
-        return new MapperStatementIndex(ids, unreadable, complete);
+        return new MapperStatementIndex(ids, occurrences, unreadable, complete);
     }
 
     /**
@@ -100,6 +121,11 @@ public final class MapperStatementIndex {
             return null;
         }
         return statementIdsByNamespace.get(namespace);
+    }
+
+    /** namespace ごとの、id ごとの宣言場所。 */
+    public Map<String, Map<String, List<Occurrence>>> occurrences() {
+        return occurrencesByNamespace;
     }
 
     private static String readText(Path file) {
