@@ -33,6 +33,9 @@ public final class RuleIds {
     // 絞っている(詳細は MapperResultTypeValidator のクラス javadoc を参照)。
     public static final String RESULT_TYPE_MISMATCH = "mybatis-lint/result-type-mismatch";
     public static final String UNKNOWN_RESULT_PROPERTY = "mybatis-lint/unknown-result-property";
+    // resultType の自動マッピングで、AS で付けた列の別名に対応するプロパティがないもの。
+    // MyBatis はその列を黙って捨てるので、実行時にも気づきにくい。
+    public static final String UNKNOWN_SELECT_ALIAS = "mybatis-lint/unknown-select-alias";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";

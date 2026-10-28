@@ -64,6 +64,11 @@ public final class JavaTypeIndex {
     // 設定ファイルで登録された alias。Java ソースが 1 つもないかどうか(isEmpty)の
     // 判断には使わないので、simple name とは分けて持つ。
     private final Set<String> registeredAliasesLowerCase = new HashSet<>();
+    // resultType などの値からクラスを決めるための対応表(キーは小文字)。
+    // simple name は同じ名前のクラスが複数あるとどれか決められないので、候補をすべて持つ。
+    private final Map<String, Set<String>> qualifiedNamesBySimpleNameLowerCase = new HashMap<>();
+    // @Alias で付けた名前と、それが指すクラス。同じ alias が複数あれば値を null にする。
+    private final Map<String, String> aliasAnnotationTargetsLowerCase = new HashMap<>();
     // クラス自身が宣言しているプロパティ(親クラスの分は含まない)。判断できないクラスは null。
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
     // 親クラスの FQCN。親がなければキー自体がなく、親を解決できなければ値が null。
@@ -134,6 +139,32 @@ public final class JavaTypeIndex {
     }
 
     /**
+     * resultType などに書かれた値が指すクラスの FQCN。決められなければ null。
+     *
+     * <p>FQCN はそのまま返す。それ以外は、{@code @Alias} の名前か、ワークスペースで
+     * ただ 1 つのクラスの simple name(大文字小文字は無視)のときだけ決める。
+     * MyBatis の設定ファイルで登録された alias は指す先を追っていないので決めない。</p>
+     */
+    public String resolveTypeReference(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.contains(".")) {
+            return trimmed;
+        }
+        String lowerCase = trimmed.toLowerCase(Locale.ROOT);
+        if (registeredAliasesLowerCase.contains(lowerCase)) {
+            return null;
+        }
+        if (aliasAnnotationTargetsLowerCase.containsKey(lowerCase)) {
+            return aliasAnnotationTargetsLowerCase.get(lowerCase);
+        }
+        Set<String> candidates = qualifiedNamesBySimpleNameLowerCase.get(lowerCase);
+        return candidates != null && candidates.size() == 1 ? candidates.iterator().next() : null;
+    }
+
+    /**
      * FQCN で一意に解決できたクラスに書き込めるプロパティ(親クラスの分を含む)。
      * 判断できない型は null。
      */
@@ -191,7 +222,20 @@ public final class JavaTypeIndex {
             // (record と enum は下で別に拾う)。
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
-                addAliasAnnotation(type);
+                String alias = addAliasAnnotation(type);
+                if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
+                    type.getFullyQualifiedName().ifPresent(name -> {
+                        qualifiedNamesBySimpleNameLowerCase
+                                .computeIfAbsent(type.getNameAsString().toLowerCase(Locale.ROOT),
+                                        ignored -> new HashSet<>())
+                                .add(name);
+                        if (alias != null) {
+                            String key = alias.toLowerCase(Locale.ROOT);
+                            aliasAnnotationTargetsLowerCase.put(key,
+                                    aliasAnnotationTargetsLowerCase.containsKey(key) ? null : name);
+                        }
+                    });
+                }
                 Set<String> supertypes = new HashSet<>(simpleNamesOf(type.getExtendedTypes()));
                 supertypes.addAll(simpleNamesOf(type.getImplementedTypes()));
                 addDirectSupertypes(type.getNameAsString(), supertypes);
@@ -250,23 +294,29 @@ public final class JavaTypeIndex {
      * {@code @Alias("Member")} が付いた型は、simple name ではなくその名前で登録される。
      * 名前を読み取れない書き方(定数の参照など)は無視する。
      */
-    private void addAliasAnnotation(NodeWithAnnotations<?> type) {
+    private String addAliasAnnotation(NodeWithAnnotations<?> type) {
         for (AnnotationExpr annotation : type.getAnnotations()) {
             String name = annotation.getNameAsString();
             if (!"Alias".equals(name) && !name.endsWith(".Alias")) {
                 continue;
             }
+            String alias = null;
             if (annotation instanceof SingleMemberAnnotationExpr single
                     && single.getMemberValue() instanceof StringLiteralExpr literal) {
-                simpleNamesLowerCase.add(literal.getValue().toLowerCase(Locale.ROOT));
+                alias = literal.getValue();
             } else if (annotation instanceof NormalAnnotationExpr normal) {
-                normal.getPairs().stream()
+                alias = normal.getPairs().stream()
                         .filter(pair -> "value".equals(pair.getNameAsString()))
                         .filter(pair -> pair.getValue() instanceof StringLiteralExpr)
-                        .forEach(pair -> simpleNamesLowerCase.add(
-                                ((StringLiteralExpr) pair.getValue()).getValue().toLowerCase(Locale.ROOT)));
+                        .map(pair -> ((StringLiteralExpr) pair.getValue()).getValue())
+                        .findFirst().orElse(null);
+            }
+            if (alias != null) {
+                simpleNamesLowerCase.add(alias.toLowerCase(Locale.ROOT));
+                return alias;
             }
         }
+        return null;
     }
 
     private void addDirectSupertypes(String simpleName, Set<String> supertypes) {

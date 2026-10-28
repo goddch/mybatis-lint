@@ -33,11 +33,11 @@ working in user-facing docs until they land:
   existing Java SQL parser with Oracle dialect support (e.g. Druid's parser
   or JSqlParser) against real, anonymized mapper SQL before committing to
   one, rather than assuming either is a perfect match up front.
-- **SQL column to property validation.** Checking that the column aliases in
-  a `<select>` correspond to real properties of its `resultType` or
-  `resultMap`, accounting for `mapUnderscoreToCamelCase`, Lombok-generated
-  accessors, and records. Today only the `property` attributes written in a
-  resultMap are checked.
+- **Broader SQL column to property validation.** Explicit `AS` aliases in a
+  `<select resultType>` are checked (`unknown-select-alias`). Remaining work:
+  unaliased columns (which depend on `mapUnderscoreToCamelCase`), statements
+  using `resultMap` auto-mapping, select lists containing `*`, `<include>` or
+  dynamic elements, and records. A real SQL parser would also help here.
 - **Broader resultMap validation.** Inferring collection element types,
   following referenced nested mappings and inherited (`extends`) properties,
   and checking type compatibility and discriminator values. These are all

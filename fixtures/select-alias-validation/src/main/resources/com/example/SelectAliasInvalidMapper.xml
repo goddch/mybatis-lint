@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.SelectAliasInvalidMapper">
+  <!--
+    userNmae は userName のタイプミス。displayName は getter しかないので
+    MyBatis は値を書き込めない。どちらも黙って捨てられるので warning を出す。
+  -->
+  <select id="findById" resultType="com.example.UserDomain">
+    SELECT u.USER_ID AS userId,
+           u.USER_NAME AS userNmae,
+           u.NICKNAME AS displayName
+      FROM users u
+     WHERE u.USER_ID = #{userId}
+  </select>
+</mapper>
