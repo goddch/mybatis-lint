@@ -71,6 +71,8 @@ public final class JavaTypeIndex {
     private final Map<String, String> aliasAnnotationTargetsLowerCase = new HashMap<>();
     // クラス自身が宣言しているプロパティ(親クラスの分は含まない)。判断できないクラスは null。
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
+    // クラス自身が宣言しているフィールドの型(書かれたままの simple name。型引数は外す)。
+    private final Map<String, Map<String, String>> fieldTypeNamesByQualifiedName = new HashMap<>();
     // クラス自身が宣言している、getter かフィールドで値を読めるプロパティ。判断できなければ null。
     private final Map<String, Set<String>> readablePropertiesByQualifiedName = new HashMap<>();
     // ワークスペースのどこかで extends / implements されている型の simple name。
@@ -200,6 +202,26 @@ public final class JavaTypeIndex {
     }
 
     /**
+     * フィールドの型の simple name(int、Integer、String など)。親クラスのフィールドも探す。
+     * 見つからない、または親クラスをたどれなければ null。
+     */
+    public String findFieldTypeName(String qualifiedName, String fieldName) {
+        Set<String> visited = new HashSet<>();
+        String current = qualifiedName;
+        while (current != null && visited.add(current)) {
+            Map<String, String> fields = fieldTypeNamesByQualifiedName.get(current);
+            if (fields == null) {
+                return null;
+            }
+            if (fields.containsKey(fieldName)) {
+                return fields.get(fieldName);
+            }
+            current = superclassByQualifiedName.get(current);
+        }
+        return null;
+    }
+
+    /**
      * Java のソースに書かれた型名(simple name か FQCN)の FQCN。simple name は、
      * ワークスペースにその名前のクラスがただ 1 つあるときだけ決める。
      */
@@ -294,6 +316,7 @@ public final class JavaTypeIndex {
                         } else {
                             resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
                             readablePropertiesByQualifiedName.put(name, collectReadableProperties(type));
+                            fieldTypeNamesByQualifiedName.put(name, collectFieldTypeNames(type));
                             if (!type.isInterface() && !type.isAbstract()) {
                                 instantiableQualifiedNames.add(name);
                             }
@@ -468,6 +491,21 @@ public final class JavaTypeIndex {
             }
         }
         return Set.copyOf(properties);
+    }
+
+    private static Map<String, String> collectFieldTypeNames(ClassOrInterfaceDeclaration type) {
+        Map<String, String> types = new HashMap<>();
+        for (var field : type.getFields()) {
+            field.getVariables().forEach(variable -> {
+                String name = variable.getType().asString();
+                int generic = name.indexOf('<');
+                if (generic >= 0) {
+                    name = name.substring(0, generic);
+                }
+                types.put(variable.getNameAsString(), name.substring(name.lastIndexOf('.') + 1));
+            });
+        }
+        return types;
     }
 
     private static boolean usesAccessorChangingAnnotation(ClassOrInterfaceDeclaration type) {

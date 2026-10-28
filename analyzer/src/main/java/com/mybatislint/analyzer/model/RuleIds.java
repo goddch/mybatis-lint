@@ -42,6 +42,12 @@ public final class RuleIds {
     // Java の Mapper メソッドに対応する statement が XML にないもの。呼び出すと
     // BindingException(Invalid bound statement)で失敗する。
     public static final String MISSING_MAPPER_STATEMENT = "mybatis-lint/missing-mapper-statement";
+    // '%#{name}%' のように SQL の文字列の中に書いた #{...}。バインドされず実行時にエラーになる。
+    public static final String PARAMETER_IN_STRING_LITERAL = "mybatis-lint/parameter-in-string-literal";
+    // OGNL で 1 文字の '...' は char になり、String と比べても常に等しくならない。
+    public static final String SINGLE_CHAR_LITERAL_COMPARISON = "mybatis-lint/single-char-literal-comparison";
+    // OGNL で数値と '' を比べると '' が 0 として扱われ、値が 0 のときも条件が成り立たない。
+    public static final String NUMERIC_EMPTY_STRING_COMPARISON = "mybatis-lint/numeric-empty-string-comparison";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";

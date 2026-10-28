@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.SearchMapper">
+  <!--
+    異常系:
+    - '%#{name}%' は文字列の中なのでバインドされない(parameter-in-string-literal, error)
+    - 'A' は OGNL では文字なので String の type と等しくならない(single-char-literal-comparison, warning)
+    - status は Integer なので != '' は 0 のときも false になる(numeric-empty-string-comparison, warning)
+  -->
+  <select id="searchInvalid" resultType="map">
+    SELECT * FROM users
+    <where>
+      <if test="name != null">AND NAME LIKE '%#{name}%'</if>
+      <if test="type == 'A'">AND TYPE = 'A'</if>
+      <if test="status != null and status != ''">AND STATUS = #{status}</if>
+    </where>
+  </select>
+
+  <!-- 正常系: 上と同じ条件の正しい書き方。 -->
+  <select id="searchValid" resultType="map">
+    SELECT * FROM users
+    <where>
+      <if test="name != null and name != ''">AND NAME LIKE '%' || #{name} || '%'</if>
+      <if test='type == "A"'>AND TYPE = 'A'</if>
+      <if test="status != null">AND STATUS = #{status}</if>
+    </where>
+  </select>
+</mapper>

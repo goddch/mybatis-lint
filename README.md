@@ -40,6 +40,9 @@ CLI exit non-zero. Everything else is a `warning`.
 | `otherwise-outside-choose` | error | `<otherwise>` that is not a direct child of `<choose>` |
 | `undefined-parameter` | error | `#{...}`, `${...}`, `<if test>`, `<when test>`, or `<foreach collection>` referring to a name that is not a parameter of the resolved Java mapper method ([details](docs/foreach-collection-validation.md)) |
 | `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, or `#{user.userNmae}` for `@Param("user")`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
+| `parameter-in-string-literal` | error | `#{...}` inside a SQL string literal such as `LIKE '%#{name}%'`; it is not bound and fails at run time ([details](docs/sql-pitfalls.md)) |
+| `single-char-literal-comparison` | warning | `<if test="type == 'A'">`: OGNL reads `'A'` as a char, so it never equals a String ([details](docs/sql-pitfalls.md)) |
+| `numeric-empty-string-comparison` | warning | `<if test="status != ''">` on a numeric value: OGNL treats `''` as 0, so the condition is also false for 0 ([details](docs/sql-pitfalls.md)) |
 | `missing-mapper-statement` | warning | a Java mapper method with no statement of the same id in its mapper XML (reported in the Java file); fails at run time with `BindingException` ([details](docs/mapper-binding-validation.md)) |
 | `unresolved-include` | error | `<include refid>` with no matching `<sql id>`, including `namespace.sqlId` references across files; namespaces with no mapper in the workspace are skipped ([details](docs/include-reference-validation.md)) |
 | `duplicate-result-map-id` | error | the same top-level resultMap id twice in one namespace, across files |
