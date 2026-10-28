@@ -63,7 +63,12 @@ public final class MapperStatementIndex {
                     continue;
                 }
                 String namespace = mapper.getAttribute("namespace").trim();
-                if (namespace.isEmpty() || namespace.contains("${")) {
+                if (namespace.isEmpty()) {
+                    // namespace のない mapper XML は MyBatis が読み込めない(missing-namespace で報告する)。
+                    // どの Mapper の statement にもならないので、飛ばすだけでよい。
+                    continue;
+                }
+                if (namespace.contains("${")) {
                     // どの namespace の statement かわからないものがある。
                     complete = false;
                     continue;

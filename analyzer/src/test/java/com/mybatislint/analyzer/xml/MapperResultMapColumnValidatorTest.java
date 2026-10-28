@@ -118,6 +118,28 @@ class MapperResultMapColumnValidatorTest {
         assertTrue(warnings.get(0).getFile().toString().endsWith("B.xml"));
     }
 
+    @Test
+    void keepsCheckingWhenAnotherMapperHasNoNamespace() throws IOException {
+        write("A.xml", """
+                <mapper namespace="example.A">
+                    <resultMap id="m" type="map"><result column="MISSING" property="x"/></resultMap>
+                    <select id="find" resultMap="m">SELECT ID FROM t</select>
+                    <resultMap id="alsoUsedByNoNamespace" type="map"><result column="MISSING" property="x"/></resultMap>
+                    <select id="other" resultMap="alsoUsedByNoNamespace">SELECT ID FROM t</select>
+                </mapper>
+                """);
+        write("NoNamespace.xml", """
+                <mapper>
+                    <select id="find" resultMap="example.A.alsoUsedByNoNamespace">SELECT X FROM t</select>
+                    <select id="local" resultMap="m">SELECT X FROM t</select>
+                </mapper>
+                """);
+
+        List<Diagnostic> warnings = columnDiagnostics();
+        assertEquals(1, warnings.size(), warnings::toString);
+        assertTrue(warnings.get(0).getMessage().contains("resultMap 'm'"));
+    }
+
     private List<Diagnostic> columnDiagnostics() {
         return new AnalyzerCli().run(workspace).getDiagnostics().stream()
                 .filter(d -> RuleIds.RESULT_MAP_COLUMN_NOT_SELECTED.equals(d.getRuleId()))
