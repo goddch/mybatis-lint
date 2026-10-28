@@ -7,7 +7,7 @@
     として mybatis-lint/parameter-type-mismatch(warning)が報告される。
   -->
   <select id="findByUser" parameterType="Order">
-    SELECT * FROM users WHERE id = #{user.id}
+    SELECT * FROM users WHERE id = #{id}
   </select>
 
   <!--
@@ -15,7 +15,7 @@
     primitive/boxed/String の対応表に含まれない明らかな不一致として報告される。
   -->
   <select id="findByObject" parameterType="string">
-    SELECT * FROM users WHERE id = #{user.id}
+    SELECT * FROM users WHERE id = #{id}
   </select>
 
   <!--
@@ -33,6 +33,6 @@
     フェイルオープンする。
   -->
   <select id="findWithDynamicAlias" parameterType="${parameterTypeAlias}">
-    SELECT * FROM users WHERE id = #{user.id}
+    SELECT * FROM users WHERE id = #{id}
   </select>
 </mapper>

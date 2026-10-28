@@ -30,9 +30,10 @@ MyBatis の `<foreach>` タグは、コレクション(配列・`List`・`Map` �
   **フェイルオープン**(何も報告しない)にする
 - `@Param` のない引数が 1 つだけのメソッドは、MyBatis が引数オブジェクトそのものを
   パラメータにする(`#{name}` は Bean のプロパティ、単純型なら値そのものを指す)。
-  プロパティの有無は確かめないので、このメソッドは検証しない。ただしコレクションと
-  配列の引数は MyBatis が `collection` / `list` / `array` という名前で包むので、
-  それらの名前を許可したうえで検証する
+  Bean のプロパティを確かめられるときは `mybatis-lint/unknown-parameter-property` で
+  検証し([mapper-binding-validation.md](mapper-binding-validation.md))、確かめられなければ
+  検証しない。コレクションと配列の引数は MyBatis が `collection` / `list` / `array` という
+  名前で包むので、それらの名前を許可したうえでこのルールで検証する
 
 式の中の次のものは変数参照ではないので、ルート識別子として扱わない。
 

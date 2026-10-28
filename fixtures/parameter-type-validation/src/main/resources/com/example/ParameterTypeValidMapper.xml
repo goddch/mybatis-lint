@@ -6,7 +6,7 @@
     mybatis-lint/parameter-type-mismatch は報告されない(正常系)。
   -->
   <select id="findByUser" parameterType="User">
-    SELECT * FROM users WHERE id = #{user.id}
+    SELECT * FROM users WHERE id = #{id}
   </select>
 
   <!--
@@ -14,7 +14,7 @@
     simple name と一致する正常系。
   -->
   <select id="findByFqcn" parameterType="com.example.User">
-    SELECT * FROM users WHERE id = #{user.id}
+    SELECT * FROM users WHERE id = #{id}
   </select>
 
   <!--

@@ -139,7 +139,7 @@ public final class MapperXmlAnalyzer {
         // 元 XML 文字列も使うので、責務を小さな validator に分けている。
         diagnostics.addAll(new MapperReferenceValidator(sqlFragmentIndex, typeIndex, resultMapIndex)
                 .validate(actualFile, displayFile, uri));
-        diagnostics.addAll(new MapperParameterValidator(javaIndex).validate(actualFile, displayFile, uri));
+        diagnostics.addAll(new MapperParameterValidator(javaIndex, typeIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperParameterTypeValidator(javaIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperResultTypeValidator(javaIndex, typeIndex).validate(actualFile, displayFile, uri));
         diagnostics.addAll(new MapperSelectAliasValidator(typeIndex).validate(actualFile, displayFile, uri));
