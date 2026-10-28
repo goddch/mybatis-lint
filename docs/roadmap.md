@@ -32,7 +32,9 @@ working in user-facing docs until they land:
   is to add a `sqlparser` extension point in the analyzer and evaluate an
   existing Java SQL parser with Oracle dialect support (e.g. Druid's parser
   or JSqlParser) against real, anonymized mapper SQL before committing to
-  one, rather than assuming either is a perfect match up front.
+  one, rather than assuming either is a perfect match up front. A first
+  comparison with made-up Oracle SQL favors JSqlParser; see
+  [`sql-parser-evaluation.md`](sql-parser-evaluation.md).
 - **Broader SQL column to property validation.** Explicit `AS` aliases in a
   `<select resultType>` are checked (`unknown-select-alias`). Remaining work:
   unaliased columns (which depend on `mapUnderscoreToCamelCase`), statements
