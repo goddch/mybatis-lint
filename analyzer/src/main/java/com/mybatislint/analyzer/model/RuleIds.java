@@ -36,6 +36,12 @@ public final class RuleIds {
     // resultType の自動マッピングで、AS で付けた列の別名に対応するプロパティがないもの。
     // MyBatis はその列を黙って捨てるので、実行時にも気づきにくい。
     public static final String UNKNOWN_SELECT_ALIAS = "mybatis-lint/unknown-select-alias";
+    // #{...} で引数の Bean にないプロパティを読もうとしているもの。実行時に
+    // ReflectionException(There is no getter for property ...)で失敗する。
+    public static final String UNKNOWN_PARAMETER_PROPERTY = "mybatis-lint/unknown-parameter-property";
+    // Java の Mapper メソッドに対応する statement が XML にないもの。呼び出すと
+    // BindingException(Invalid bound statement)で失敗する。
+    public static final String MISSING_MAPPER_STATEMENT = "mybatis-lint/missing-mapper-statement";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";

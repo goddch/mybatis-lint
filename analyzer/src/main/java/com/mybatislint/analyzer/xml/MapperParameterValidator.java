@@ -3,6 +3,7 @@ package com.mybatislint.analyzer.xml;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
+import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
@@ -23,6 +24,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,10 +40,20 @@ public final class MapperParameterValidator {
     private static final Set<String> COLLECTION_TYPES = Set.of(
             "Collection", "List", "ArrayList", "LinkedList", "Set", "HashSet", "LinkedHashSet", "TreeSet");
 
+    // #{user.name} のように、引数の名前のすぐ後ろにプロパティを 1 つ書いた形(その先は問わない)。
+    private static final Pattern NESTED_PROPERTY =
+            Pattern.compile("([A-Za-z_$][A-Za-z0-9_$]*)\\.([A-Za-z_$][A-Za-z0-9_$]*)(?:[.\\[].*)?");
+
     private final JavaMapperIndex index;
+    private final JavaTypeIndex typeIndex;
 
     public MapperParameterValidator(JavaMapperIndex index) {
+        this(index, JavaTypeIndex.empty());
+    }
+
+    public MapperParameterValidator(JavaMapperIndex index, JavaTypeIndex typeIndex) {
         this.index = index;
+        this.typeIndex = typeIndex == null ? JavaTypeIndex.empty() : typeIndex;
     }
 
     public List<Diagnostic> validate(Path actualFile, Path displayFile, String uri) {
@@ -72,17 +84,29 @@ public final class MapperParameterValidator {
                 if (method == null || method.hasMapLikeParameter()) {
                     continue;
                 }
-                Set<String> allowedNames = method.isSingleUnannotatedParameter()
-                        ? namesForSingleUnannotatedParameter(method)
-                        : method.availableNames();
+                Set<String> allowedNames;
+                // @Param のない Bean 1 つが引数なら、#{...} の名前はその Bean のプロパティを指す。
+                String beanType = null;
+                if (method.isSingleUnannotatedParameter()) {
+                    allowedNames = namesForSingleUnannotatedParameter(method);
+                    if (allowedNames == null) {
+                        beanType = typeIndex.resolveJavaTypeName(method.getParameterTypes().get(0));
+                        allowedNames = beanPropertyNames(beanType);
+                    }
+                } else {
+                    allowedNames = method.availableNames();
+                }
                 if (allowedNames == null) {
                     continue;
                 }
+                Set<String> scopedNames = new HashSet<>();
+                addScopedNames(statement, scopedNames);
                 Set<String> statementScope = new LinkedHashSet<>(allowedNames);
-                addScopedNames(statement, statementScope);
-                validateIfAndWhenTests(statement, statementScope, method, xml, displayFile, uri, diagnostics);
-                validateTemplateReferences(statement, statementScope, method, xml, displayFile, uri, diagnostics);
-                validateForeachCollections(statement, statementScope, method, xml, displayFile, uri, diagnostics);
+                statementScope.addAll(scopedNames);
+                Context context = new Context(method, beanType, xml, displayFile, uri, diagnostics);
+                validateIfAndWhenTests(statement, statementScope, context);
+                validateTemplateReferences(statement, statementScope, scopedNames, context);
+                validateForeachCollections(statement, statementScope, context);
             }
             return diagnostics;
         } catch (Exception e) {
@@ -90,13 +114,28 @@ public final class MapperParameterValidator {
         }
     }
 
-    private static void validateTemplateReferences(Element statement,
-                                                  Set<String> allowedNames,
-                                                  MapperMethodInfo method,
-                                                  String xml,
-                                                  Path displayFile,
-                                                  String uri,
-                                                  List<Diagnostic> diagnostics) {
+    /** 1 つの statement を検証するあいだ共通の情報。 */
+    private record Context(MapperMethodInfo method, String beanType, String xml, Path displayFile, String uri,
+                           List<Diagnostic> diagnostics) {
+    }
+
+    /** Bean の読めるプロパティと、MyBatis が付ける組み込みの名前。判断できなければ null。 */
+    private Set<String> beanPropertyNames(String qualifiedName) {
+        Set<String> properties = typeIndex.findReadableProperties(qualifiedName);
+        if (properties == null) {
+            return null;
+        }
+        Set<String> names = new LinkedHashSet<>(properties);
+        names.add("_parameter");
+        names.add("_databaseId");
+        return names;
+    }
+
+    private void validateTemplateReferences(Element statement,
+                                            Set<String> allowedNames,
+                                            Set<String> scopedNames,
+                                            Context context) {
+        String xml = context.xml();
         String sqlText = statement.getTextContent();
         Matcher matcher = TEMPLATE_PATTERN.matcher(sqlText);
         int statementOffset = findStartOfElement(xml, statement, 0);
@@ -119,8 +158,10 @@ public final class MapperParameterValidator {
                 if (root.startsWith("_")) {
                     continue;
                 }
-                diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
-                        raw, searchOffset));
+                context.diagnostics().add(diagnosticForExpression(context, root, raw, searchOffset));
+            }
+            if (context.beanType() == null) {
+                validateNestedProperty(expression, scopedNames, raw, searchOffset, context);
             }
             int nextIndex = xml.indexOf(raw, searchOffset);
             if (nextIndex >= 0) {
@@ -155,8 +196,8 @@ public final class MapperParameterValidator {
     /**
      * 引数が 1 つで {@code @Param} がないときの扱いを決める。MyBatis はこの場合、
      * 引数オブジェクトそのものをパラメータにするので、Bean なら {@code #{name}} は
-     * そのプロパティを、単純型なら任意の名前で値そのものを指す。プロパティを
-     * 確かめる手段がないため、検証自体をしない(null を返す)。
+     * そのプロパティを、単純型なら任意の名前で値そのものを指す。その場合は null を返し、
+     * 呼び出し側で Bean のプロパティを確かめる(確かめられなければ検証しない)。
      * コレクションと配列だけは MyBatis が {@code collection} / {@code list} /
      * {@code array} という名前で包むので、それらを許可して検証を続ける。
      */
@@ -176,13 +217,41 @@ public final class MapperParameterValidator {
         return names;
     }
 
+    /**
+     * {@code #{user.userName}} の {@code userName} が、引数 {@code user} の型のプロパティにあるか。
+     * {@code <bind>} や {@code <foreach>} の変数と同じ名前なら、引数ではないので見ない。
+     */
+    private void validateNestedProperty(String expression, Set<String> scopedNames, String raw, int searchOffset,
+                                        Context context) {
+        Matcher nested = NESTED_PROPERTY.matcher(expression.trim());
+        if (!nested.matches() || scopedNames.contains(nested.group(1))) {
+            return;
+        }
+        String parameter = nested.group(1);
+        String property = nested.group(2);
+        String parameterType = context.method().namedParameterTypes().get(parameter);
+        String qualifiedName = typeIndex.resolveJavaTypeName(parameterType);
+        Set<String> properties = typeIndex.findReadableProperties(qualifiedName);
+        if (properties == null || properties.contains(property)) {
+            return;
+        }
+        String xml = context.xml();
+        int snippetStart = xml.indexOf(raw, searchOffset);
+        int propertyStart = snippetStart < 0 ? -1 : xml.indexOf(parameter + "." + property, snippetStart);
+        Range range = propertyStart < 0
+                ? XmlPositions.range(xml, searchOffset, searchOffset)
+                : XmlPositions.range(xml, propertyStart + parameter.length() + 1,
+                        propertyStart + parameter.length() + 1 + property.length());
+        context.diagnostics().add(new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
+                RuleIds.UNKNOWN_PARAMETER_PROPERTY,
+                "Unknown property '" + property + "' of parameter '" + parameter + "' (" + qualifiedName
+                        + ") in mapper method '" + context.method().getName() + "'."));
+    }
+
     private static void validateIfAndWhenTests(Element statement,
                                                Set<String> allowedNames,
-                                               MapperMethodInfo method,
-                                               String xml,
-                                               Path displayFile,
-                                               String uri,
-                                               List<Diagnostic> diagnostics) {
+                                               Context context) {
+        String xml = context.xml();
         int lowerBound = findStartOfElement(xml, statement, 0);
         List<Element> elements = new ArrayList<>();
         collectDescendants(statement, elements);
@@ -205,8 +274,7 @@ public final class MapperParameterValidator {
                 if (root.startsWith("_")) {
                     continue;
                 }
-                diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
-                        expression, lowerBound));
+                context.diagnostics().add(diagnosticForExpression(context, root, expression, lowerBound));
             }
         }
     }
@@ -232,11 +300,8 @@ public final class MapperParameterValidator {
      */
     private static void validateForeachCollections(Element statement,
                                                     Set<String> allowedNames,
-                                                    MapperMethodInfo method,
-                                                    String xml,
-                                                    Path displayFile,
-                                                    String uri,
-                                                    List<Diagnostic> diagnostics) {
+                                                    Context context) {
+        String xml = context.xml();
         int statementStart = findStartOfElement(xml, statement, 0);
         List<Element> elements = new ArrayList<>();
         collectDescendants(statement, elements);
@@ -268,8 +333,7 @@ public final class MapperParameterValidator {
                 if (root.startsWith("_")) {
                     continue;
                 }
-                diagnostics.add(diagnosticForExpression(xml, displayFile, uri, method, root,
-                        expression, elementStart));
+                context.diagnostics().add(diagnosticForExpression(context, root, expression, elementStart));
             }
             searchOffset = elementStart + "<foreach".length();
         }
@@ -331,13 +395,11 @@ public final class MapperParameterValidator {
         }
     }
 
-    private static Diagnostic diagnosticForExpression(String xml,
-                                                     Path displayFile,
-                                                     String uri,
-                                                     MapperMethodInfo method,
+    private static Diagnostic diagnosticForExpression(Context context,
                                                      String root,
                                                      String rawSnippet,
                                                      int lowerBound) {
+        String xml = context.xml();
         // エディタでは未定義の名前そのものに波線を引きたいので、式の中からその名前を探す。
         // 見つからなければ式全体、それも見つからなければ幅 0 の位置にする。
         Range range;
@@ -351,9 +413,15 @@ public final class MapperParameterValidator {
         } else {
             range = XmlPositions.range(xml, lowerBound, lowerBound);
         }
-        return new Diagnostic(displayFile, uri, range, Severity.ERROR,
+        if (context.beanType() != null) {
+            return new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
+                    RuleIds.UNKNOWN_PARAMETER_PROPERTY,
+                    "Unknown property '" + root + "' of parameter type '" + context.beanType()
+                            + "' in mapper method '" + context.method().getName() + "'.");
+        }
+        return new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                 RuleIds.UNDEFINED_PARAMETER,
-                "Undefined parameter '" + root + "' in mapper method '" + method.getName() + "'.");
+                "Undefined parameter '" + root + "' in mapper method '" + context.method().getName() + "'.");
     }
 
     private static int findStartOfElement(String xml, Element element, int lowerBound) {

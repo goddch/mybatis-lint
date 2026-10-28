@@ -71,6 +71,11 @@ public final class JavaTypeIndex {
     private final Map<String, String> aliasAnnotationTargetsLowerCase = new HashMap<>();
     // クラス自身が宣言しているプロパティ(親クラスの分は含まない)。判断できないクラスは null。
     private final Map<String, Set<String>> resultPropertiesByQualifiedName = new HashMap<>();
+    // クラス自身が宣言している、getter かフィールドで値を読めるプロパティ。判断できなければ null。
+    private final Map<String, Set<String>> readablePropertiesByQualifiedName = new HashMap<>();
+    // ワークスペースのどこかで extends / implements されている型の simple name。
+    // 同じ simple name の型が複数あっても漏らさないよう、directSupertypesBySimpleName とは別に持つ。
+    private final Set<String> extendedSimpleNames = new HashSet<>();
     // 親クラスの FQCN。親がなければキー自体がなく、親を解決できなければ値が null。
     private final Map<String, String> superclassByQualifiedName = new HashMap<>();
     // resultMap の type に書けるクラス(抽象クラスは MyBatis がインスタンスを作れない)。
@@ -172,15 +177,55 @@ public final class JavaTypeIndex {
         if (qualifiedName == null || !instantiableQualifiedNames.contains(qualifiedName)) {
             return null;
         }
-        return collectInheritedProperties(qualifiedName, new HashSet<>());
+        return collectInheritedProperties(resultPropertiesByQualifiedName, qualifiedName, new HashSet<>());
     }
 
-    private Set<String> collectInheritedProperties(String qualifiedName, Set<String> visited) {
+    /**
+     * Mapper メソッドの引数として渡されたオブジェクトから、{@code #{...}} で読める
+     * プロパティ(getter とフィールド、親クラスの分を含む)。判断できない型は null。
+     *
+     * <p>実行時には宣言した型の子クラスのオブジェクトが渡されることがあり、その場合は
+     * 子クラスのプロパティも読める。そのため、ワークスペースに子クラスがあるクラスと
+     * 抽象クラスは判断しない。</p>
+     */
+    public Set<String> findReadableProperties(String qualifiedName) {
+        if (qualifiedName == null || !instantiableQualifiedNames.contains(qualifiedName)) {
+            return null;
+        }
+        String simpleName = qualifiedName.substring(qualifiedName.lastIndexOf('.') + 1);
+        if (extendedSimpleNames.contains(simpleName)) {
+            return null;
+        }
+        return collectInheritedProperties(readablePropertiesByQualifiedName, qualifiedName, new HashSet<>());
+    }
+
+    /**
+     * Java のソースに書かれた型名(simple name か FQCN)の FQCN。simple name は、
+     * ワークスペースにその名前のクラスがただ 1 つあるときだけ決める。
+     */
+    public String resolveJavaTypeName(String typeName) {
+        if (typeName == null || typeName.isBlank() || typeName.contains("<") || typeName.contains("[")) {
+            return null;
+        }
+        String trimmed = typeName.trim();
+        if (trimmed.contains(".")) {
+            return trimmed;
+        }
+        Set<String> candidates = qualifiedNamesBySimpleNameLowerCase.get(trimmed.toLowerCase(Locale.ROOT));
+        if (candidates == null || candidates.size() != 1) {
+            return null;
+        }
+        String candidate = candidates.iterator().next();
+        return candidate.endsWith("." + trimmed) || candidate.equals(trimmed) ? candidate : null;
+    }
+
+    private Set<String> collectInheritedProperties(Map<String, Set<String>> ownProperties, String qualifiedName,
+                                                   Set<String> visited) {
         // 継承が循環している(コンパイルできないコード)場合も、止まって判断を諦める。
         if (!visited.add(qualifiedName)) {
             return null;
         }
-        Set<String> own = resultPropertiesByQualifiedName.get(qualifiedName);
+        Set<String> own = ownProperties.get(qualifiedName);
         if (own == null) {
             return null;
         }
@@ -190,7 +235,8 @@ public final class JavaTypeIndex {
         // 親クラスがワークスペースにない(フレームワークの基底クラスなど)と、
         // 親が持つプロパティがわからないので判断しない。
         String superclass = superclassByQualifiedName.get(qualifiedName);
-        Set<String> inherited = superclass == null ? null : collectInheritedProperties(superclass, visited);
+        Set<String> inherited = superclass == null ? null
+                : collectInheritedProperties(ownProperties, superclass, visited);
         if (inherited == null) {
             return null;
         }
@@ -244,8 +290,10 @@ public final class JavaTypeIndex {
                         // 同じ FQCN が複数のソースルートにある場合も決め打ちしない。
                         if (resultPropertiesByQualifiedName.containsKey(name)) {
                             resultPropertiesByQualifiedName.put(name, null);
+                            readablePropertiesByQualifiedName.put(name, null);
                         } else {
                             resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
+                            readablePropertiesByQualifiedName.put(name, collectReadableProperties(type));
                             if (!type.isInterface() && !type.isAbstract()) {
                                 instantiableQualifiedNames.add(name);
                             }
@@ -320,6 +368,7 @@ public final class JavaTypeIndex {
     }
 
     private void addDirectSupertypes(String simpleName, Set<String> supertypes) {
+        extendedSimpleNames.addAll(supertypes);
         if (directSupertypesBySimpleName.containsKey(simpleName)) {
             directSupertypesBySimpleName.put(simpleName, null);
         } else {
@@ -382,6 +431,60 @@ public final class JavaTypeIndex {
             }
         }
         return Set.copyOf(properties);
+    }
+
+    /**
+     * クラス自身が宣言している、MyBatis が値を読めるプロパティ。
+     *
+     * <p>MyBatis は getter があれば getter を、なければフィールドから直接読む。
+     * そのため「フィールド名」と「getter から求めた名前」の両方がプロパティになる。
+     * Lombok の getter はフィールド名から決まるので、フィールドを数えれば足りる。</p>
+     */
+    private static Set<String> collectReadableProperties(ClassOrInterfaceDeclaration type) {
+        if (type.isInterface() || usesAccessorChangingAnnotation(type)) {
+            return null;
+        }
+        Set<String> properties = new HashSet<>();
+        for (var field : type.getFields()) {
+            field.getVariables().forEach(variable -> {
+                String name = variable.getNameAsString();
+                properties.add(name);
+                // Lombok は boolean の isActive フィールドに isActive() を作り、名前は active になる。
+                if (variable.getType().asString().equals("boolean")
+                        && name.length() > 2 && name.startsWith("is") && Character.isUpperCase(name.charAt(2))) {
+                    properties.add(decapitalize(name.substring(2)));
+                }
+            });
+        }
+        for (var method : type.getMethods()) {
+            String name = method.getNameAsString();
+            if (!method.getParameters().isEmpty() || method.getType().isVoidType()) {
+                continue;
+            }
+            if (name.startsWith("get") && name.length() > 3) {
+                properties.add(decapitalize(name.substring(3)));
+            } else if (name.startsWith("is") && name.length() > 2) {
+                properties.add(decapitalize(name.substring(2)));
+            }
+        }
+        return Set.copyOf(properties);
+    }
+
+    private static boolean usesAccessorChangingAnnotation(ClassOrInterfaceDeclaration type) {
+        // @Accessors(prefix = "m") はフィールド名と違う名前のアクセサを作り、
+        // @Delegate は別の型のアクセサをまるごと追加する。どちらも
+        // フィールドからは名前を決められない。
+        return type.findAll(AnnotationExpr.class).stream()
+                .map(annotation -> annotation.getName().getIdentifier())
+                .anyMatch(name -> "Accessors".equals(name) || "Delegate".equals(name));
+    }
+
+    /** java.beans.Introspector と同じ規則で、getUserName の UserName を userName にする。 */
+    private static String decapitalize(String name) {
+        if (name.length() > 1 && Character.isUpperCase(name.charAt(1))) {
+            return name;
+        }
+        return Character.toLowerCase(name.charAt(0)) + name.substring(1);
     }
 
     /** 親クラスの FQCN。型引数は名前に関係しないので外す。解決できなければ null。 */

@@ -8,6 +8,8 @@ import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperSqlFragmentIndex;
 import com.mybatislint.analyzer.xml.MapperResultMapIndex;
+import com.mybatislint.analyzer.xml.MapperMethodStatementValidator;
+import com.mybatislint.analyzer.xml.MapperStatementIndex;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
 import com.mybatislint.analyzer.xml.MybatisConfigAliases;
 
@@ -97,6 +99,9 @@ public final class AnalyzerCli {
                 mapperFileCount++;
             }
         }
+        // Java の Mapper メソッドに対応する statement がないものは、Java ファイルに報告する。
+        diagnostics.addAll(new MapperMethodStatementValidator(javaIndex, MapperStatementIndex.build(mapperFiles))
+                .validate(file -> relativize(workspaceRoot, file)));
         return new Result(diagnostics, mapperFileCount);
     }
 

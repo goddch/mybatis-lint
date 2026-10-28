@@ -39,6 +39,8 @@ CLI exit non-zero. Everything else is a `warning`.
 | `when-outside-choose` | error | `<when>` that is not a direct child of `<choose>` |
 | `otherwise-outside-choose` | error | `<otherwise>` that is not a direct child of `<choose>` |
 | `undefined-parameter` | error | `#{...}`, `${...}`, `<if test>`, `<when test>`, or `<foreach collection>` referring to a name that is not a parameter of the resolved Java mapper method ([details](docs/foreach-collection-validation.md)) |
+| `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, or `#{user.userNmae}` for `@Param("user")`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
+| `missing-mapper-statement` | warning | a Java mapper method with no statement of the same id in its mapper XML (reported in the Java file); fails at run time with `BindingException` ([details](docs/mapper-binding-validation.md)) |
 | `unresolved-include` | error | `<include refid>` with no matching `<sql id>`, including `namespace.sqlId` references across files; namespaces with no mapper in the workspace are skipped ([details](docs/include-reference-validation.md)) |
 | `duplicate-result-map-id` | error | the same top-level resultMap id twice in one namespace, across files |
 | `result-map-and-type` | warning | a statement with both `resultMap` and `resultType` |
