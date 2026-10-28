@@ -34,12 +34,12 @@ CLI exit non-zero. Everything else is a `warning`.
 |---|---|---|
 | `malformed-xml` | error | XML that cannot be parsed |
 | `missing-namespace` | error | `<mapper>` without a non-blank `namespace` |
-| `duplicate-statement-id` | error | the same `select`/`insert`/`update`/`delete` id twice in one mapper file |
+| `duplicate-statement-id` | error | the same `select`/`insert`/`update`/`delete` id twice in one mapper file, or in two files of the same namespace (statements with `databaseId` are skipped); MyBatis fails at startup |
 | `duplicate-otherwise` | error | more than one `<otherwise>` in a `<choose>` |
 | `when-outside-choose` | error | `<when>` that is not a direct child of `<choose>` |
 | `otherwise-outside-choose` | error | `<otherwise>` that is not a direct child of `<choose>` |
 | `undefined-parameter` | error | `#{...}`, `${...}`, `<if test>`, `<when test>`, or `<foreach collection>` referring to a name that is not a parameter of the resolved Java mapper method ([details](docs/foreach-collection-validation.md)) |
-| `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, or `#{user.userNmae}` for `@Param("user")`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
+| `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, `#{user.userNmae}` for `@Param("user")`, or `#{u.userNmae}` for a `<foreach item="u">` over `List<UserDomain>`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
 | `parameter-in-string-literal` | error | `#{...}` inside a SQL string literal such as `LIKE '%#{name}%'`; it is not bound and fails at run time ([details](docs/sql-pitfalls.md)) |
 | `single-char-literal-comparison` | warning | `<if test="type == 'A'">`: OGNL reads `'A'` as a char, so it never equals a String ([details](docs/sql-pitfalls.md)) |
 | `numeric-empty-string-comparison` | warning | `<if test="status != ''">` on a numeric value: OGNL treats `''` as 0, so the condition is also false for 0 ([details](docs/sql-pitfalls.md)) |

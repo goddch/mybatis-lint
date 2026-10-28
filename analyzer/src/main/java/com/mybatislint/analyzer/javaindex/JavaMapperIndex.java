@@ -393,6 +393,11 @@ public final class JavaMapperIndex {
          * parameterType と比較すると誤検知になりかねない。呼び出し側はこのフラグが
          * true のとき、parameterType 比較そのものをスキップする。
          */
+        /** ソースに書かれた引数名(@Param ではなく Java の引数名)。 */
+        public List<String> getParameterNames() {
+            return parameterNames;
+        }
+
         public boolean isSingleParameterVarArgs() {
             return singleParameterIsVarArgs;
         }

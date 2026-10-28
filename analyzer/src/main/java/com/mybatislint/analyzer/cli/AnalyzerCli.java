@@ -8,6 +8,7 @@ import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperSqlFragmentIndex;
 import com.mybatislint.analyzer.xml.MapperResultMapIndex;
+import com.mybatislint.analyzer.xml.MapperDuplicateStatementValidator;
 import com.mybatislint.analyzer.xml.MapperMethodStatementValidator;
 import com.mybatislint.analyzer.xml.MapperStatementIndex;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
@@ -100,7 +101,11 @@ public final class AnalyzerCli {
             }
         }
         // Java の Mapper メソッドに対応する statement がないものは、Java ファイルに報告する。
-        diagnostics.addAll(new MapperMethodStatementValidator(javaIndex, MapperStatementIndex.build(mapperFiles))
+        MapperStatementIndex statementIndex = MapperStatementIndex.build(mapperFiles);
+        diagnostics.addAll(new MapperMethodStatementValidator(javaIndex, statementIndex)
+                .validate(file -> relativize(workspaceRoot, file)));
+        // 同じ namespace の別ファイルにある同じ id は、ファイルを 1 つずつ見ていてはわからない。
+        diagnostics.addAll(new MapperDuplicateStatementValidator(statementIndex)
                 .validate(file -> relativize(workspaceRoot, file)));
         return new Result(diagnostics, mapperFileCount);
     }

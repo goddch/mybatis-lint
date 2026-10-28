@@ -107,6 +107,7 @@ public final class MapperParameterValidator {
                 validateIfAndWhenTests(statement, statementScope, context);
                 validateTemplateReferences(statement, statementScope, scopedNames, context);
                 validateForeachCollections(statement, statementScope, context);
+                validateForeachItemProperties(statement, context);
             }
             return diagnostics;
         } catch (Exception e) {
@@ -246,6 +247,135 @@ public final class MapperParameterValidator {
                 RuleIds.UNKNOWN_PARAMETER_PROPERTY,
                 "Unknown property '" + property + "' of parameter '" + parameter + "' (" + qualifiedName
                         + ") in mapper method '" + context.method().getName() + "'."));
+    }
+
+    /**
+     * {@code <foreach collection="users" item="u">} の中の {@code #{u.userName}} の
+     * {@code userName} が、コレクションの要素の型のプロパティにあるか。
+     *
+     * <p>要素の型は、collection に引数の名前を書いたときの {@code List<UserDomain>} や
+     * {@code UserDomain[]} から決める。{@code @Param} のない引数 1 つなら
+     * {@code list} / {@code collection} / {@code array} でも決める。プロパティの判断は
+     * {@code #{user.userName}} と同じで、子クラスがある型などは検証しない。</p>
+     */
+    private void validateForeachItemProperties(Element statement, Context context) {
+        String xml = context.xml();
+        int cursor = findStartOfElement(xml, statement, 0);
+        List<Element> elements = new ArrayList<>();
+        collectDescendants(statement, elements);
+        for (Element foreach : elements) {
+            if (!"foreach".equals(foreach.getTagName())) {
+                continue;
+            }
+            int foreachStart = xml.indexOf("<foreach", cursor);
+            if (foreachStart >= 0) {
+                cursor = foreachStart + 1;
+            }
+            String item = foreach.getAttribute("item").trim();
+            String elementType = foreachElementType(foreach.getAttribute("collection").trim(), context.method());
+            if (item.isEmpty() || elementType == null) {
+                continue;
+            }
+            String qualifiedName = typeIndex.resolveJavaTypeName(elementType);
+            Set<String> properties = typeIndex.findReadableProperties(qualifiedName);
+            if (properties == null) {
+                continue;
+            }
+            Matcher matcher = TEMPLATE_PATTERN.matcher(textUsingItem(foreach, item));
+            int searchFrom = Math.max(foreachStart, 0);
+            while (matcher.find()) {
+                String expression = matcher.group(1) == null
+                        ? matcher.group(2)
+                        : propertyPartOfParameterExpression(matcher.group(1));
+                Matcher nested = expression == null ? null : NESTED_PROPERTY.matcher(expression.trim());
+                if (nested == null || !nested.matches() || !nested.group(1).equals(item)) {
+                    continue;
+                }
+                String property = nested.group(2);
+                int found = findIdentifier(xml, item + "." + property, searchFrom, xml.length());
+                if (found >= 0) {
+                    searchFrom = found + 1;
+                }
+                if (properties.contains(property)) {
+                    continue;
+                }
+                Range range = found < 0
+                        ? XmlPositions.range(xml, Math.max(foreachStart, 0), Math.max(foreachStart, 0))
+                        : XmlPositions.range(xml, found + item.length() + 1, found + item.length() + 1 + property.length());
+                context.diagnostics().add(new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
+                        RuleIds.UNKNOWN_PARAMETER_PROPERTY,
+                        "Unknown property '" + property + "' of foreach item '" + item + "' (" + qualifiedName
+                                + ") in mapper method '" + context.method().getName() + "'."));
+            }
+        }
+    }
+
+    /** collection に書いた引数のコレクション/配列の要素の型。決められなければ null。 */
+    private static String foreachElementType(String collection, MapperMethodInfo method) {
+        if (!collection.matches("[A-Za-z_$][A-Za-z0-9_$]*")) {
+            return null;
+        }
+        String parameterType;
+        if (method.isSingleUnannotatedParameter()) {
+            boolean builtInName = Set.of("list", "collection", "array").contains(collection);
+            if (!builtInName && !collection.equals(method.getParameterNames().get(0))) {
+                return null;
+            }
+            parameterType = method.getParameterTypes().get(0).trim();
+            if (method.isSingleParameterVarArgs()) {
+                return parameterType;
+            }
+        } else {
+            parameterType = method.namedParameterTypes().get(collection);
+            if (parameterType == null) {
+                return null;
+            }
+            parameterType = parameterType.trim();
+        }
+        if (parameterType.endsWith("[]")) {
+            String element = parameterType.substring(0, parameterType.length() - 2).trim();
+            return element.contains("[") ? null : element;
+        }
+        int open = parameterType.indexOf('<');
+        if (open < 0 || !parameterType.endsWith(">")) {
+            return null;
+        }
+        String container = parameterType.substring(0, open).trim();
+        String containerSimple = container.substring(container.lastIndexOf('.') + 1);
+        String element = parameterType.substring(open + 1, parameterType.length() - 1).trim();
+        // Map は値の型が要素になり、ワイルドカードや入れ子の型引数は要素の型を決めきれない。
+        if (!COLLECTION_TYPES.contains(containerSimple) || element.contains("<") || element.contains(",")
+                || element.contains("?")) {
+            return null;
+        }
+        return element;
+    }
+
+    /**
+     * foreach の中で item を参照している SQL。同じ名前の item を持つ内側の foreach や、
+     * 同じ名前の bind の中は、別の変数なので含めない。
+     */
+    private static String textUsingItem(Element foreach, String item) {
+        StringBuilder text = new StringBuilder();
+        NodeList children = foreach.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child instanceof Element element) {
+                boolean redefines = ("foreach".equals(element.getTagName()) && item.equals(element.getAttribute("item")))
+                        || ("bind".equals(element.getTagName()) && item.equals(element.getAttribute("name")));
+                if (redefines) {
+                    // bind 以降の兄弟でも item は別の値を指すので、ここで打ち切る。
+                    if ("bind".equals(element.getTagName())) {
+                        break;
+                    }
+                    continue;
+                }
+                text.append(textUsingItem(element, item));
+            } else if (child.getNodeType() == Node.TEXT_NODE || child.getNodeType() == Node.CDATA_SECTION_NODE) {
+                text.append(child.getNodeValue());
+            }
+        }
+        return text.toString();
     }
 
     private static void validateIfAndWhenTests(Element statement,
