@@ -111,6 +111,18 @@ class MapperMethodStatementValidatorTest {
     }
 
     @Test
+    void keepsCheckingWhenAnotherMapperHasNoNamespace() throws IOException {
+        write("src/main/java/com/example/UserMapper.java", """
+                package com.example;
+                public interface UserMapper { int missing(); }
+                """);
+        write("src/main/resources/com/example/UserMapper.xml", "<mapper namespace=\"com.example.UserMapper\"/>");
+        write("src/main/resources/com/example/NoNamespace.xml", "<mapper><select id=\"missing\">SELECT 1</select></mapper>");
+
+        assertEquals(1, missing(new AnalyzerCli().run(workspace)).size());
+    }
+
+    @Test
     void skipsEverythingWhenABrokenMapperXmlHasNoReadableNamespace() throws IOException {
         write("src/main/java/com/example/UserMapper.java", """
                 package com.example;

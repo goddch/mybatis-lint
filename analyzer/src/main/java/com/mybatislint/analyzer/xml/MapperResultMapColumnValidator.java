@@ -94,8 +94,14 @@ public final class MapperResultMapColumnValidator {
                 continue;
             }
             String namespace = mapper.getAttribute("namespace").trim();
-            if (namespace.isEmpty() || namespace.contains("${")) {
+            if (namespace.contains("${")) {
                 return List.of();
+            }
+            if (namespace.isEmpty()) {
+                // namespace のない mapper XML は MyBatis が読み込めない(missing-namespace で報告する)。
+                // 自分の resultMap は宣言にならないが、完全修飾の参照は使われ方として数えておく。
+                collectUsages(mapper, "", usages);
+                continue;
             }
             NodeList children = mapper.getChildNodes();
             for (int i = 0; i < children.getLength(); i++) {
@@ -201,7 +207,8 @@ public final class MapperResultMapColumnValidator {
     }
 
     private static String qualify(String id, String namespace) {
-        return id.contains(".") ? id : namespace + "." + id;
+        // namespace がないときの短い id は、どの resultMap も指さない名前にする。
+        return id.contains(".") ? id : (namespace.isEmpty() ? "" : namespace + ".") + id;
     }
 
     private static int findResultMapStart(String xml, String id) {
