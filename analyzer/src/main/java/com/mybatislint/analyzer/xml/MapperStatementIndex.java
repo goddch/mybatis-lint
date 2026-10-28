@@ -88,16 +88,11 @@ public final class MapperStatementIndex {
                 // 編集中などで壊れた mapper XML の statement は読めない。namespace だけでも
                 // 読めればその namespace だけを判断できないものとし、読めなければ全体を諦める。
                 // mapper XML でなければ関係ない。
-                String text = readText(file);
-                if (text == null) {
+                BrokenMapper broken = inspectBrokenFile(file);
+                if (broken == BrokenMapper.UNKNOWN) {
                     complete = false;
-                } else if (text.contains("<mapper")) {
-                    Matcher matcher = MAPPER_NAMESPACE.matcher(text);
-                    if (matcher.find() && !matcher.group(1).isBlank() && !matcher.group(1).contains("${")) {
-                        unreadable.add(matcher.group(1).trim());
-                    } else {
-                        complete = false;
-                    }
+                } else if (broken != BrokenMapper.NOT_A_MAPPER) {
+                    unreadable.add(broken.namespace());
                 }
             }
         }
@@ -126,6 +121,30 @@ public final class MapperStatementIndex {
     /** namespace ごとの、id ごとの宣言場所。 */
     public Map<String, Map<String, List<Occurrence>>> occurrences() {
         return occurrencesByNamespace;
+    }
+
+    /**
+     * 読めなかった XML が mapper XML か、mapper XML ならその namespace。
+     * namespace は {@code <mapper namespace="...">} を文字列として探して求める。
+     */
+    record BrokenMapper(String namespace) {
+        static final BrokenMapper NOT_A_MAPPER = new BrokenMapper(null);
+        static final BrokenMapper UNKNOWN = new BrokenMapper(null);
+    }
+
+    static BrokenMapper inspectBrokenFile(Path file) {
+        String text = readText(file);
+        if (text == null) {
+            return BrokenMapper.UNKNOWN;
+        }
+        if (!text.contains("<mapper")) {
+            return BrokenMapper.NOT_A_MAPPER;
+        }
+        Matcher matcher = MAPPER_NAMESPACE.matcher(text);
+        if (matcher.find() && !matcher.group(1).isBlank() && !matcher.group(1).contains("${")) {
+            return new BrokenMapper(matcher.group(1).trim());
+        }
+        return BrokenMapper.UNKNOWN;
     }
 
     private static String readText(Path file) {
