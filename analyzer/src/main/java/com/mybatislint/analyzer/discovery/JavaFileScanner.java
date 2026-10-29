@@ -22,4 +22,11 @@ public final class JavaFileScanner {
     public List<Path> scan(Path workspaceRoot) {
         return WorkspaceWalker.findFiles(workspaceRoot, excludes, ".java");
     }
+
+    /** Lombok の設定ファイル(lombok.config)。Lombok が作るコードを変える設定があるかを見るため。 */
+    public List<Path> scanLombokConfigs(Path workspaceRoot) {
+        return WorkspaceWalker.findFiles(workspaceRoot, excludes, "lombok.config").stream()
+                .filter(file -> file.getFileName().toString().equals("lombok.config"))
+                .toList();
+    }
 }

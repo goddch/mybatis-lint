@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ConstructorMappingValidMapper">
+  <!--
+    列の順番がフィールドと違っても、すべてのフィールドに名前の一致する列があれば、
+    位置で入った値は名前で上書きされる。
+  -->
+  <select id="findById" resultType="com.example.OrderDomain">
+    SELECT o.AMOUNT AS amount,
+           o.ORDER_ID AS orderId,
+           o.CUSTOMER_NAME AS customerName
+      FROM orders o
+     WHERE o.ORDER_ID = #{orderId}
+  </select>
+
+  <!-- 引数なしのコンストラクタがあるクラスは、列を名前だけで書き込むので対象外。 -->
+  <select id="findItem" resultType="com.example.ItemDomain">
+    SELECT i.ITEM_ID AS itemId
+      FROM items i
+  </select>
+</mapper>

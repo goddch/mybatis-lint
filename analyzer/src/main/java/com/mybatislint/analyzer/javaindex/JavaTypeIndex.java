@@ -73,6 +73,9 @@ public final class JavaTypeIndex {
     // resultType と戻り値型の代入互換性を見るための、simple name ごとの直接の親型(simple name)。
     // 同じ simple name の型が複数あるとどれを指すか決められないので値を null にする。
     private final Map<String, Set<String>> directSupertypesBySimpleName = new HashMap<>();
+    // 引数なしのコンストラクタがないクラスで、MyBatis が自動マッピングに使うコンストラクタ。
+    private final Map<String, AutoMappingConstructor> autoMappingConstructorsByQualifiedName = new HashMap<>();
+    private boolean lombokAddsNoArgsConstructor;
 
     public static JavaTypeIndex empty() {
         return new JavaTypeIndex();
@@ -88,6 +91,7 @@ public final class JavaTypeIndex {
 
     public static JavaTypeIndex build(JavaSources sources) {
         JavaTypeIndex index = new JavaTypeIndex();
+        index.lombokAddsNoArgsConstructor = sources.lombokAddsNoArgsConstructor();
         for (JavaSources.ParsedFile parsed : sources.files()) {
             index.indexJavaFile(parsed.unit());
         }
@@ -168,6 +172,15 @@ public final class JavaTypeIndex {
             return null;
         }
         return collectInheritedProperties(resultPropertiesByQualifiedName, qualifiedName, new HashSet<>());
+    }
+
+    /**
+     * 引数なしのコンストラクタがなく、MyBatis が SELECT 句の列を順に渡すコンストラクタ。
+     * 引数なしのコンストラクタがある、またはソースから決められないクラスは null。
+     */
+    public AutoMappingConstructor findAutoMappingConstructor(String qualifiedName) {
+        return qualifiedName == null || !instantiableQualifiedNames.contains(qualifiedName)
+                ? null : autoMappingConstructorsByQualifiedName.get(qualifiedName);
     }
 
     /**
@@ -294,7 +307,12 @@ public final class JavaTypeIndex {
                     if (resultPropertiesByQualifiedName.containsKey(name)) {
                         resultPropertiesByQualifiedName.put(name, null);
                         readablePropertiesByQualifiedName.put(name, null);
+                        autoMappingConstructorsByQualifiedName.remove(name);
                     } else {
+                        AutoMappingConstructor constructor = AutoMappingConstructor.of(type, lombokAddsNoArgsConstructor);
+                        if (constructor != null) {
+                            autoMappingConstructorsByQualifiedName.put(name, constructor);
+                        }
                         resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
                         readablePropertiesByQualifiedName.put(name, collectReadableProperties(type));
                         fieldTypeNamesByQualifiedName.put(name, collectFieldTypeNames(type));

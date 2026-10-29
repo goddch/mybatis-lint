@@ -50,6 +50,11 @@ public final class RuleIds {
     public static final String NUMERIC_EMPTY_STRING_COMPARISON = "mybatis-lint/numeric-empty-string-comparison";
     // resultMap の column が、それを使う select の SELECT 句にないもの。プロパティは黙って null のままになる。
     public static final String RESULT_MAP_COLUMN_NOT_SELECTED = "mybatis-lint/result-map-column-not-selected";
+    // resultType のクラスに引数なしのコンストラクタがなく、列が位置でコンストラクタに渡されるもの。
+    // 列が引数より少ないと実行時に失敗し(count)、名前の一致する列がないフィールドには
+    // 同じ位置の別の列の値が黙って入る(positional-binding)。
+    public static final String CONSTRUCTOR_COLUMN_COUNT = "mybatis-lint/constructor-column-count";
+    public static final String CONSTRUCTOR_POSITIONAL_BINDING = "mybatis-lint/constructor-positional-binding";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
