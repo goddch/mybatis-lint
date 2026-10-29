@@ -52,6 +52,14 @@
           "default": [],
           "markdownDescription": "Folders or files to skip, as globs relative to the workspace folder (for example `docker` or `modules/*/generated`). A pattern without `/` matches a folder or file name at any depth. Folders that cannot be read are always skipped."
         },
+        "mybatisLint.disabledRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Rules whose problems are not reported, for example `unknown-select-alias` (the `mybatis-lint/` prefix is optional). To silence a single place instead, put `mybatis-lint-disable-next-line <rule>` in a comment on the line above it."
+        },
         "mybatisLint.javaPath": {
           "type": "string",
           "default": "",

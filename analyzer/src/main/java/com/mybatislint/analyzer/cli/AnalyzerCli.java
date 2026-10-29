@@ -29,23 +29,31 @@ public final class AnalyzerCli {
     private final ExcludePatterns excludes;
     private final MapperFileScanner scanner;
     private final MapperXmlAnalyzer analyzer;
+    private final List<String> disabledRules;
 
     public AnalyzerCli() {
         this(ExcludePatterns.none());
     }
 
     public AnalyzerCli(ExcludePatterns excludes) {
-        this(excludes, new MapperFileScanner(excludes), new MapperXmlAnalyzer());
+        this(excludes, List.of());
+    }
+
+    /** {@code disabledRules} の診断は出さない(ルール ID は {@code mybatis-lint/} を省略してよい)。 */
+    public AnalyzerCli(ExcludePatterns excludes, List<String> disabledRules) {
+        this(excludes, new MapperFileScanner(excludes), new MapperXmlAnalyzer(), disabledRules);
     }
 
     public AnalyzerCli(MapperFileScanner scanner, MapperXmlAnalyzer analyzer) {
-        this(ExcludePatterns.none(), scanner, analyzer);
+        this(ExcludePatterns.none(), scanner, analyzer, List.of());
     }
 
-    private AnalyzerCli(ExcludePatterns excludes, MapperFileScanner scanner, MapperXmlAnalyzer analyzer) {
+    private AnalyzerCli(ExcludePatterns excludes, MapperFileScanner scanner, MapperXmlAnalyzer analyzer,
+                        List<String> disabledRules) {
         this.excludes = excludes;
         this.scanner = scanner;
         this.analyzer = analyzer;
+        this.disabledRules = List.copyOf(disabledRules);
     }
 
     /** Result of running the analyzer against a workspace root. */
@@ -111,7 +119,8 @@ public final class AnalyzerCli {
         // resultMap がどの select から使われているかは、ワークスペース全体を見ないとわからない。
         diagnostics.addAll(new MapperResultMapColumnValidator(mapperFiles)
                 .validate(file -> relativize(workspaceRoot, file)));
-        return new Result(diagnostics, mapperFileCount);
+        // 止められたルールや抑制コメントの対象は、どのルールでも同じ扱いにするため最後にまとめて除く。
+        return new Result(new DiagnosticFilter(disabledRules).apply(diagnostics), mapperFileCount);
     }
 
     private static Path relativize(Path workspaceRoot, Path file) {
