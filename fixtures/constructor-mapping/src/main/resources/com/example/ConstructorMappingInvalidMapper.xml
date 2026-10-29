@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ConstructorMappingInvalidMapper">
+  <!--
+    custmerName は customerName のタイプミス。customerName に名前の一致する列がないので、
+    コンストラクタの 2 番目の引数として渡された CUSTOMER_NAME の値がそのまま残る。
+    列の順番がたまたま合っているので正しく見えるが、順番を変えると値がずれる。
+  -->
+  <select id="findById" resultType="com.example.OrderDomain">
+    SELECT o.ORDER_ID AS orderId,
+           o.CUSTOMER_NAME AS custmerName,
+           o.AMOUNT AS amount
+      FROM orders o
+     WHERE o.ORDER_ID = #{orderId}
+  </select>
+
+  <!-- コンストラクタの引数は 3 つなのに列が 2 つしかない。実行時に必ず失敗する。 -->
+  <select id="findSummary" resultType="com.example.OrderDomain">
+    SELECT o.ORDER_ID AS orderId,
+           o.AMOUNT AS amount
+      FROM orders o
+  </select>
+</mapper>

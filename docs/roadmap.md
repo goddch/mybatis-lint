@@ -36,7 +36,9 @@ working in user-facing docs until they land:
   comparison with made-up Oracle SQL favors JSqlParser; see
   [`sql-parser-evaluation.md`](sql-parser-evaluation.md).
 - **Broader SQL column to property validation.** Explicit `AS` aliases in a
-  `<select resultType>` are checked (`unknown-select-alias`). Remaining work:
+  `<select resultType>` are checked (`unknown-select-alias`), and so is
+  positional constructor binding for classes without a no-arg constructor
+  (`constructor-column-count`, `constructor-positional-binding`). Remaining work:
   unaliased columns (which depend on `mapUnderscoreToCamelCase`), statements
   using `resultMap` auto-mapping, select lists containing `*`, `<include>` or
   dynamic elements, and records. A real SQL parser would also help here.

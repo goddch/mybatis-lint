@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
  * ワークスペースの Java ファイルを構文解析した結果。{@link JavaMapperIndex} と
@@ -27,29 +28,53 @@ public final class JavaSources {
     public record ParsedFile(Path file, CompilationUnit unit) {
     }
 
-    private final List<ParsedFile> files;
+    // lombok.config の lombok.noArgsConstructor.extraPrivate = true があると、@Data / @Value の
+    // クラスに private の引数なしコンストラクタが足される。どのクラスが対象か(lombok.config は
+    // ディレクトリごとに効く)までは見ないで、どこかにあれば全体で「あるかもしれない」とする。
+    private static final Pattern EXTRA_PRIVATE =
+            Pattern.compile("(?m)^\\s*lombok\\.noArgsConstructor\\.extraPrivate\\s*=\\s*true\\b");
 
-    private JavaSources(List<ParsedFile> files) {
+    private final List<ParsedFile> files;
+    private final boolean lombokAddsNoArgsConstructor;
+
+    private JavaSources(List<ParsedFile> files, boolean lombokAddsNoArgsConstructor) {
         this.files = files;
+        this.lombokAddsNoArgsConstructor = lombokAddsNoArgsConstructor;
     }
 
     public static JavaSources empty() {
-        return new JavaSources(List.of());
+        return new JavaSources(List.of(), false);
     }
 
     public static JavaSources parse(Path workspaceRoot, ExcludePatterns excludes) {
         if (workspaceRoot == null || !Files.isDirectory(workspaceRoot)) {
             return empty();
         }
-        List<ParsedFile> parsed = new JavaFileScanner(excludes).scan(workspaceRoot).parallelStream()
+        JavaFileScanner scanner = new JavaFileScanner(excludes);
+        List<ParsedFile> parsed = scanner.scan(workspaceRoot).parallelStream()
                 .map(JavaSources::parseFile)
                 .filter(Objects::nonNull)
                 .toList();
-        return new JavaSources(parsed);
+        boolean extraPrivate = scanner.scanLombokConfigs(workspaceRoot).stream().anyMatch(JavaSources::enablesExtraPrivate);
+        return new JavaSources(parsed, extraPrivate);
     }
 
     public List<ParsedFile> files() {
         return files;
+    }
+
+    /** Lombok が @Data / @Value のクラスに引数なしのコンストラクタを足すかもしれない。 */
+    public boolean lombokAddsNoArgsConstructor() {
+        return lombokAddsNoArgsConstructor;
+    }
+
+    private static boolean enablesExtraPrivate(Path config) {
+        try {
+            return EXTRA_PRIVATE.matcher(Files.readString(config, StandardCharsets.UTF_8)).find();
+        } catch (IOException e) {
+            // 読めない設定は、書かれているかもしれないものとして扱う(警告しない側に倒す)。
+            return true;
+        }
     }
 
     private static ParsedFile parseFile(Path file) {

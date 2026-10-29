@@ -347,7 +347,7 @@ public final class MapperSelectAliasValidator {
         return index;
     }
 
-    private static String normalize(String name) {
+    static String normalize(String name) {
         return name.replace("_", "").toLowerCase(Locale.ROOT);
     }
 
@@ -362,7 +362,7 @@ public final class MapperSelectAliasValidator {
         return new int[] {matcher.start(1), matcher.end(1)};
     }
 
-    private static int findSelectStart(String xml, Element select, int from) {
+    static int findSelectStart(String xml, Element select, int from) {
         String id = select.getAttribute("id");
         Matcher matcher = Pattern.compile("<select(?=[\\s>/])").matcher(xml);
         int index = from;
