@@ -19,6 +19,7 @@ export interface PlainDiagnostic {
   message: string;
   severity: PlainDiagnosticSeverity;
   code: string;
+  suggestion?: string;
 }
 
 /** One URI's worth of diagnostics, ready to hand to a DiagnosticCollection. */
@@ -43,6 +44,7 @@ function toPlainDiagnostic(diagnostic: AnalyzerDiagnostic): PlainDiagnostic {
     message: diagnostic.message,
     severity: toPlainSeverity(diagnostic.severity),
     code: diagnostic.ruleId,
+    ...(typeof diagnostic.suggestion === 'string' ? { suggestion: diagnostic.suggestion } : {}),
   };
 }
 

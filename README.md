@@ -25,6 +25,11 @@ the Problems panel, and the workspace is checked again whenever a mapper XML
 or Java file is saved (`mybatisLint.runOnSave`). **MyBatis Lint: Show Log**
 shows what each run did: files analyzed, time taken, and skipped folders.
 
+When a misspelled name has exactly one close match, the message ends with
+"Did you mean 'userName'?" and the lightbulb offers a quick fix that replaces
+it. This covers `unknown-select-alias`, `undefined-parameter`,
+`unknown-parameter-property` and `unknown-result-property`.
+
 ## Rules
 
 `error` means the mapper is definitely broken; `error` diagnostics make the

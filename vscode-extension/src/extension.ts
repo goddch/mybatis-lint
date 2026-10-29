@@ -6,6 +6,7 @@ import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
+import { SuggestionStore } from './quickFixes';
 import { resolveAnalyzerJarPath } from './jarPathResolver';
 import { buildSummaryMessage } from './summaryMessage';
 
@@ -22,6 +23,7 @@ interface CheckContext {
   extensionPath: string;
   diagnosticCollection: vscode.DiagnosticCollection;
   output: vscode.OutputChannel;
+  suggestions: SuggestionStore;
   /** Last error shown for a save-triggered run, so the same failure is not shown on every save. */
   lastSaveError?: string;
 }
@@ -31,7 +33,20 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('MyBatis Lint');
   context.subscriptions.push(diagnosticCollection, output);
 
-  const checkContext: CheckContext = { extensionPath: context.extensionPath, diagnosticCollection, output };
+  const suggestions = new SuggestionStore();
+  const checkContext: CheckContext = {
+    extensionPath: context.extensionPath,
+    diagnosticCollection,
+    output,
+    suggestions,
+  };
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { scheme: 'file', pattern: '**/*.{xml,java}' },
+      { provideCodeActions: (document, _range, actionContext) => suggestionFixes(document, actionContext, suggestions) },
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
+    ),
+  );
   const scheduler = new CheckScheduler(() => checkWorkspace(checkContext, 'save'), SAVE_DEBOUNCE_MS);
   context.subscriptions.push({ dispose: () => scheduler.dispose() });
 
@@ -51,6 +66,36 @@ export function activate(context: vscode.ExtensionContext): void {
       scheduler.request();
     }),
   );
+}
+
+/** "Change to 'userName'" quick fixes for diagnostics that carry a suggested name. */
+function suggestionFixes(
+  document: vscode.TextDocument,
+  actionContext: vscode.CodeActionContext,
+  suggestions: SuggestionStore,
+): vscode.CodeAction[] {
+  const actions: vscode.CodeAction[] = [];
+  for (const diagnostic of actionContext.diagnostics) {
+    if (diagnostic.source !== 'mybatis-lint' || typeof diagnostic.code !== 'string' || diagnostic.range.isEmpty) {
+      continue;
+    }
+    const suggestion = suggestions.find(
+      document.uri.toString(),
+      diagnostic.code,
+      diagnostic.message,
+      document.getText(diagnostic.range),
+    );
+    if (suggestion === undefined) {
+      continue;
+    }
+    const action = new vscode.CodeAction(`Change to '${suggestion}'`, vscode.CodeActionKind.QuickFix);
+    action.edit = new vscode.WorkspaceEdit();
+    action.edit.replace(document.uri, diagnostic.range, suggestion);
+    action.diagnostics = [diagnostic];
+    action.isPreferred = true;
+    actions.push(action);
+  }
+  return actions;
 }
 
 export function deactivate(): void {
@@ -166,7 +211,9 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
     // Replace everything at once, after the new results are ready, so the
     // Problems panel does not flicker empty on every save.
     diagnosticCollection.clear();
+    checkContext.suggestions.clear();
     for (const { uri, diagnostics } of grouped) {
+      const documentUri = vscode.Uri.parse(uri);
       const vscodeDiagnostics = diagnostics.map((diagnostic) => {
         const vscodeDiagnostic = new vscode.Diagnostic(
           new vscode.Range(
@@ -182,9 +229,13 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
         );
         vscodeDiagnostic.source = 'mybatis-lint';
         vscodeDiagnostic.code = diagnostic.code;
+        if (diagnostic.suggestion !== undefined) {
+          // Keyed by the URI string VS Code itself uses, which encodes some characters differently.
+          checkContext.suggestions.set(documentUri.toString(), diagnostic.code, diagnostic.message, diagnostic.suggestion);
+        }
         return vscodeDiagnostic;
       });
-      diagnosticCollection.set(vscode.Uri.parse(uri), vscodeDiagnostics);
+      diagnosticCollection.set(documentUri, vscodeDiagnostics);
     }
 
     const summaryMessage = buildSummaryMessage(result.summary);
@@ -203,6 +254,7 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
   } catch (error) {
     // Stale diagnostics would look like current results, so drop them.
     diagnosticCollection.clear();
+    checkContext.suggestions.clear();
     reportFailure(checkContext, trigger, error instanceof Error ? error.message : String(error));
   }
 }

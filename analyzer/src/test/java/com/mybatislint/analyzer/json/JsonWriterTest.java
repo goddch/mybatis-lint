@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonWriterTest {
@@ -37,6 +38,17 @@ class JsonWriterTest {
         assertTrue(json.contains("\"warningCount\": 0"));
         assertTrue(json.contains("\"mapperFileCount\": 2"));
         assertTrue(json.contains("\"fileCount\": 1"));
+        assertFalse(json.contains("\"suggestion\""));
+    }
+
+    @Test
+    void writesASuggestionOnlyWhenThereIsOne() {
+        Diagnostic diagnostic = new Diagnostic(Path.of("UserMapper.xml"), "file:///UserMapper.xml",
+                Range.at(3, 5), Severity.WARNING, RuleIds.UNKNOWN_SELECT_ALIAS, "typo", "userName");
+
+        String json = JsonWriter.write(List.of(diagnostic), 1);
+
+        assertTrue(json.contains("\"suggestion\": \"userName\""));
     }
 
     @Test

@@ -24,6 +24,8 @@ export interface AnalyzerDiagnostic {
   severity: AnalyzerSeverity;
   message: string;
   range: AnalyzerRange;
+  /** Text that should replace `range` to fix the problem (a corrected name). Absent when there is none. */
+  suggestion?: string;
 }
 
 export interface AnalyzerSummary {

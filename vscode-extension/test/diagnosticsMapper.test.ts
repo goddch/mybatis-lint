@@ -56,3 +56,10 @@ test('never produces a negative line/character', () => {
   assert.equal(group.diagnostics[0].range.startLine, 0);
   assert.equal(group.diagnostics[0].range.startCharacter, 0);
 });
+
+test('carries a suggestion through only when the analyzer gives one', () => {
+  const [withSuggestion] = groupDiagnosticsByUri([diagnostic({ suggestion: 'userName' })]);
+  assert.equal(withSuggestion.diagnostics[0].suggestion, 'userName');
+  const [withoutSuggestion] = groupDiagnosticsByUri([diagnostic()]);
+  assert.equal('suggestion' in withoutSuggestion.diagnostics[0], false);
+});

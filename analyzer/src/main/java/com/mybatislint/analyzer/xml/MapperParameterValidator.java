@@ -155,7 +155,7 @@ public final class MapperParameterValidator {
                 if (root.startsWith("_")) {
                     continue;
                 }
-                context.diagnostics().add(diagnosticForExpression(context, root, raw, searchOffset));
+                context.diagnostics().add(diagnosticForExpression(context, root, raw, searchOffset, allowedNames));
             }
             if (context.beanType() == null) {
                 validateNestedProperty(expression, scopedNames, raw, searchOffset, context);
@@ -239,10 +239,12 @@ public final class MapperParameterValidator {
                 ? XmlPositions.range(xml, searchOffset, searchOffset)
                 : XmlPositions.range(xml, propertyStart + parameter.length() + 1,
                         propertyStart + parameter.length() + 1 + property.length());
+        String suggestion = propertyStart < 0 ? null : NameSuggestions.closest(property, properties);
         context.diagnostics().add(new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                 RuleIds.UNKNOWN_PARAMETER_PROPERTY,
                 "Unknown property '" + property + "' of parameter '" + parameter + "' (" + qualifiedName
-                        + ") in mapper method '" + context.method().getName() + "'."));
+                        + ") in mapper method '" + context.method().getName() + "'."
+                        + NameSuggestions.didYouMean(suggestion), suggestion));
     }
 
     /**
@@ -298,10 +300,12 @@ public final class MapperParameterValidator {
                 Range range = found < 0
                         ? XmlPositions.range(xml, Math.max(foreachStart, 0), Math.max(foreachStart, 0))
                         : XmlPositions.range(xml, found + item.length() + 1, found + item.length() + 1 + property.length());
+                String suggestion = found < 0 ? null : NameSuggestions.closest(property, properties);
                 context.diagnostics().add(new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                         RuleIds.UNKNOWN_PARAMETER_PROPERTY,
                         "Unknown property '" + property + "' of foreach item '" + item + "' (" + qualifiedName
-                                + ") in mapper method '" + context.method().getName() + "'."));
+                                + ") in mapper method '" + context.method().getName() + "'."
+                                + NameSuggestions.didYouMean(suggestion), suggestion));
             }
         }
     }
@@ -400,7 +404,7 @@ public final class MapperParameterValidator {
                 if (root.startsWith("_")) {
                     continue;
                 }
-                context.diagnostics().add(diagnosticForExpression(context, root, expression, lowerBound));
+                context.diagnostics().add(diagnosticForExpression(context, root, expression, lowerBound, allowedNames));
             }
         }
     }
@@ -459,7 +463,7 @@ public final class MapperParameterValidator {
                 if (root.startsWith("_")) {
                     continue;
                 }
-                context.diagnostics().add(diagnosticForExpression(context, root, expression, elementStart));
+                context.diagnostics().add(diagnosticForExpression(context, root, expression, elementStart, allowedNames));
             }
             searchOffset = elementStart + "<foreach".length();
         }
@@ -524,7 +528,8 @@ public final class MapperParameterValidator {
     private static Diagnostic diagnosticForExpression(Context context,
                                                      String root,
                                                      String rawSnippet,
-                                                     int lowerBound) {
+                                                     int lowerBound,
+                                                     Set<String> allowedNames) {
         String xml = context.xml();
         // エディタでは未定義の名前そのものに波線を引きたいので、式の中からその名前を探す。
         // 見つからなければ式全体、それも見つからなければ幅 0 の位置にする。
@@ -532,8 +537,11 @@ public final class MapperParameterValidator {
         int snippetStart = xml.indexOf(rawSnippet, lowerBound);
         int searchEnd = snippetStart >= 0 ? snippetStart + rawSnippet.length() : xml.length();
         int rootIndex = findIdentifier(xml, root, snippetStart >= 0 ? snippetStart : lowerBound, searchEnd);
+        // 候補は、波線が名前そのものを指しているときだけ出す(置き換える範囲がずれないように)。
+        String suggestion = null;
         if (rootIndex >= 0) {
             range = XmlPositions.range(xml, rootIndex, rootIndex + root.length());
+            suggestion = NameSuggestions.closest(root, allowedNames);
         } else if (snippetStart >= 0) {
             range = XmlPositions.range(xml, snippetStart, searchEnd);
         } else {
@@ -543,11 +551,13 @@ public final class MapperParameterValidator {
             return new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                     RuleIds.UNKNOWN_PARAMETER_PROPERTY,
                     "Unknown property '" + root + "' of parameter type '" + context.beanType()
-                            + "' in mapper method '" + context.method().getName() + "'.");
+                            + "' in mapper method '" + context.method().getName() + "'."
+                            + NameSuggestions.didYouMean(suggestion), suggestion);
         }
         return new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                 RuleIds.UNDEFINED_PARAMETER,
-                "Undefined parameter '" + root + "' in mapper method '" + context.method().getName() + "'.");
+                "Undefined parameter '" + root + "' in mapper method '" + context.method().getName() + "'."
+                        + NameSuggestions.didYouMean(suggestion), suggestion);
     }
 
     private static int findStartOfElement(String xml, Element element, int lowerBound) {

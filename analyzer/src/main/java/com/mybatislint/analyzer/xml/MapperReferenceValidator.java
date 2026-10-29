@@ -324,12 +324,17 @@ public final class MapperReferenceValidator {
                     || property.contains("[") || property.contains("]") || properties.contains(property)) {
                 continue;
             }
-            diagnostics.add(new Diagnostic(displayFile, uri,
-                    rangeForAttributeValue(xml, mapping, "property", property, mappingStart),
+            Range range = rangeForAttributeValue(xml, mapping, "property", property, mappingStart);
+            // 属性値が見つからず幅 0 の位置になったときは、置き換える範囲がないので候補を出さない。
+            boolean coversValue = range.getStart().getLine() != range.getEnd().getLine()
+                    || range.getStart().getCharacter() != range.getEnd().getCharacter();
+            String suggestion = coversValue ? NameSuggestions.closest(property, properties) : null;
+            diagnostics.add(new Diagnostic(displayFile, uri, range,
                     Severity.WARNING,
                     RuleIds.UNKNOWN_RESULT_PROPERTY,
                     "Unknown resultMap property '" + property + "' on Java type '" + type
-                            + "'; no matching field or setter was found."));
+                            + "'; no matching field or setter was found." + NameSuggestions.didYouMean(suggestion),
+                    suggestion));
         }
     }
 
