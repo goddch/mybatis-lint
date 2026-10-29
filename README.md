@@ -30,6 +30,11 @@ When a misspelled name has exactly one close match, the message ends with
 it. This covers `unknown-select-alias`, `undefined-parameter`,
 `unknown-parameter-property` and `unknown-result-property`.
 
+In `<insert>` statements, the editor also shows which `INSERT INTO t (...)`
+column each `VALUES (...)` value or `SELECT` item goes to, as faint text in
+front of it (`mybatisLint.insertColumnHints`: `all`, `differentNames` or
+`off`). This updates as you type and does not need a save.
+
 ## Rules
 
 `error` means the mapper is definitely broken; `error` diagnostics make the
@@ -45,6 +50,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `otherwise-outside-choose` | error | `<otherwise>` that is not a direct child of `<choose>` |
 | `undefined-parameter` | error | `#{...}`, `${...}`, `<if test>`, `<when test>`, or `<foreach collection>` referring to a name that is not a parameter of the resolved Java mapper method ([details](docs/foreach-collection-validation.md)) |
 | `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, `#{user.userNmae}` for `@Param("user")`, or `#{u.userNmae}` for a `<foreach item="u">` over `List<UserDomain>`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
+| `insert-column-count` | error | `INSERT INTO t (...)` whose column count differs from its `VALUES (...)` or `SELECT` list (ORA-00947 / ORA-00913); statements with `<if>` or `<include>` in those lists are skipped ([details](docs/insert-column-validation.md)) |
 | `parameter-in-string-literal` | error | `#{...}` inside a SQL string literal such as `LIKE '%#{name}%'`; it is not bound and fails at run time ([details](docs/sql-pitfalls.md)) |
 | `single-char-literal-comparison` | warning | `<if test="type == 'A'">`: OGNL reads `'A'` as a char, so it never equals a String ([details](docs/sql-pitfalls.md)) |
 | `numeric-empty-string-comparison` | warning | `<if test="status != ''">` on a numeric value: OGNL treats `''` as 0, so the condition is also false for 0 ([details](docs/sql-pitfalls.md)) |

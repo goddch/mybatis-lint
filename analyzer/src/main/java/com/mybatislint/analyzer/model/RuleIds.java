@@ -59,6 +59,8 @@ public final class RuleIds {
     // 先頭や末尾に AND / OR / カンマが残るもの(joiner)と、句が空になるもの(empty)。
     public static final String DANGLING_SQL_JOINER = "mybatis-lint/dangling-sql-joiner";
     public static final String EMPTY_DYNAMIC_CLAUSE = "mybatis-lint/empty-dynamic-clause";
+    // INSERT INTO t (列, ...) の列の数と、VALUES / SELECT の値の数が合わないもの(ORA-00947 / ORA-00913)。
+    public static final String INSERT_COLUMN_COUNT = "mybatis-lint/insert-column-count";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
