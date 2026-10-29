@@ -22,7 +22,8 @@ written to stdout, so the output is always safe to parse directly.
       "range": {
         "start": { "line": 9, "character": 63 },   // 1-based line, 1-based character
         "end":   { "line": 9, "character": 63 }
-      }
+      },
+      "suggestion": "findAll"                     // optional: text that should replace `range`
     }
   ]
 }
@@ -45,6 +46,11 @@ Notes:
 - `mapperFileCount` was added after the initial v1 schema. It distinguishes a
   workspace with no mapper XML from a clean one (both have `fileCount: 0`).
   Consumers should treat it as optional, since older analyzer jars omit it.
+- `suggestion` is present only when the analyzer is confident about a fix
+  for a misspelled name: `range` then covers exactly that name, and replacing
+  it with `suggestion` fixes the problem. The VS Code extension offers it as a
+  quick fix. Consumers should treat it as optional, since older analyzer jars
+  omit it.
 - Rule IDs are stable strings under the `mybatis-lint/` namespace; see
   `analyzer/src/main/java/com/mybatislint/analyzer/model/RuleIds.java` for the
   authoritative list.

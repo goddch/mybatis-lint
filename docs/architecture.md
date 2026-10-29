@@ -101,6 +101,8 @@ if the output shape grows significantly more complex, revisit this decision.
 - `src/javaPathResolver.ts` — resolves the Java executable: the
   `mybatisLint.javaPath` setting, then the bundled `jre/`, then `JAVA_HOME`,
   SDKMAN, and finally `java` on the PATH.
+- `src/quickFixes.ts` — remembers each diagnostic's `suggestion` so that
+  `extension.ts` can offer it as a "Change to '...'" quick fix.
 - `src/summaryMessage.ts` — builds the notification shown after a check,
   including the "no mapper XML found" case.
 - `src/checkScheduler.ts` — decides when save-triggered checks run: saves are

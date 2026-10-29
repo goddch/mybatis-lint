@@ -42,6 +42,9 @@ public final class JsonWriter {
             sb.append("      \"ruleId\": \"").append(escape(d.getRuleId())).append("\",\n");
             sb.append("      \"severity\": \"").append(d.getSeverity().toJson()).append("\",\n");
             sb.append("      \"message\": \"").append(escape(d.getMessage())).append("\",\n");
+            if (d.getSuggestion() != null) {
+                sb.append("      \"suggestion\": \"").append(escape(d.getSuggestion())).append("\",\n");
+            }
             sb.append("      \"range\": {\n");
             sb.append("        \"start\": { \"line\": ").append(d.getRange().getStart().getLine())
                     .append(", \"character\": ").append(d.getRange().getStart().getCharacter()).append(" },\n");

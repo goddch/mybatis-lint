@@ -132,10 +132,14 @@ public final class MapperSelectAliasValidator {
                 Position position = XmlPositions.toPosition(xml, elementStart);
                 range = Range.at(position.getLine(), position.getCharacter());
             }
+            // 別名はプロパティ名と大文字小文字・アンダースコアを無視して対応するので、同じ比べ方で探す。
+            String suggestion = span == null ? null
+                    : NameSuggestions.closest(alias, properties, MapperSelectAliasValidator::normalize);
             diagnostics.add(new Diagnostic(displayFile, uri, range, Severity.WARNING,
                     RuleIds.UNKNOWN_SELECT_ALIAS,
                     "Select column alias '" + alias + "' does not match any property of resultType '"
-                            + qualifiedName + "'; MyBatis will ignore this column."));
+                            + qualifiedName + "'; MyBatis will ignore this column."
+                            + NameSuggestions.didYouMean(suggestion), suggestion));
         }
     }
 
