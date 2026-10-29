@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.DynamicClauseInvalidMapper">
+  <!--
+    orderId を渡さず customerName だけを渡すと WHERE AND ... になる(warning)。
+    どちらも渡さないと WHERE のすぐあとに ORDER BY が来る(warning)。
+    <if> の中身が AND で始まり、前に何もない場合は、その <if> が成り立つと必ず壊れるので error になる。
+  -->
+  <select id="search" resultType="map">
+    SELECT o.ORDER_ID, o.CUSTOMER_NAME
+      FROM orders o
+     WHERE
+    <if test="orderId != null">o.ORDER_ID = #{orderId}</if>
+    <if test="customerName != null">AND o.CUSTOMER_NAME = #{customerName}</if>
+     ORDER BY o.ORDER_ID
+  </select>
+
+  <!--
+    amount を渡すと末尾が "amount = ?, WHERE" になる(error)。
+    status だけを渡しても同じことが起きる(warning)。どちらも渡さないと SET が空になる(warning)。
+  -->
+  <update id="update">
+    UPDATE orders SET
+    <if test="status != null">STATUS = #{status},</if>
+    <if test="amount != null">AMOUNT = #{amount},</if>
+     WHERE ORDER_ID = #{orderId}
+  </update>
+</mapper>
