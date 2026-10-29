@@ -52,7 +52,10 @@ lines a future split would follow, so extracting modules later (e.g. a
 - `json` — a small hand-written JSON writer (see below for why).
 - `cli` — `AnalyzerCli` builds the indexes, analyzes every mapper file, and
   writes the JSON report; `Main` is the thin `public static void main` entry
-  point.
+  point. `DiagnosticFilter` runs last and drops diagnostics for rules turned
+  off with `--disable` and lines or files silenced with
+  `mybatis-lint-disable-next-line` / `mybatis-lint-disable-file` comments, so
+  every rule is silenced the same way.
 
 ### Why no JSON library dependency?
 
@@ -79,8 +82,10 @@ if the output shape grows significantly more complex, revisit this decision.
 - `src/extension.ts` — the only file that imports `vscode`. Registers the
   `mybatisLint.checkWorkspace` command, resolves settings, spawns the
   analyzer, and publishes results to a `vscode.DiagnosticCollection`.
-- `src/analyzerRunner.ts` — spawns `java -jar <jar> [--exclude <glob>]... <workspace>`
-  (one `--exclude` per entry of the `mybatisLint.exclude` setting) and collects
+- `src/analyzerRunner.ts` — spawns
+  `java -jar <jar> [--exclude <glob>]... [--disable <rule>]... <workspace>`
+  (one option per entry of the `mybatisLint.exclude` and
+  `mybatisLint.disabledRules` settings) and collects
   stdout; a non-zero exit code is *expected* whenever diagnostics exist, so
   it is not itself treated as failure.
 - `src/parseAnalyzerOutput.ts` — parses/validates the analyzer's JSON.

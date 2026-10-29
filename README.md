@@ -68,6 +68,29 @@ The authoritative list of rule IDs is
 The CLI writes the diagnostics as JSON to stdout
 ([`docs/diagnostics-schema.md`](docs/diagnostics-schema.md)).
 
+### Silencing a rule
+
+If a rule reports something that is not a problem in your project:
+
+- Turn the rule off everywhere with the `mybatisLint.disabledRules` setting
+  (CLI: `--disable <rule>`, repeatable). The `mybatis-lint/` prefix is optional.
+  An unknown rule ID is reported on stderr and in the extension's log.
+- Silence one place with a comment on the line above it. Write the directive
+  and its rules on one line; with no rules, every rule is silenced.
+
+  ```xml
+  <!-- mybatis-lint-disable-next-line unknown-select-alias -->
+  SELECT name AS displayName FROM users
+  ```
+
+  ```java
+  // mybatis-lint-disable-next-line missing-mapper-statement
+  List<User> findByCustomProvider(String key);
+  ```
+
+- Silence a whole file with `mybatis-lint-disable-file [rule ...]` anywhere in
+  it.
+
 ## What is **not** implemented yet
 
 Oracle SQL syntax validation, column-to-property validation beyond explicit

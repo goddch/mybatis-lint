@@ -43,8 +43,25 @@ MyBatis の設定ファイルやコンパイル済みのクラスは読み込ま
 |---|---|
 | `mybatisLint.runOnSave` | mapper XML や Java ファイルを保存したときに自動でチェックするか（既定はオン） |
 | `mybatisLint.exclude` | 解析しないフォルダやファイル。ワークスペースからの相対パスで、`*` や `**` が使えます（例: `docker`、`modules/*/generated`）。`/` を含まない名前は、どの階層のフォルダ名・ファイル名にも一致します |
+| `mybatisLint.disabledRules` | 報告しないルール（例: `unknown-select-alias`）。`mybatis-lint/` は省略できます |
 | `mybatisLint.javaPath` | 解析に使う Java のパス。空なら同梱の Java を使います |
 | `mybatisLint.analyzerJarPath` | 解析エンジンの jar のパス。空なら同梱の jar を使います |
+
+## 特定の箇所だけ警告を止める
+
+問題ではない箇所に警告が出る場合は、その 1 行上にコメントを書くと、次の行の警告を止められます。
+ルールを書かなければ、すべてのルールが対象になります。指示とルールは 1 行に書いてください。
+
+```xml
+<!-- mybatis-lint-disable-next-line unknown-select-alias -->
+```
+
+```java
+// mybatis-lint-disable-next-line missing-mapper-statement
+```
+
+ファイル全体で止めたいときは、ファイル内のどこかに `mybatis-lint-disable-file` と書きます（ルールの指定は同じです）。
+誤検知だと思われる場合は、不具合として報告してもらえると助かります。
 
 ## 不具合の報告
 

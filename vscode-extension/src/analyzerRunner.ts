@@ -6,6 +6,8 @@ export interface AnalyzerRunOptions {
   workspacePath: string;
   /** Globs relative to the workspace that the analyzer should skip. */
   excludes?: string[];
+  /** Rule IDs (with or without the `mybatis-lint/` prefix) whose diagnostics are not reported. */
+  disabledRules?: string[];
 }
 
 export interface AnalyzerRunResult {
@@ -16,12 +18,26 @@ export interface AnalyzerRunResult {
 }
 
 /** Builds the `java` CLI arguments used to invoke the analyzer jar. */
-export function buildAnalyzerArgs(jarPath: string, workspacePath: string, excludes: string[] = []): string[] {
-  const excludeArgs = excludes
-    .map((pattern) => pattern.trim())
-    .filter((pattern) => pattern.length > 0)
-    .flatMap((pattern) => ['--exclude', pattern]);
-  return ['-jar', jarPath, ...excludeArgs, workspacePath];
+export function buildAnalyzerArgs(
+  jarPath: string,
+  workspacePath: string,
+  excludes: string[] = [],
+  disabledRules: string[] = [],
+): string[] {
+  return [
+    '-jar',
+    jarPath,
+    ...repeatedOption('--exclude', excludes),
+    ...repeatedOption('--disable', disabledRules),
+    workspacePath,
+  ];
+}
+
+function repeatedOption(option: string, values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .flatMap((value) => [option, value]);
 }
 
 type SpawnFn = typeof defaultSpawn;
@@ -39,8 +55,8 @@ export function runAnalyzer(
   options: AnalyzerRunOptions,
   spawnFn: SpawnFn = defaultSpawn,
 ): Promise<AnalyzerRunResult> {
-  const { javaPath, jarPath, workspacePath, excludes } = options;
-  const args = buildAnalyzerArgs(jarPath, workspacePath, excludes);
+  const { javaPath, jarPath, workspacePath, excludes, disabledRules } = options;
+  const args = buildAnalyzerArgs(jarPath, workspacePath, excludes, disabledRules);
 
   return new Promise((resolve, reject) => {
     const child = spawnFn(javaPath, args);

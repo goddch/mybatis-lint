@@ -16,6 +16,18 @@ test('passes each non-blank exclude pattern before the workspace path', () => {
   ]);
 });
 
+test('passes disabled rules after excludes', () => {
+  assert.deepEqual(buildAnalyzerArgs('/a.jar', '/w', ['docker'], ['unknown-select-alias', ' ']), [
+    '-jar',
+    '/a.jar',
+    '--exclude',
+    'docker',
+    '--disable',
+    'unknown-select-alias',
+    '/w',
+  ]);
+});
+
 test('builds the expected java CLI arguments', () => {
   assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace'), [
     '-jar',

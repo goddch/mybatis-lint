@@ -77,6 +77,12 @@ function ensureExecutable(filePath: string): void {
   }
 }
 
+/** Reads a string-array setting, ignoring entries a hand-edited settings.json may have of the wrong type. */
+function stringArraySetting(config: vscode.WorkspaceConfiguration, key: string): string[] {
+  const value = config.get<unknown>(key);
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
 function log(output: vscode.OutputChannel, message: string): void {
   output.appendLine(`[${new Date().toLocaleTimeString()}] ${message}`);
 }
@@ -119,16 +125,17 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
     ensureExecutable(javaPath);
   }
   const jarPath = resolveAnalyzerJarPath(config.get<string>('analyzerJarPath'), extensionPath);
-  const configuredExcludes = config.get<unknown>('exclude');
-  const excludes = Array.isArray(configuredExcludes)
-    ? configuredExcludes.filter((value): value is string => typeof value === 'string')
-    : [];
+  const excludes = stringArraySetting(config, 'exclude');
+  const disabledRules = stringArraySetting(config, 'disabledRules');
 
   log(output, `Checking ${workspaceFolder.uri.fsPath} (${trigger === 'save' ? 'on save' : 'command'})`);
   log(output, `  Java: ${javaPath}`);
   log(output, `  Analyzer: ${jarPath}`);
   if (excludes.length > 0) {
     log(output, `  Excluded: ${excludes.join(', ')}`);
+  }
+  if (disabledRules.length > 0) {
+    log(output, `  Disabled rules: ${disabledRules.join(', ')}`);
   }
 
   if (!fs.existsSync(jarPath)) {
@@ -147,7 +154,8 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
     // extension; the notification is reserved for runs the user asked for.
     const { stdout, stderr } = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: 'MyBatis Lint: checking…' },
-      () => runAnalyzer({ javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath, excludes }),
+      () =>
+        runAnalyzer({ javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath, excludes, disabledRules }),
     );
     for (const line of stderr.split(/\r?\n/).filter((text) => text.trim().length > 0)) {
       log(output, `  ${line}`);
