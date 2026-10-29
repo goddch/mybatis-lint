@@ -13,9 +13,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilder;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -101,9 +98,8 @@ public final class MapperResultTypeValidator {
             return Collections.emptyList();
         }
         try {
-            String xml = Files.readString(actualFile, StandardCharsets.UTF_8);
-            DocumentBuilder builder = SafeXmlParserFactory.newDocumentBuilder();
-            Document document = builder.parse(actualFile.toFile());
+            String xml = XmlSources.readString(actualFile);
+            Document document = XmlSources.parse(actualFile);
             Element mapper = document.getDocumentElement();
             if (mapper == null || !"mapper".equals(mapper.getTagName())) {
                 return Collections.emptyList();

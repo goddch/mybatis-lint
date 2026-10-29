@@ -32,8 +32,7 @@ public final class MapperResultMapIndex {
         Map<String, String> parents = new HashMap<>();
         for (Path file : mapperFiles) {
             try {
-                Element mapper = SafeXmlParserFactory.newDocumentBuilder()
-                        .parse(file.toFile()).getDocumentElement();
+                Element mapper = XmlSources.parse(file).getDocumentElement();
                 if (mapper == null || !"mapper".equals(mapper.getTagName())) {
                     continue;
                 }

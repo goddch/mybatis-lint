@@ -25,7 +25,7 @@ public final class MybatisConfigAliases {
         Set<String> aliases = new HashSet<>();
         for (Path file : xmlFiles) {
             try {
-                Element root = SafeXmlParserFactory.newDocumentBuilder().parse(file.toFile()).getDocumentElement();
+                Element root = XmlSources.parse(file).getDocumentElement();
                 if (root == null || !"configuration".equals(root.getTagName())) {
                     continue;
                 }

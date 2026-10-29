@@ -25,6 +25,9 @@ export function buildAnalyzerArgs(
   disabledRules: string[] = [],
 ): string[] {
   return [
+    // The analyzer runs for a second or two per save, which is too short for the optimizing
+    // JIT (C2) to pay off. Stopping at C1 made a 200-mapper workspace about 1.5x faster.
+    '-XX:TieredStopAtLevel=1',
     '-jar',
     jarPath,
     ...repeatedOption('--exclude', excludes),

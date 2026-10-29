@@ -5,7 +5,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -80,8 +79,7 @@ public final class MapperSqlFragmentIndex {
 
     private static void addFile(Path mapperFile, Map<String, Set<String>> target) {
         try {
-            DocumentBuilder builder = SafeXmlParserFactory.newDocumentBuilder();
-            Document document = builder.parse(mapperFile.toFile());
+            Document document = XmlSources.parse(mapperFile);
             Element mapper = document.getDocumentElement();
             if (mapper == null || !"mapper".equals(mapper.getTagName())) {
                 return;

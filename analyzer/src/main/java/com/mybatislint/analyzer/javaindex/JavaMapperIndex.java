@@ -1,7 +1,6 @@
 package com.mybatislint.analyzer.javaindex;
 
 import com.github.javaparser.JavaParser;
-import com.github.javaparser.ParseResult;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
@@ -11,12 +10,7 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.mybatislint.analyzer.discovery.ExcludePatterns;
-import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,12 +45,13 @@ public final class JavaMapperIndex {
     }
 
     public static JavaMapperIndex build(Path workspaceRoot, ExcludePatterns excludes) {
+        return build(JavaSources.parse(workspaceRoot, excludes));
+    }
+
+    public static JavaMapperIndex build(JavaSources sources) {
         JavaMapperIndex index = new JavaMapperIndex();
-        if (workspaceRoot == null || !Files.isDirectory(workspaceRoot)) {
-            return index;
-        }
-        for (Path file : new JavaFileScanner(excludes).scan(workspaceRoot)) {
-            index.indexJavaFile(file);
+        for (JavaSources.ParsedFile parsed : sources.files()) {
+            index.indexJavaFile(parsed.file(), parsed.unit());
         }
         return index;
     }
@@ -97,40 +92,28 @@ public final class JavaMapperIndex {
         return extendedInterfaceSimpleNames.contains(info.getSimpleName());
     }
 
-    private void indexJavaFile(Path file) {
-        try {
-            String source = Files.readString(file, StandardCharsets.UTF_8);
-            ParseResult<CompilationUnit> parseResult = new JavaParser().parse(source);
-            if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-                return;
+    private void indexJavaFile(Path file, CompilationUnit unit) {
+        String packageName = unit.getPackageDeclaration().map(pd -> pd.getNameAsString()).orElse("");
+        for (var type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
+            if (!type.isInterface()) {
+                continue;
             }
-            CompilationUnit unit = parseResult.getResult().get();
-            String packageName = unit.getPackageDeclaration().map(pd -> pd.getNameAsString()).orElse("");
-            for (var type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
-                if (!type.isInterface()) {
-                    continue;
-                }
-                String fqcn = qualifiedName(packageName, type);
-                type.getExtendedTypes().forEach(extended -> extendedInterfaceSimpleNames.add(extended.getNameAsString()));
-                MapperInterfaceInfo existing = interfacesByQualifiedName.get(fqcn);
-                MapperInterfaceInfo info = existing != null ? existing : new MapperInterfaceInfo(fqcn, file);
-                if (existing != null) {
-                    // 同じ FQCN のインターフェースが複数のソースにある。どちらが使われるか決められない。
-                    info.duplicated = true;
-                }
-                interfacesByQualifiedName.put(fqcn, info);
-                for (MethodDeclaration method : type.getMethods()) {
-                    MapperMethodInfo methodInfo = MapperMethodInfo.from(method);
-                    if (methodInfo != null) {
-                        info.addMethod(methodInfo);
-                    }
-                    info.declaredMethods.add(DeclaredMethod.from(method));
-                }
+            String fqcn = qualifiedName(packageName, type);
+            type.getExtendedTypes().forEach(extended -> extendedInterfaceSimpleNames.add(extended.getNameAsString()));
+            MapperInterfaceInfo existing = interfacesByQualifiedName.get(fqcn);
+            MapperInterfaceInfo info = existing != null ? existing : new MapperInterfaceInfo(fqcn, file);
+            if (existing != null) {
+                // 同じ FQCN のインターフェースが複数のソースにある。どちらが使われるか決められない。
+                info.duplicated = true;
             }
-        } catch (IOException e) {
-            // A single unreadable Java source file should never block analysis of
-            // the rest of the workspace; treat it as an empty index entry and move on.
-            return;
+            interfacesByQualifiedName.put(fqcn, info);
+            for (MethodDeclaration method : type.getMethods()) {
+                MapperMethodInfo methodInfo = MapperMethodInfo.from(method);
+                if (methodInfo != null) {
+                    info.addMethod(methodInfo);
+                }
+                info.declaredMethods.add(DeclaredMethod.from(method));
+            }
         }
     }
 
