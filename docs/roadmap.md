@@ -46,7 +46,9 @@ working in user-facing docs until they land:
   following referenced nested mappings and inherited (`extends`) properties,
   and checking type compatibility and discriminator values. These are all
   fail-open today ([`result-map-validation.md`](result-map-validation.md)).
-- **Dynamic SQL branch expansion.** Generating representative combinations
+- **Dynamic SQL branch expansion.** `WHERE`/`SET` followed by `<if>` without
+  `<where>`/`<set>` is already checked for leftover `AND`/`OR`/commas and empty
+  clauses (`dangling-sql-joiner`, `empty-dynamic-clause`). Still planned: generating representative combinations
   of `<if>`/`<choose>`/`<foreach>` branches and validating the resulting SQL,
   with an explicit cap on how many combinations are generated and clear
   reporting of how many branches were (and were not) checked.

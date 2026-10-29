@@ -43,6 +43,8 @@ CLI exit non-zero. Everything else is a `warning`.
 | `parameter-in-string-literal` | error | `#{...}` inside a SQL string literal such as `LIKE '%#{name}%'`; it is not bound and fails at run time ([details](docs/sql-pitfalls.md)) |
 | `single-char-literal-comparison` | warning | `<if test="type == 'A'">`: OGNL reads `'A'` as a char, so it never equals a String ([details](docs/sql-pitfalls.md)) |
 | `numeric-empty-string-comparison` | warning | `<if test="status != ''">` on a numeric value: OGNL treats `''` as 0, so the condition is also false for 0 ([details](docs/sql-pitfalls.md)) |
+| `dangling-sql-joiner` | error / warning | `WHERE` or `SET` written as text and followed by `<if>` (without `<where>`/`<set>`), where some combination of conditions leaves `AND`/`OR` or a comma at the start or end, as in `WHERE AND ...` or `name = ?, WHERE`. Error when it breaks every time that branch is included, warning when it depends on the other conditions ([details](docs/dynamic-clause-validation.md)) |
+| `empty-dynamic-clause` | warning | `WHERE` or `SET` followed only by `<if>`, so nothing follows it when every condition is false ([details](docs/dynamic-clause-validation.md)) |
 | `missing-mapper-statement` | warning | a Java mapper method with no statement of the same id in its mapper XML (reported in the Java file); fails at run time with `BindingException` ([details](docs/mapper-binding-validation.md)) |
 | `unresolved-include` | error | `<include refid>` with no matching `<sql id>`, including `namespace.sqlId` references across files; namespaces with no mapper in the workspace are skipped ([details](docs/include-reference-validation.md)) |
 | `duplicate-result-map-id` | error | the same top-level resultMap id twice in one namespace, across files |

@@ -55,6 +55,10 @@ public final class RuleIds {
     // 同じ位置の別の列の値が黙って入る(positional-binding)。
     public static final String CONSTRUCTOR_COLUMN_COUNT = "mybatis-lint/constructor-column-count";
     public static final String CONSTRUCTOR_POSITIONAL_BINDING = "mybatis-lint/constructor-positional-binding";
+    // <where> / <set> を使わずに WHERE / SET のあとへ <if> を並べたとき、条件の組み合わせで
+    // 先頭や末尾に AND / OR / カンマが残るもの(joiner)と、句が空になるもの(empty)。
+    public static final String DANGLING_SQL_JOINER = "mybatis-lint/dangling-sql-joiner";
+    public static final String EMPTY_DYNAMIC_CLAUSE = "mybatis-lint/empty-dynamic-clause";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
