@@ -6,8 +6,6 @@ import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.MapperStatementIndex.Occurrence;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,7 +82,7 @@ public final class MapperDuplicateStatementValidator {
 
     private static String read(Path file) {
         try {
-            return Files.readString(file, StandardCharsets.UTF_8);
+            return XmlSources.readString(file);
         } catch (Exception e) {
             return "";
         }

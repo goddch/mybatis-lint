@@ -3,6 +3,7 @@ package com.mybatislint.analyzer.cli;
 import com.mybatislint.analyzer.discovery.ExcludePatterns;
 import com.mybatislint.analyzer.discovery.MapperFileScanner;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
+import com.mybatislint.analyzer.javaindex.JavaSources;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Severity;
@@ -14,6 +15,7 @@ import com.mybatislint.analyzer.xml.MapperResultMapColumnValidator;
 import com.mybatislint.analyzer.xml.MapperStatementIndex;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
 import com.mybatislint.analyzer.xml.MybatisConfigAliases;
+import com.mybatislint.analyzer.xml.XmlSources;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -81,12 +83,21 @@ public final class AnalyzerCli {
     }
 
     public Result run(Path workspaceRoot) {
+        // 索引づくりと validator ごとに同じ XML を読み直さないよう、解析の間だけ読んだ結果を覚えておく。
+        try (XmlSources.Scope ignored = XmlSources.cached()) {
+            return analyze(workspaceRoot);
+        }
+    }
+
+    private Result analyze(Path workspaceRoot) {
         List<Diagnostic> diagnostics = new ArrayList<>();
-        JavaMapperIndex javaIndex = JavaMapperIndex.build(workspaceRoot, excludes);
+        // Java ファイルの構文解析は時間がかかるので、1 回だけ行って両方の索引で使う。
+        JavaSources javaSources = JavaSources.parse(workspaceRoot, excludes);
+        JavaMapperIndex javaIndex = JavaMapperIndex.build(javaSources);
         // typeAlias 検証(未解決候補の検出)は、Mapper インターフェースだけでなく
         // ワークスペース内の Java クラス/インターフェース全般の simple name を
         // 知る必要があるため、専用の索引を別途作る。
-        JavaTypeIndex typeIndex = JavaTypeIndex.build(workspaceRoot, excludes);
+        JavaTypeIndex typeIndex = JavaTypeIndex.build(javaSources);
         List<Path> mapperFiles = scanner.scan(workspaceRoot);
         // mybatis-config.xml の <typeAlias alias="..."> で登録された alias も、
         // ワークスペースにある型として扱う。

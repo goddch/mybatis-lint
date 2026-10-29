@@ -1,8 +1,5 @@
 package com.mybatislint.analyzer.javaindex;
 
-import com.github.javaparser.JavaParser;
-import com.github.javaparser.ParseResult;
-import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
@@ -16,11 +13,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
 import com.mybatislint.analyzer.discovery.ExcludePatterns;
-import com.mybatislint.analyzer.discovery.JavaFileScanner;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,12 +43,6 @@ import java.util.Set;
  * 断定はしない設計にしている。</p>
  */
 public final class JavaTypeIndex {
-
-    // JavaParser のデフォルト言語レベルは record 宣言(Java 14+)を解析できない。
-    // このプロジェクトは Java 17 を前提にしているため(README/roadmap 参照)、
-    // record ベースの DTO を見落とさないよう明示的に JAVA_17 を指定する。
-    private static final ParserConfiguration PARSER_CONFIGURATION =
-            new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
 
     // 大文字/小文字の揺れを吸収するため、小文字化して保持する。
     // MyBatis の TypeAliasRegistry も内部的には alias 文字列を小文字化して
@@ -96,12 +83,13 @@ public final class JavaTypeIndex {
     }
 
     public static JavaTypeIndex build(Path workspaceRoot, ExcludePatterns excludes) {
+        return build(JavaSources.parse(workspaceRoot, excludes));
+    }
+
+    public static JavaTypeIndex build(JavaSources sources) {
         JavaTypeIndex index = new JavaTypeIndex();
-        if (workspaceRoot == null || !Files.isDirectory(workspaceRoot)) {
-            return index;
-        }
-        for (Path file : new JavaFileScanner(excludes).scan(workspaceRoot)) {
-            index.indexJavaFile(file);
+        for (JavaSources.ParsedFile parsed : sources.files()) {
+            index.indexJavaFile(parsed.unit());
         }
         return index;
     }
@@ -277,87 +265,76 @@ public final class JavaTypeIndex {
         return findResultProperties(type) == null ? null : type;
     }
 
-    private void indexJavaFile(Path file) {
-        try {
-            String source = Files.readString(file, StandardCharsets.UTF_8);
-            ParseResult<CompilationUnit> parseResult = new JavaParser(PARSER_CONFIGURATION).parse(source);
-            if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-                return;
+    private void indexJavaFile(CompilationUnit unit) {
+        // クラス/インターフェースの両方を対象にする。DTO/Entity は class、
+        // まれに interface で宣言されることもあるため、どちらも候補として拾う
+        // (record と enum は下で別に拾う)。
+        for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
+            simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
+            String alias = addAliasAnnotation(type);
+            if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
+                type.getFullyQualifiedName().ifPresent(name -> {
+                    qualifiedNamesBySimpleNameLowerCase
+                            .computeIfAbsent(type.getNameAsString().toLowerCase(Locale.ROOT),
+                                    ignored -> new HashSet<>())
+                            .add(name);
+                    if (alias != null) {
+                        String key = alias.toLowerCase(Locale.ROOT);
+                        aliasAnnotationTargetsLowerCase.put(key,
+                                aliasAnnotationTargetsLowerCase.containsKey(key) ? null : name);
+                    }
+                });
             }
-            CompilationUnit unit = parseResult.getResult().get();
-            // クラス/インターフェースの両方を対象にする。DTO/Entity は class、
-            // まれに interface で宣言されることもあるため、どちらも候補として拾う
-            // (record と enum は下で別に拾う)。
-            for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
-                simpleNamesLowerCase.add(type.getNameAsString().toLowerCase(Locale.ROOT));
-                String alias = addAliasAnnotation(type);
-                if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
-                    type.getFullyQualifiedName().ifPresent(name -> {
-                        qualifiedNamesBySimpleNameLowerCase
-                                .computeIfAbsent(type.getNameAsString().toLowerCase(Locale.ROOT),
-                                        ignored -> new HashSet<>())
-                                .add(name);
-                        if (alias != null) {
-                            String key = alias.toLowerCase(Locale.ROOT);
-                            aliasAnnotationTargetsLowerCase.put(key,
-                                    aliasAnnotationTargetsLowerCase.containsKey(key) ? null : name);
+            Set<String> supertypes = new HashSet<>(simpleNamesOf(type.getExtendedTypes()));
+            supertypes.addAll(simpleNamesOf(type.getImplementedTypes()));
+            addDirectSupertypes(type.getNameAsString(), supertypes);
+            if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
+                type.getFullyQualifiedName().ifPresent(name -> {
+                    // 同じ FQCN が複数のソースルートにある場合も決め打ちしない。
+                    if (resultPropertiesByQualifiedName.containsKey(name)) {
+                        resultPropertiesByQualifiedName.put(name, null);
+                        readablePropertiesByQualifiedName.put(name, null);
+                    } else {
+                        resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
+                        readablePropertiesByQualifiedName.put(name, collectReadableProperties(type));
+                        fieldTypeNamesByQualifiedName.put(name, collectFieldTypeNames(type));
+                        if (!type.isInterface() && !type.isAbstract()) {
+                            instantiableQualifiedNames.add(name);
                         }
-                    });
-                }
-                Set<String> supertypes = new HashSet<>(simpleNamesOf(type.getExtendedTypes()));
-                supertypes.addAll(simpleNamesOf(type.getImplementedTypes()));
-                addDirectSupertypes(type.getNameAsString(), supertypes);
-                if (type.getParentNode().orElse(null) instanceof CompilationUnit) {
-                    type.getFullyQualifiedName().ifPresent(name -> {
-                        // 同じ FQCN が複数のソースルートにある場合も決め打ちしない。
-                        if (resultPropertiesByQualifiedName.containsKey(name)) {
-                            resultPropertiesByQualifiedName.put(name, null);
-                            readablePropertiesByQualifiedName.put(name, null);
-                        } else {
-                            resultPropertiesByQualifiedName.put(name, collectResultProperties(type));
-                            readablePropertiesByQualifiedName.put(name, collectReadableProperties(type));
-                            fieldTypeNamesByQualifiedName.put(name, collectFieldTypeNames(type));
-                            if (!type.isInterface() && !type.isAbstract()) {
-                                instantiableQualifiedNames.add(name);
-                            }
-                            if (!type.isInterface() && !type.getExtendedTypes().isEmpty()) {
-                                superclassByQualifiedName.put(name,
-                                        resolveSuperclass(type.getExtendedTypes().get(0), unit));
-                            }
-                            if (findResultProperties(name) != null) {
-                                resultPropertyTypesByQualifiedName.put(name, collectResultPropertyTypes(type, unit));
-                            }
+                        if (!type.isInterface() && !type.getExtendedTypes().isEmpty()) {
+                            superclassByQualifiedName.put(name,
+                                    resolveSuperclass(type.getExtendedTypes().get(0), unit));
                         }
-                    });
-                }
+                        if (findResultProperties(name) != null) {
+                            resultPropertyTypesByQualifiedName.put(name, collectResultPropertyTypes(type, unit));
+                        }
+                    }
+                });
             }
-            // record も DTO/Entity の定義によく使われる(Java 16+)。
-            // ClassOrInterfaceDeclaration には含まれない別ノード種別なので、
-            // 見落とすと record ベースの DTO で誤検知(false positive)になるため
-            // 明示的に拾っておく。
-            for (RecordDeclaration recordDeclaration : unit.findAll(RecordDeclaration.class)) {
-                simpleNamesLowerCase.add(recordDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
-                addAliasAnnotation(recordDeclaration);
-                Set<String> supertypes = new HashSet<>(simpleNamesOf(recordDeclaration.getImplementedTypes()));
-                supertypes.add("Record");
-                addDirectSupertypes(recordDeclaration.getNameAsString(), supertypes);
-                if (recordDeclaration.getParentNode().orElse(null) instanceof CompilationUnit) {
-                    recordDeclaration.getFullyQualifiedName()
-                            .ifPresent(name -> resultPropertiesByQualifiedName.put(name, null));
-                }
+        }
+        // record も DTO/Entity の定義によく使われる(Java 16+)。
+        // ClassOrInterfaceDeclaration には含まれない別ノード種別なので、
+        // 見落とすと record ベースの DTO で誤検知(false positive)になるため
+        // 明示的に拾っておく。
+        for (RecordDeclaration recordDeclaration : unit.findAll(RecordDeclaration.class)) {
+            simpleNamesLowerCase.add(recordDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
+            addAliasAnnotation(recordDeclaration);
+            Set<String> supertypes = new HashSet<>(simpleNamesOf(recordDeclaration.getImplementedTypes()));
+            supertypes.add("Record");
+            addDirectSupertypes(recordDeclaration.getNameAsString(), supertypes);
+            if (recordDeclaration.getParentNode().orElse(null) instanceof CompilationUnit) {
+                recordDeclaration.getFullyQualifiedName()
+                        .ifPresent(name -> resultPropertiesByQualifiedName.put(name, null));
             }
-            // enum も resultType / parameterType に書ける(パッケージ単位の alias 登録の
-            // 対象にもなる)。見落とすと enum を指定した箇所が誤検知になる。
-            for (EnumDeclaration enumDeclaration : unit.findAll(EnumDeclaration.class)) {
-                simpleNamesLowerCase.add(enumDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
-                addAliasAnnotation(enumDeclaration);
-                Set<String> supertypes = new HashSet<>(simpleNamesOf(enumDeclaration.getImplementedTypes()));
-                supertypes.add("Enum");
-                addDirectSupertypes(enumDeclaration.getNameAsString(), supertypes);
-            }
-        } catch (IOException e) {
-            // 1 ファイル読めないだけでワークスペース全体の索引作りを止めたくないため、
-            // このファイルの分は諦めて次のファイルに進むフェイルオープン方針。
+        }
+        // enum も resultType / parameterType に書ける(パッケージ単位の alias 登録の
+        // 対象にもなる)。見落とすと enum を指定した箇所が誤検知になる。
+        for (EnumDeclaration enumDeclaration : unit.findAll(EnumDeclaration.class)) {
+            simpleNamesLowerCase.add(enumDeclaration.getNameAsString().toLowerCase(Locale.ROOT));
+            addAliasAnnotation(enumDeclaration);
+            Set<String> supertypes = new HashSet<>(simpleNamesOf(enumDeclaration.getImplementedTypes()));
+            supertypes.add("Enum");
+            addDirectSupertypes(enumDeclaration.getNameAsString(), supertypes);
         }
     }
 

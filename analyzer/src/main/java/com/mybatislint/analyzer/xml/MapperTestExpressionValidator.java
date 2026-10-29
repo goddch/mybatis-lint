@@ -12,8 +12,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -64,8 +62,8 @@ public final class MapperTestExpressionValidator {
 
     public List<Diagnostic> validate(Path actualFile, Path displayFile, String uri) {
         try {
-            String xml = Files.readString(actualFile, StandardCharsets.UTF_8);
-            Element mapper = SafeXmlParserFactory.newDocumentBuilder().parse(actualFile.toFile()).getDocumentElement();
+            String xml = XmlSources.readString(actualFile);
+            Element mapper = XmlSources.parse(actualFile).getDocumentElement();
             if (mapper == null || !"mapper".equals(mapper.getTagName())) {
                 return Collections.emptyList();
             }

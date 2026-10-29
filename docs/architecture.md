@@ -32,7 +32,8 @@ lines a future split would follow, so extracting modules later (e.g. a
   `--exclude` (`ExcludePatterns`), and anything that cannot be read (for
   example Docker volumes owned by another user).
 - `javaindex` — parses the Java sources with JavaParser (the only runtime
-  dependency). `JavaMapperIndex` records Mapper interface methods (parameter
+  dependency). `JavaSources` parses every file once, in parallel, and both
+  indexes are built from that result. `JavaMapperIndex` records Mapper interface methods (parameter
   names, `@Param` values, parameter and return types); `JavaTypeIndex`
   records classes and their fields/setters. Nothing is compiled or resolved
   against a classpath, so ambiguous or unresolved types are skipped.
@@ -46,7 +47,9 @@ lines a future split would follow, so extracting modules later (e.g. a
   - `MapperResultTypeValidator` — `resultType` vs. Java return type
 
   `MapperSqlFragmentIndex` and `MapperResultMapIndex` are built once over all
-  mapper files, so references across files can be resolved.
+  mapper files, so references across files can be resolved. Every validator
+  reads XML through `XmlSources`; during one CLI run it caches each file's
+  text and DOM, so a file is parsed once instead of once per validator.
 - `model` — `Diagnostic`, `Range`, `Position`, `Severity`, and the canonical
   list of rule IDs (`RuleIds`).
 - `json` — a small hand-written JSON writer (see below for why).
@@ -83,7 +86,8 @@ if the output shape grows significantly more complex, revisit this decision.
   `mybatisLint.checkWorkspace` command, resolves settings, spawns the
   analyzer, and publishes results to a `vscode.DiagnosticCollection`.
 - `src/analyzerRunner.ts` — spawns
-  `java -jar <jar> [--exclude <glob>]... [--disable <rule>]... <workspace>`
+  `java -XX:TieredStopAtLevel=1 -jar <jar> [--exclude <glob>]... [--disable <rule>]... <workspace>`
+  (a run lasts a second or two, too short for the C2 JIT to pay off)
   (one option per entry of the `mybatisLint.exclude` and
   `mybatisLint.disabledRules` settings) and collects
   stdout; a non-zero exit code is *expected* whenever diagnostics exist, so

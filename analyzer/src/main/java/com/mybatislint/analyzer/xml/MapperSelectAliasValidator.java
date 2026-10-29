@@ -12,8 +12,6 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Text;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,8 +67,8 @@ public final class MapperSelectAliasValidator {
             return Collections.emptyList();
         }
         try {
-            String xml = Files.readString(actualFile, StandardCharsets.UTF_8);
-            Element mapper = SafeXmlParserFactory.newDocumentBuilder().parse(actualFile.toFile()).getDocumentElement();
+            String xml = XmlSources.readString(actualFile);
+            Element mapper = XmlSources.parse(actualFile).getDocumentElement();
             if (mapper == null || !"mapper".equals(mapper.getTagName())) {
                 return Collections.emptyList();
             }

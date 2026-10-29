@@ -8,8 +8,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -75,8 +73,8 @@ public final class MapperResultMapColumnValidator {
             String xml;
             Element mapper;
             try {
-                xml = Files.readString(file, StandardCharsets.UTF_8);
-                mapper = SafeXmlParserFactory.newDocumentBuilder().parse(file.toFile()).getDocumentElement();
+                xml = XmlSources.readString(file);
+                mapper = XmlSources.parse(file).getDocumentElement();
             } catch (Exception e) {
                 MapperStatementIndex.BrokenMapper broken = MapperStatementIndex.inspectBrokenFile(file);
                 if (broken == MapperStatementIndex.BrokenMapper.UNKNOWN) {

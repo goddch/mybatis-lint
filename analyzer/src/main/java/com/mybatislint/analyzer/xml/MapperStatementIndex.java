@@ -4,8 +4,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,7 +56,7 @@ public final class MapperStatementIndex {
         boolean complete = true;
         for (Path file : xmlFiles) {
             try {
-                Element mapper = SafeXmlParserFactory.newDocumentBuilder().parse(file.toFile()).getDocumentElement();
+                Element mapper = XmlSources.parse(file).getDocumentElement();
                 if (mapper == null || !"mapper".equals(mapper.getTagName())) {
                     continue;
                 }
@@ -154,7 +152,7 @@ public final class MapperStatementIndex {
 
     private static String readText(Path file) {
         try {
-            return Files.readString(file, StandardCharsets.UTF_8);
+            return XmlSources.readString(file);
         } catch (Exception e) {
             return null;
         }

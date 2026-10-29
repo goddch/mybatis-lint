@@ -6,6 +6,7 @@ import { buildAnalyzerArgs, runAnalyzer } from '../src/analyzerRunner';
 
 test('passes each non-blank exclude pattern before the workspace path', () => {
   assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace', ['docker', ' ', ' modules/*/generated ']), [
+    '-XX:TieredStopAtLevel=1',
     '-jar',
     '/path/analyzer.jar',
     '--exclude',
@@ -18,6 +19,7 @@ test('passes each non-blank exclude pattern before the workspace path', () => {
 
 test('passes disabled rules after excludes', () => {
   assert.deepEqual(buildAnalyzerArgs('/a.jar', '/w', ['docker'], ['unknown-select-alias', ' ']), [
+    '-XX:TieredStopAtLevel=1',
     '-jar',
     '/a.jar',
     '--exclude',
@@ -30,6 +32,7 @@ test('passes disabled rules after excludes', () => {
 
 test('builds the expected java CLI arguments', () => {
   assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace'), [
+    '-XX:TieredStopAtLevel=1',
     '-jar',
     '/path/analyzer.jar',
     '/workspace',
