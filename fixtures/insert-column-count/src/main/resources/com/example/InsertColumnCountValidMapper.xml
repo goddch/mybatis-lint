@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.InsertColumnCountValidMapper">
+  <!-- #{...} の中のカンマや、関数の引数のカンマは値の区切りではない。 -->
+  <insert id="insert">
+    INSERT INTO orders (ORDER_ID, CUSTOMER_NAME, AMOUNT)
+    VALUES (#{orderId,jdbcType=NUMERIC}, #{customerName,jdbcType=VARCHAR}, NVL(#{amount}, 0))
+  </insert>
+
+  <insert id="copy">
+    INSERT INTO orders_history (ORDER_ID, AMOUNT, CREATED_BY)
+    SELECT o.ORDER_ID, o.AMOUNT, #{userId}
+      FROM orders o
+  </insert>
+
+  <!-- <if> で列が変わる INSERT は、数を数えられないので検証しない。 -->
+  <insert id="insertSelective">
+    INSERT INTO orders (ORDER_ID
+    <if test="amount != null">, AMOUNT</if>)
+    VALUES (#{orderId}
+    <if test="amount != null">, #{amount}</if>)
+  </insert>
+</mapper>

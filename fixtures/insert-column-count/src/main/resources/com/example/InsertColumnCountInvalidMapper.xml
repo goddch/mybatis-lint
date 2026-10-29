@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.InsertColumnCountInvalidMapper">
+  <!-- 列は 4 つなのに値が 3 つしかない(ORA-00947)。 -->
+  <insert id="insert">
+    INSERT INTO orders (ORDER_ID, CUSTOMER_NAME, AMOUNT, CREATED_AT)
+    VALUES (#{orderId}, #{customerName}, SYSDATE)
+  </insert>
+
+  <!-- 列は 2 つなのに SELECT が 3 列を返す(ORA-00913)。 -->
+  <insert id="copy">
+    INSERT INTO orders_history (ORDER_ID, AMOUNT)
+    SELECT o.ORDER_ID, o.AMOUNT, o.CUSTOMER_NAME
+      FROM orders o
+     WHERE o.ORDER_ID = #{orderId}
+  </insert>
+</mapper>

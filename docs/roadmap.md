@@ -42,6 +42,9 @@ working in user-facing docs until they land:
   unaliased columns (which depend on `mapUnderscoreToCamelCase`), statements
   using `resultMap` auto-mapping, select lists containing `*`, `<include>` or
   dynamic elements, and records. A real SQL parser would also help here.
+- **INSERT column hints for dynamic statements.** Column hints and
+  `insert-column-count` skip INSERT statements whose column list or values
+  contain `<if>`, `<include>` or `<foreach>`.
 - **Broader resultMap validation.** Inferring collection element types,
   following referenced nested mappings and inherited (`extends`) properties,
   and checking type compatibility and discriminator values. These are all

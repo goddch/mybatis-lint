@@ -60,6 +60,17 @@
           "default": [],
           "markdownDescription": "Rules whose problems are not reported, for example `unknown-select-alias` (the `mybatis-lint/` prefix is optional). To silence a single place instead, put `mybatis-lint-disable-next-line <rule>` in a comment on the line above it."
         },
+        "mybatisLint.insertColumnHints": {
+          "type": "string",
+          "enum": ["all", "differentNames", "off"],
+          "enumDescriptions": [
+            "Show the column name in front of every value.",
+            "Show it only where the value's own name differs from the column, such as #{amount} for NOTE.",
+            "Do not show column names."
+          ],
+          "default": "all",
+          "markdownDescription": "Show, in `<insert>` statements, which `INSERT INTO t (...)` column each `VALUES (...)` value or `SELECT` item goes to, as faint text in front of it."
+        },
         "mybatisLint.javaPath": {
           "type": "string",
           "default": "",

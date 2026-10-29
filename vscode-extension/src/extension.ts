@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { runAnalyzer } from './analyzerRunner';
 import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
+import { insertColumnHints } from './insertColumnHints';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { SuggestionStore } from './quickFixes';
@@ -47,6 +48,23 @@ export function activate(context: vscode.ExtensionContext): void {
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
     ),
   );
+
+  const inlayHintsChanged = new vscode.EventEmitter<void>();
+  context.subscriptions.push(
+    inlayHintsChanged,
+    vscode.languages.registerInlayHintsProvider(
+      { scheme: 'file', pattern: '**/*.xml' },
+      {
+        onDidChangeInlayHints: inlayHintsChanged.event,
+        provideInlayHints: (document, range) => columnHints(document, range),
+      },
+    ),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('mybatisLint.insertColumnHints')) {
+        inlayHintsChanged.fire();
+      }
+    }),
+  );
   const scheduler = new CheckScheduler(() => checkWorkspace(checkContext, 'save'), SAVE_DEBOUNCE_MS);
   context.subscriptions.push({ dispose: () => scheduler.dispose() });
 
@@ -66,6 +84,24 @@ export function activate(context: vscode.ExtensionContext): void {
       scheduler.request();
     }),
   );
+}
+
+/** The INSERT column name, shown faintly in front of each VALUES value or SELECT item. */
+function columnHints(document: vscode.TextDocument, range: vscode.Range): vscode.InlayHint[] {
+  const mode = vscode.workspace.getConfiguration('mybatisLint').get<string>('insertColumnHints', 'all');
+  const text = document.getText();
+  if (mode === 'off' || !text.includes('<insert')) {
+    return [];
+  }
+  return insertColumnHints(text)
+    .filter((hint) => mode !== 'differentNames' || !hint.sameName)
+    .map((hint) => ({ hint, position: document.positionAt(hint.offset) }))
+    .filter(({ position }) => range.contains(position))
+    .map(({ hint, position }) => {
+      const inlayHint = new vscode.InlayHint(position, `${hint.column}:`, vscode.InlayHintKind.Parameter);
+      inlayHint.paddingRight = true;
+      return inlayHint;
+    });
 }
 
 /** "Change to 'userName'" quick fixes for diagnostics that carry a suggested name. */
