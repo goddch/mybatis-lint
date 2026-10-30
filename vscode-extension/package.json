@@ -64,12 +64,12 @@
           "type": "string",
           "enum": ["all", "differentNames", "off"],
           "enumDescriptions": [
-            "Show the column name in front of every value.",
+            "Show the column names at the end of every line that has values.",
             "Show it only where the value's own name differs from the column, such as #{amount} for NOTE.",
             "Do not show column names."
           ],
           "default": "all",
-          "markdownDescription": "Show, in `<insert>` statements, which `INSERT INTO t (...)` column each `VALUES (...)` value or `SELECT` item goes to, as faint text in front of it."
+          "markdownDescription": "Show, in `<insert>` statements, which `INSERT INTO t (...)` column each `VALUES (...)` value or `SELECT` item goes to, as faint text at the end of its line. The names are lined up within each statement."
         },
         "mybatisLint.javaPath": {
           "type": "string",
