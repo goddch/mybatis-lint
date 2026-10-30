@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { runAnalyzer } from './analyzerRunner';
 import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
-import { insertColumnHints } from './insertColumnHints';
+import { insertColumnHints, lineEndHints } from './insertColumnHints';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { SuggestionStore } from './quickFixes';
@@ -49,22 +49,19 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  const inlayHintsChanged = new vscode.EventEmitter<void>();
+  const columnHints = new ColumnHintDecorator();
   context.subscriptions.push(
-    inlayHintsChanged,
-    vscode.languages.registerInlayHintsProvider(
-      { scheme: 'file', pattern: '**/*.xml' },
-      {
-        onDidChangeInlayHints: inlayHintsChanged.event,
-        provideInlayHints: (document, range) => columnHints(document, range),
-      },
-    ),
+    columnHints,
+    vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((editor) => columnHints.update(editor))),
+    vscode.window.onDidChangeTextEditorOptions((event) => columnHints.update(event.textEditor)),
+    vscode.workspace.onDidChangeTextDocument((event) => columnHints.scheduleUpdate(event.document)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('mybatisLint.insertColumnHints')) {
-        inlayHintsChanged.fire();
+        vscode.window.visibleTextEditors.forEach((editor) => columnHints.update(editor));
       }
     }),
   );
+  vscode.window.visibleTextEditors.forEach((editor) => columnHints.update(editor));
   const scheduler = new CheckScheduler(() => checkWorkspace(checkContext, 'save'), SAVE_DEBOUNCE_MS);
   context.subscriptions.push({ dispose: () => scheduler.dispose() });
 
@@ -86,22 +83,60 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-/** The INSERT column name, shown faintly in front of each VALUES value or SELECT item. */
-function columnHints(document: vscode.TextDocument, range: vscode.Range): vscode.InlayHint[] {
-  const mode = vscode.workspace.getConfiguration('mybatisLint').get<string>('insertColumnHints', 'all');
-  const text = document.getText();
-  if (mode === 'off' || !text.includes('<insert')) {
-    return [];
+/**
+ * Shows the INSERT column names faintly at the end of each line that has values, lined up
+ * within a statement. A decoration (not an inlay hint) is used because an inlay hint draws
+ * its leading spaces with the hint background, which many themes color; a decoration's
+ * margin is measured in `ch`, so it lines up without a background.
+ */
+class ColumnHintDecorator implements vscode.Disposable {
+  private readonly decoration = vscode.window.createTextEditorDecorationType({
+    after: { color: new vscode.ThemeColor('editorInlayHint.foreground') },
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+  });
+  private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Recomputes shortly after typing stops, rather than on every keystroke. */
+  scheduleUpdate(document: vscode.TextDocument): void {
+    const key = document.uri.toString();
+    clearTimeout(this.timers.get(key));
+    this.timers.set(
+      key,
+      setTimeout(() => {
+        this.timers.delete(key);
+        vscode.window.visibleTextEditors
+          .filter((editor) => editor.document === document)
+          .forEach((editor) => this.update(editor));
+      }, 150),
+    );
   }
-  return insertColumnHints(text)
-    .filter((hint) => mode !== 'differentNames' || !hint.sameName)
-    .map((hint) => ({ hint, position: document.positionAt(hint.offset) }))
-    .filter(({ position }) => range.contains(position))
-    .map(({ hint, position }) => {
-      const inlayHint = new vscode.InlayHint(position, `${hint.column}:`, vscode.InlayHintKind.Parameter);
-      inlayHint.paddingRight = true;
-      return inlayHint;
-    });
+
+  update(editor: vscode.TextEditor): void {
+    const document = editor.document;
+    const mode = vscode.workspace.getConfiguration('mybatisLint').get<string>('insertColumnHints', 'all');
+    const text = document.uri.scheme === 'file' && document.fileName.endsWith('.xml') ? document.getText() : '';
+    if (mode === 'off' || !text.includes('<insert')) {
+      editor.setDecorations(this.decoration, []);
+      return;
+    }
+    const tabSize = typeof editor.options.tabSize === 'number' ? editor.options.tabSize : 4;
+    const hints = insertColumnHints(text).filter((hint) => mode !== 'differentNames' || !hint.sameName);
+    editor.setDecorations(
+      this.decoration,
+      lineEndHints(text, hints, tabSize).map((hint) => {
+        const position = document.positionAt(hint.offset);
+        return {
+          range: new vscode.Range(position, position),
+          renderOptions: { after: { contentText: hint.text, margin: `0 0 0 ${hint.padding}ch` } },
+        };
+      }),
+    );
+  }
+
+  dispose(): void {
+    this.timers.forEach((timer) => clearTimeout(timer));
+    this.decoration.dispose();
+  }
 }
 
 /** "Change to 'userName'" quick fixes for diagnostics that carry a suggested name. */

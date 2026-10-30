@@ -31,9 +31,10 @@ it. This covers `unknown-select-alias`, `undefined-parameter`,
 `unknown-parameter-property` and `unknown-result-property`.
 
 In `<insert>` statements, the editor also shows which `INSERT INTO t (...)`
-column each `VALUES (...)` value or `SELECT` item goes to, as faint text in
-front of it (`mybatisLint.insertColumnHints`: `all`, `differentNames` or
-`off`). This updates as you type and does not need a save.
+column each `VALUES (...)` value or `SELECT` item goes to, as faint text at the
+end of the line, lined up within each statement (`mybatisLint.insertColumnHints`:
+`all`, `differentNames` or `off`). This updates as you type and does not need a
+save.
 
 ## Rules
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { insertColumnHints } from '../src/insertColumnHints';
+import { displayWidth, insertColumnHints, lineEndHints } from '../src/insertColumnHints';
 
 /** Each hint as "COLUMN→text at the hint", so tests read like the editor. */
 function render(text: string): string[] {
@@ -51,4 +51,51 @@ test('skips statements whose columns or values depend on dynamic elements', () =
   <insert id="noColumns">INSERT INTO t VALUES (#{a})</insert>
   <insert id="empty"/>`;
   assert.deepEqual(render(dynamic), []);
+});
+
+/** The document with each line-end hint written in, as the editor would show it. */
+function withLineEndHints(text: string, tabSize = 4): string {
+  let shown = text;
+  for (const hint of lineEndHints(text, insertColumnHints(text), tabSize).reverse()) {
+    shown = shown.slice(0, hint.offset) + ' '.repeat(hint.padding) + hint.text + shown.slice(hint.offset);
+  }
+  return shown;
+}
+
+test('shows the columns at the end of each line, lined up within a statement', () => {
+  const xml = `<insert id="copy">
+    INSERT INTO orders_history (ORDER_ID, CUSTOMER_NAME, AMOUNT, NOTE)
+    SELECT o.ORDER_ID,
+           o.NAME,
+           NVL(o.AMOUNT, 0), 'x'
+      FROM orders o
+  </insert>`;
+
+  assert.equal(
+    withLineEndHints(xml),
+    `<insert id="copy">
+    INSERT INTO orders_history (ORDER_ID, CUSTOMER_NAME, AMOUNT, NOTE)
+    SELECT o.ORDER_ID,            ORDER_ID
+           o.NAME,                CUSTOMER_NAME
+           NVL(o.AMOUNT, 0), 'x'  AMOUNT, NOTE
+      FROM orders o
+  </insert>`,
+  );
+});
+
+test('measures tabs and full-width characters as the editor shows them', () => {
+  assert.equal(displayWidth('\tab', 4), 6);
+  assert.equal(displayWidth('a\tb', 4), 5);
+  assert.equal(displayWidth('-- 金額', 4), 7);
+
+  const xml = '<insert id="i">\n\tINSERT INTO t (A, B)\n\tVALUES (#{a}, -- 金額\n\t        #{b})\n</insert>';
+  const shown = withLineEndHints(xml).split('\n');
+  assert.equal(displayWidth(shown[2], 4) - 'A'.length, displayWidth(shown[3], 4) - 'B'.length);
+});
+
+test('handles CRLF line endings', () => {
+  const xml = '<insert id="i">\r\n  INSERT INTO t (A, B)\r\n  VALUES (#{a},\r\n          #{b})\r\n</insert>';
+  const [first, second] = lineEndHints(xml, insertColumnHints(xml), 4);
+  assert.equal(xml[first.offset], '\r');
+  assert.equal(xml[second.offset], '\r');
 });

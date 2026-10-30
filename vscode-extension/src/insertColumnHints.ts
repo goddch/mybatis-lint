@@ -1,7 +1,7 @@
 /**
  * Finds, in a mapper XML document, which INSERT column each value of
  * `VALUES (...)` or each item of the `SELECT` list belongs to, so the editor
- * can show the column name as an inlay hint in front of it.
+ * can show the column name faintly at the end of its line.
  *
  * Works on the raw document text (no `vscode` import) so hints follow the
  * user's typing without running the analyzer. Statements whose column list or
@@ -16,6 +16,18 @@ export interface InsertColumnHint {
   column: string;
   /** The value's own name matches the column (ignoring case and underscores), e.g. `#{orderId}` for ORDER_ID. */
   sameName: boolean;
+  /** Offset of the `<insert>` body the value belongs to, so hints can be aligned per statement. */
+  statement: number;
+}
+
+/** A hint shown at the end of a line: the columns of the values that start on that line. */
+export interface LineEndHint {
+  /** Offset of the end of the line. */
+  offset: number;
+  /** Character cells between the end of the line and the hint, lining it up with the others in the statement. */
+  padding: number;
+  /** The column names. */
+  text: string;
 }
 
 const INSERT_TAG = /<insert\b[^>]*?(\/)?>/g;
@@ -88,9 +100,75 @@ function hintsForStatement(text: string, bodyStart: number, bodyEnd: number): In
       offset: bodyStart + start + leading,
       column,
       sameName: normalize(valueName(value)) === normalize(column),
+      statement: bodyStart,
     });
   });
   return hints;
+}
+
+/**
+ * Moves hints to the end of the line their value starts on, so they do not
+ * push the SQL sideways, and pads them so that every hint of one statement
+ * starts in the same column. Several values on one line share one hint.
+ *
+ * @param tabSize width of a tab, to measure lines indented with tabs
+ */
+export function lineEndHints(text: string, hints: InsertColumnHint[], tabSize: number): LineEndHint[] {
+  // Line end offset → columns, grouped by statement, in document order.
+  const byStatement = new Map<number, Map<number, string[]>>();
+  for (const hint of hints) {
+    let lineEnd = text.indexOf('\n', hint.offset);
+    lineEnd = lineEnd < 0 ? text.length : lineEnd;
+    if (lineEnd > 0 && text[lineEnd - 1] === '\r') {
+      lineEnd--;
+    }
+    const lines = byStatement.get(hint.statement) ?? new Map<number, string[]>();
+    lines.set(lineEnd, [...(lines.get(lineEnd) ?? []), hint.column]);
+    byStatement.set(hint.statement, lines);
+  }
+
+  const result: LineEndHint[] = [];
+  for (const lines of byStatement.values()) {
+    const widths = new Map<number, number>();
+    for (const lineEnd of lines.keys()) {
+      const lineStart = text.lastIndexOf('\n', lineEnd - 1) + 1;
+      widths.set(lineEnd, displayWidth(text.slice(lineStart, lineEnd), tabSize));
+    }
+    // Two spaces after the longest line keep the hint clear of the SQL.
+    const column = Math.max(...widths.values()) + 2;
+    for (const [lineEnd, columns] of lines) {
+      result.push({ offset: lineEnd, padding: column - (widths.get(lineEnd) ?? 0), text: columns.join(', ') });
+    }
+  }
+  return result.sort((a, b) => a.offset - b.offset);
+}
+
+/** Width of a line as an editor shows it: tabs expand to the next tab stop, full-width characters take two cells. */
+export function displayWidth(line: string, tabSize: number): number {
+  let width = 0;
+  for (const char of line) {
+    if (char === '\t') {
+      width += tabSize - (width % tabSize);
+    } else {
+      width += isWide(char.codePointAt(0) ?? 0) ? 2 : 1;
+    }
+  }
+  return width;
+}
+
+/** East Asian wide and full-width characters (CJK, kana, hangul, full-width forms, emoji). */
+function isWide(code: number): boolean {
+  return (
+    (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe4f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x1f300 && code <= 0x1faff) ||
+    (code >= 0x20000 && code <= 0x3fffd)
+  );
 }
 
 /**
