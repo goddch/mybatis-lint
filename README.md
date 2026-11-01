@@ -28,7 +28,9 @@ shows what each run did: files analyzed, time taken, and skipped folders.
 When a misspelled name has exactly one close match, the message ends with
 "Did you mean 'userName'?" and the lightbulb offers a quick fix that replaces
 it. This covers `unknown-select-alias`, `undefined-parameter`,
-`unknown-parameter-property` and `unknown-result-property`.
+`unknown-parameter-property` and `unknown-result-property`. For
+`unsafe-dollar-substitution` after an operator, the quick fix replaces
+`${name}` with `#{name}`.
 
 **Go to Definition** (F12 or Ctrl+click) jumps between mapper XML and Java:
 from a statement's `id` to the Java mapper method and back, from
@@ -60,6 +62,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, `#{user.userNmae}` for `@Param("user")`, or `#{u.userNmae}` for a `<foreach item="u">` over `List<UserDomain>`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
 | `insert-column-count` | error | `INSERT INTO t (...)` whose column count differs from its `VALUES (...)` or `SELECT` list (ORA-00947 / ORA-00913); statements with `<if>` or `<include>` in those lists are skipped ([details](docs/insert-column-validation.md)) |
 | `parameter-in-string-literal` | error | `#{...}` inside a SQL string literal such as `LIKE '%#{name}%'`; it is not bound and fails at run time ([details](docs/sql-pitfalls.md)) |
+| `unsafe-dollar-substitution` | warning | `${...}` where a value is written (after `=`, `<>`, `LIKE` and the like, inside a string literal, or right inside `IN (...)`), which inserts the value into the SQL as is and allows SQL injection; `ORDER BY ${column}`, table names and values known to be numeric or boolean are not reported ([details](docs/sql-pitfalls.md)) |
 | `single-char-literal-comparison` | warning | `<if test="type == 'A'">`: OGNL reads `'A'` as a char, so it never equals a String ([details](docs/sql-pitfalls.md)) |
 | `numeric-empty-string-comparison` | warning | `<if test="status != ''">` on a numeric value: OGNL treats `''` as 0, so the condition is also false for 0 ([details](docs/sql-pitfalls.md)) |
 | `dangling-sql-joiner` | error / warning | `WHERE` or `SET` written as text and followed by `<if>` (without `<where>`/`<set>`), where some combination of conditions leaves `AND`/`OR` or a comma at the start or end, as in `WHERE AND ...` or `name = ?, WHERE`. Error when it breaks every time that branch is included, warning when it depends on the other conditions ([details](docs/dynamic-clause-validation.md)) |

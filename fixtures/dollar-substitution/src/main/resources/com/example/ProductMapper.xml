@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ProductMapper">
+  <!--
+    name は利用者が入力する文字列。${...} はそのまま SQL に埋め込まれるので、
+    name に ' OR '1' = '1 のような値を渡すと SQL を書き換えられる。3 件とも warning。
+  -->
+  <select id="searchInvalid" resultType="map">
+    SELECT p.PRODUCT_ID, p.NAME
+      FROM products p
+     WHERE p.NAME = '${name}'
+        OR p.CODE = ${name}
+        OR p.PRODUCT_ID IN (${ids})
+  </select>
+
+  <!--
+    値は #{...} でバインドする。categoryId は Long なので ${...} でも SQL を書き換えられない。
+    ORDER BY の列名は #{...} で書けないので ${...} でよい(呼び出し側で値を制限すること)。
+  -->
+  <select id="searchValid" resultType="map">
+    SELECT p.PRODUCT_ID, p.NAME
+      FROM products p
+     WHERE p.NAME LIKE '%' || #{name} || '%'
+       AND p.CATEGORY_ID = ${categoryId}
+     ORDER BY ${sortColumn}
+  </select>
+</mapper>
