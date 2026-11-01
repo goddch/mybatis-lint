@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 import { runAnalyzer } from './analyzerRunner';
+import type { AnalyzerRunOptions } from './analyzerRunner';
+import { AnalyzerServer } from './analyzerServer';
 import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
 import { insertColumnHints, lineEndHints } from './insertColumnHints';
@@ -26,6 +28,9 @@ interface CheckContext {
   diagnosticCollection: vscode.DiagnosticCollection;
   output: vscode.OutputChannel;
   suggestions: SuggestionStore;
+  server: AnalyzerServer;
+  /** Server failures in a row; after a few, checks run the analyzer once per check for the rest of the session. */
+  serverFailures: number;
   /** Last error shown for a save-triggered run, so the same failure is not shown on every save. */
   lastSaveError?: string;
 }
@@ -41,7 +46,10 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnosticCollection,
     output,
     suggestions,
+    server: new AnalyzerServer(),
+    serverFailures: 0,
   };
+  context.subscriptions.push({ dispose: () => checkContext.server.dispose() });
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
       { scheme: 'file', pattern: '**/*.{xml,java}' },
@@ -148,6 +156,41 @@ class ColumnHintDecorator implements vscode.Disposable {
     this.timers.forEach((timer) => clearTimeout(timer));
     this.decoration.dispose();
   }
+}
+
+// After this many server failures in a row, stop using it until VS Code restarts.
+const MAX_SERVER_FAILURES = 2;
+
+/**
+ * Runs a check on the long-running analyzer (fast after the first check), or starts the
+ * analyzer once for this check when that is turned off or the server fails.
+ */
+async function analyze(checkContext: CheckContext, options: AnalyzerRunOptions): Promise<{ stdout: string; stderr: string }> {
+  const keepRunning = vscode.workspace.getConfiguration('mybatisLint').get<boolean>('keepAnalyzerRunning', true);
+  if (!keepRunning || checkContext.serverFailures >= MAX_SERVER_FAILURES) {
+    checkContext.server.dispose();
+    return runAnalyzer(options);
+  }
+  try {
+    const result = await checkContext.server.request(options, serverProcessKey(options));
+    checkContext.serverFailures = 0;
+    return result;
+  } catch (error) {
+    checkContext.serverFailures++;
+    log(checkContext.output, `  ${error instanceof Error ? error.message : String(error)} Running the analyzer once instead.`);
+    return runAnalyzer(options);
+  }
+}
+
+/** Restart the server when the Java runtime or the jar changes, including a rebuilt jar. */
+function serverProcessKey(options: AnalyzerRunOptions): string {
+  let jarModified = 0;
+  try {
+    jarModified = fs.statSync(options.jarPath).mtimeMs;
+  } catch {
+    // A missing jar is reported by the check itself.
+  }
+  return `${options.javaPath}\u0000${options.jarPath}\u0000${jarModified}`;
 }
 
 // Folders that never contain the mapper sources a jump should land in.
@@ -348,8 +391,7 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
     // extension; the notification is reserved for runs the user asked for.
     const { stdout, stderr } = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: 'MyBatis Lint: checking…' },
-      () =>
-        runAnalyzer({ javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath, excludes, disabledRules }),
+      () => analyze(checkContext, { javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath, excludes, disabledRules }),
     );
     for (const line of stderr.split(/\r?\n/).filter((text) => text.trim().length > 0)) {
       log(output, `  ${line}`);

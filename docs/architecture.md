@@ -92,6 +92,12 @@ if the output shape grows significantly more complex, revisit this decision.
   `mybatisLint.disabledRules` settings) and collects
   stdout; a non-zero exit code is *expected* whenever diagnostics exist, so
   it is not itself treated as failure.
+- `src/analyzerServer.ts` — keeps one `java -jar <jar> --server` process
+  running and sends it a request per check (`mybatisLint.keepAnalyzerRunning`,
+  on by default). The server keeps the JIT warm and re-reads only files whose
+  modification time or size changed (`AnalyzerCli.Caches`). If the server
+  fails, `extension.ts` runs the analyzer once for that check instead, and
+  stops using the server after two failures in a row.
 - `src/parseAnalyzerOutput.ts` — parses/validates the analyzer's JSON.
 - `src/diagnosticsMapper.ts` — pure conversion from the analyzer's 1-based
   JSON schema to 0-based, VS-Code-shaped diagnostics, grouped by file URI.

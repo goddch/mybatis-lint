@@ -11,8 +11,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -46,13 +51,57 @@ public final class JavaSources {
         return new JavaSources(List.of(), false);
     }
 
+    /**
+     * 解析をまたいで構文解析の結果を覚えておく場所({@code --server} で使う)。更新日時と大きさが
+     * 前と同じファイルは解析し直さない。並列に解析するので、スレッドから同時に使える。
+     */
+    public static final class Cache {
+        private final Map<Path, Cached> files = new ConcurrentHashMap<>();
+
+        /** 構文解析できなかったファイルも、解析し直さないよう parsed を null にして覚える。 */
+        private record Cached(FileTime modified, long size, ParsedFile parsed) {
+        }
+
+        private ParsedFile parse(Path file) {
+            BasicFileAttributes attributes;
+            try {
+                attributes = Files.readAttributes(file, BasicFileAttributes.class);
+            } catch (IOException e) {
+                files.remove(file);
+                return parseFile(file);
+            }
+            Cached cached = files.get(file);
+            if (cached != null && cached.modified().equals(attributes.lastModifiedTime())
+                    && cached.size() == attributes.size()) {
+                return cached.parsed();
+            }
+            ParsedFile parsed = parseFile(file);
+            files.put(file, new Cached(attributes.lastModifiedTime(), attributes.size(), parsed));
+            return parsed;
+        }
+
+        /** 消えたファイルの分を忘れる。 */
+        private void retainOnly(List<Path> current) {
+            files.keySet().retainAll(new HashSet<>(current));
+        }
+    }
+
     public static JavaSources parse(Path workspaceRoot, ExcludePatterns excludes) {
+        return parse(workspaceRoot, excludes, null);
+    }
+
+    /** {@code cache} があれば、変わっていないファイルはその結果を使う。 */
+    public static JavaSources parse(Path workspaceRoot, ExcludePatterns excludes, Cache cache) {
         if (workspaceRoot == null || !Files.isDirectory(workspaceRoot)) {
             return empty();
         }
         JavaFileScanner scanner = new JavaFileScanner(excludes);
-        List<ParsedFile> parsed = scanner.scan(workspaceRoot).parallelStream()
-                .map(JavaSources::parseFile)
+        List<Path> javaFiles = scanner.scan(workspaceRoot);
+        if (cache != null) {
+            cache.retainOnly(javaFiles);
+        }
+        List<ParsedFile> parsed = javaFiles.parallelStream()
+                .map(file -> cache == null ? parseFile(file) : cache.parse(file))
                 .filter(Objects::nonNull)
                 .toList();
         boolean extraPrivate = scanner.scanLombokConfigs(workspaceRoot).stream().anyMatch(JavaSources::enablesExtraPrivate);

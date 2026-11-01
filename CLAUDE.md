@@ -21,7 +21,7 @@ MyBatis の mapper XML を静的解析する lint ツール。Java 製の解析�
   ので、正しい形に「直して」はいけない
 - `docs/` — アーキテクチャ、ロードマップ、診断 JSON のスキーマ、ルールごとの仕様
 
-CLI と拡張の間の取り決めは JSON 出力だけ（`docs/diagnostics-schema.md`）。
+CLI と拡張の間の取り決めは JSON 出力と、`--server` モードのやり取りの形式だけ（`docs/diagnostics-schema.md`）。
 形式を変えるときは両側とスキーマ文書を同時に更新する。
 
 ## コマンド

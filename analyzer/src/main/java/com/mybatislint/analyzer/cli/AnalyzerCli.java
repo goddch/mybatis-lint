@@ -82,17 +82,31 @@ public final class AnalyzerCli {
         }
     }
 
+    /**
+     * 解析をまたいで、変わっていないファイルの読み込み結果を使い回すための置き場所。
+     * {@code --server} のように同じプロセスで何度も解析するときに渡す。
+     */
+    public static final class Caches {
+        private final JavaSources.Cache javaSources = new JavaSources.Cache();
+        private final XmlSources.Store xmlSources = new XmlSources.Store();
+    }
+
     public Result run(Path workspaceRoot) {
+        return run(workspaceRoot, null);
+    }
+
+    /** {@code caches} があれば、前の解析から変わっていないファイルは読み直さない。 */
+    public Result run(Path workspaceRoot, Caches caches) {
         // 索引づくりと validator ごとに同じ XML を読み直さないよう、解析の間だけ読んだ結果を覚えておく。
-        try (XmlSources.Scope ignored = XmlSources.cached()) {
-            return analyze(workspaceRoot);
+        try (XmlSources.Scope ignored = XmlSources.cached(caches == null ? null : caches.xmlSources)) {
+            return analyze(workspaceRoot, caches == null ? null : caches.javaSources);
         }
     }
 
-    private Result analyze(Path workspaceRoot) {
+    private Result analyze(Path workspaceRoot, JavaSources.Cache javaCache) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         // Java ファイルの構文解析は時間がかかるので、1 回だけ行って両方の索引で使う。
-        JavaSources javaSources = JavaSources.parse(workspaceRoot, excludes);
+        JavaSources javaSources = JavaSources.parse(workspaceRoot, excludes, javaCache);
         JavaMapperIndex javaIndex = JavaMapperIndex.build(javaSources);
         // typeAlias 検証(未解決候補の検出)は、Mapper インターフェースだけでなく
         // ワークスペース内の Java クラス/インターフェース全般の simple name を

@@ -30,10 +30,13 @@ export function buildAnalyzerArgs(
     '-XX:TieredStopAtLevel=1',
     '-jar',
     jarPath,
-    ...repeatedOption('--exclude', excludes),
-    ...repeatedOption('--disable', disabledRules),
-    workspacePath,
+    ...buildRequestArgs(workspacePath, excludes, disabledRules),
   ];
+}
+
+/** The analyzer arguments after the jar: options, then the workspace. Also what the server mode reads per request. */
+export function buildRequestArgs(workspacePath: string, excludes: string[] = [], disabledRules: string[] = []): string[] {
+  return [...repeatedOption('--exclude', excludes), ...repeatedOption('--disable', disabledRules), workspacePath];
 }
 
 function repeatedOption(option: string, values: string[]): string[] {
