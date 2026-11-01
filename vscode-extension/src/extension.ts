@@ -5,6 +5,7 @@ import { runAnalyzer } from './analyzerRunner';
 import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
 import { insertColumnHints, lineEndHints } from './insertColumnHints';
+import { findJavaMethod, findXmlIds, javaMethodAt, mapperNamespace, TARGET_TAGS, xmlReferenceAt } from './navigation';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { SuggestionStore } from './quickFixes';
@@ -46,6 +47,16 @@ export function activate(context: vscode.ExtensionContext): void {
       { scheme: 'file', pattern: '**/*.{xml,java}' },
       { provideCodeActions: (document, _range, actionContext) => suggestionFixes(document, actionContext, suggestions) },
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerDefinitionProvider(
+      [
+        { scheme: 'file', pattern: '**/*.xml' },
+        { scheme: 'file', pattern: '**/*.java' },
+      ],
+      { provideDefinition: (document, position) => mapperDefinitions(document, position) },
     ),
   );
 
@@ -137,6 +148,73 @@ class ColumnHintDecorator implements vscode.Disposable {
     this.timers.forEach((timer) => clearTimeout(timer));
     this.decoration.dispose();
   }
+}
+
+// Folders that never contain the mapper sources a jump should land in.
+const NAVIGATION_EXCLUDE = '{**/node_modules/**,**/target/**,**/build/**,**/.git/**,**/.gradle/**}';
+
+/**
+ * "Go to Definition" between mapper XML and Java: a statement id to its Java mapper method and
+ * back, `<include refid>` to its `<sql>`, and `resultMap` / `extends` to the `<resultMap>`.
+ */
+async function mapperDefinitions(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Location[]> {
+  const text = document.getText();
+  const offset = document.offsetAt(position);
+  if (document.fileName.endsWith('.java')) {
+    const method = javaMethodAt(text, offset);
+    return method ? xmlLocations(method.namespace, TARGET_TAGS.statement, method.id, undefined) : [];
+  }
+  const reference = text.includes('<mapper') ? xmlReferenceAt(text, offset) : undefined;
+  if (!reference || reference.namespace.length === 0) {
+    return [];
+  }
+  if (reference.kind === 'statement') {
+    const files = await vscode.workspace.findFiles(`**/${reference.namespace.replace(/\./g, '/')}.java`, NAVIGATION_EXCLUDE);
+    const locations: vscode.Location[] = [];
+    for (const file of files) {
+      const javaDocument = await vscode.workspace.openTextDocument(file);
+      const methodOffset = findJavaMethod(javaDocument.getText(), reference.id);
+      if (methodOffset >= 0) {
+        locations.push(new vscode.Location(file, javaDocument.positionAt(methodOffset)));
+      }
+    }
+    return locations;
+  }
+  // References within the same file are the common case and need no search.
+  if (reference.namespace === mapperNamespace(text)) {
+    const local = findXmlIds(text, TARGET_TAGS[reference.kind], reference.id)
+      .map((idOffset) => new vscode.Location(document.uri, document.positionAt(idOffset)));
+    if (local.length > 0) {
+      return local;
+    }
+  }
+  return xmlLocations(reference.namespace, TARGET_TAGS[reference.kind], reference.id, document.uri);
+}
+
+/** `<tag id="id">` elements in the workspace's mapper XML files with this namespace. */
+async function xmlLocations(
+  namespace: string,
+  tags: string[],
+  id: string,
+  skip: vscode.Uri | undefined,
+): Promise<vscode.Location[]> {
+  const locations: vscode.Location[] = [];
+  for (const file of await vscode.workspace.findFiles('**/*.xml', NAVIGATION_EXCLUDE)) {
+    if (skip && file.toString() === skip.toString()) {
+      continue;
+    }
+    // Open documents may have unsaved edits; read those from the editor, the rest from disk.
+    const open = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === file.toString());
+    const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(file)).toString('utf8');
+    if (!text.includes(namespace) || mapperNamespace(text) !== namespace) {
+      continue;
+    }
+    for (const idOffset of findXmlIds(text, tags, id)) {
+      const document = open ?? (await vscode.workspace.openTextDocument(file));
+      locations.push(new vscode.Location(file, document.positionAt(idOffset)));
+    }
+  }
+  return locations;
 }
 
 /** "Change to 'userName'" quick fixes for diagnostics that carry a suggested name. */
