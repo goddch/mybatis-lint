@@ -54,3 +54,19 @@ Notes:
 - Rule IDs are stable strings under the `mybatis-lint/` namespace; see
   `analyzer/src/main/java/com/mybatislint/analyzer/model/RuleIds.java` for the
   authoritative list.
+
+## Server mode
+
+`java -jar analyzer.jar --server` keeps running and analyzes once per request,
+so callers that check repeatedly (the VS Code extension) skip JVM start-up and
+reuse files parsed by earlier requests; a file is read again when its
+modification time or size changes.
+
+- A request is one line on stdin: the same arguments as the CLI
+  (`--exclude`, `--disable`, the workspace path) joined with tab characters.
+- The response on stdout is a `Content-Length: <bytes>` line followed by
+  exactly that many bytes of UTF-8: the same JSON document the CLI prints.
+- `Content-Length: 0` means the request was invalid or the analysis failed;
+  the reason is written to stderr. The process keeps running.
+- Notes such as skipped folders go to stderr, as in the CLI.
+- An empty line or the end of stdin stops the server.

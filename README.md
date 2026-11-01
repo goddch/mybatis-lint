@@ -173,6 +173,11 @@ Globs are relative to the workspace and use `/`; a pattern without `/` matches
 a folder or file name at any depth. Folders that cannot be read are skipped
 automatically. In VS Code, use the `mybatisLint.exclude` setting.
 
+`java -jar build/libs/analyzer.jar --server` keeps the analyzer running and
+reads one request per line (see [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md#server-mode)).
+The VS Code extension uses it so that checks after the first one take a
+fraction of the time (`mybatisLint.keepAnalyzerRunning`, on by default).
+
 ### VS Code extension
 
 ```sh

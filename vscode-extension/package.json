@@ -60,6 +60,11 @@
           "default": [],
           "markdownDescription": "Rules whose problems are not reported, for example `unknown-select-alias` (the `mybatis-lint/` prefix is optional). To silence a single place instead, put `mybatis-lint-disable-next-line <rule>` in a comment on the line above it."
         },
+        "mybatisLint.keepAnalyzerRunning": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep the analyzer running between checks, so checks after the first are faster. It re-reads only the files that changed. Turn off to start the analyzer for every check."
+        },
         "mybatisLint.insertColumnHints": {
           "type": "string",
           "enum": ["all", "differentNames", "off"],

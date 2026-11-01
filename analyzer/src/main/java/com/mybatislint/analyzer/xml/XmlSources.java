@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +26,8 @@ import java.util.Map;
 public final class XmlSources {
 
     private static final ThreadLocal<Map<Path, Entry>> CACHE = new ThreadLocal<>();
+    // cached(Store) の間だけ設定する、解析をまたいで使う保存先。
+    private static final ThreadLocal<Store> STORE = new ThreadLocal<>();
 
     private XmlSources() {
     }
@@ -38,15 +42,57 @@ public final class XmlSources {
         boolean documentLoaded;
     }
 
+    /**
+     * 解析をまたいで読んだ XML を覚えておく場所({@code --server} で使う)。更新日時と大きさが
+     * 前と同じファイルは読み直さない。
+     */
+    public static final class Store {
+        private final Map<Path, Stored> entries = new HashMap<>();
+
+        private record Stored(FileTime modified, long size, Entry entry) {
+        }
+
+        private Entry entryFor(Path key) {
+            BasicFileAttributes attributes;
+            try {
+                attributes = Files.readAttributes(key, BasicFileAttributes.class);
+            } catch (IOException e) {
+                // 読めないファイルは覚えない。読もうとしたときの例外は Entry が覚える。
+                entries.remove(key);
+                return new Entry();
+            }
+            Stored stored = entries.get(key);
+            if (stored != null && stored.modified().equals(attributes.lastModifiedTime())
+                    && stored.size() == attributes.size()) {
+                return stored.entry();
+            }
+            Entry entry = new Entry();
+            entries.put(key, new Stored(attributes.lastModifiedTime(), attributes.size(), entry));
+            return entry;
+        }
+    }
+
     /** 閉じるまでの間、このスレッドで読んだ XML を覚えておく。 */
     public static Scope cached() {
+        return cached(null);
+    }
+
+    /** {@link #cached()} と同じだが、変わっていないファイルは {@code store} に覚えたものを使う。 */
+    public static Scope cached(Store store) {
         Map<Path, Entry> previous = CACHE.get();
+        Store previousStore = STORE.get();
         CACHE.set(new HashMap<>());
+        STORE.set(store);
         return () -> {
             if (previous == null) {
                 CACHE.remove();
             } else {
                 CACHE.set(previous);
+            }
+            if (previousStore == null) {
+                STORE.remove();
+            } else {
+                STORE.set(previousStore);
             }
         };
     }
@@ -103,6 +149,12 @@ public final class XmlSources {
 
     private static Entry entry(Path file) {
         Map<Path, Entry> cache = CACHE.get();
-        return cache == null ? null : cache.computeIfAbsent(file.toAbsolutePath().normalize(), ignored -> new Entry());
+        if (cache == null) {
+            return null;
+        }
+        // 1 回の解析の中では、更新日時を見るのは最初の 1 回だけでよい。
+        Store store = STORE.get();
+        return cache.computeIfAbsent(file.toAbsolutePath().normalize(),
+                key -> store == null ? new Entry() : store.entryFor(key));
     }
 }
