@@ -30,6 +30,13 @@ When a misspelled name has exactly one close match, the message ends with
 it. This covers `unknown-select-alias`, `undefined-parameter`,
 `unknown-parameter-property` and `unknown-result-property`.
 
+**Go to Definition** (F12 or Ctrl+click) jumps between mapper XML and Java:
+from a statement's `id` to the Java mapper method and back, from
+`<include refid>` to the `<sql>` fragment, and from `resultMap="..."` or
+`<resultMap extends="...">` to the `<resultMap>`, including namespace-qualified
+references to other files. It reads the files directly, so it works without a
+check or a save.
+
 In `<insert>` statements, the editor also shows which `INSERT INTO t (...)`
 column each `VALUES (...)` value or `SELECT` item goes to, as faint text at the
 end of the line, lined up within each statement (`mybatisLint.insertColumnHints`:

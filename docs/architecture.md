@@ -104,6 +104,9 @@ if the output shape grows significantly more complex, revisit this decision.
 - `src/insertColumnHints.ts` — finds which INSERT column each `VALUES` value
   or `SELECT` item belongs to, for the faint, lined-up text `extension.ts` shows at the end of each line. It
   reads the open document directly, so it does not run the analyzer.
+- `src/navigation.ts` — finds, in raw XML / Java text, what a "Go to
+  Definition" request points at (a statement id, `<include refid>`,
+  `resultMap`) and where its target is; `extension.ts` searches the files.
 - `src/quickFixes.ts` — remembers each diagnostic's `suggestion` so that
   `extension.ts` can offer it as a "Change to '...'" quick fix.
 - `src/summaryMessage.ts` — builds the notification shown after a check,

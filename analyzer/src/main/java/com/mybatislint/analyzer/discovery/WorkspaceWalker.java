@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * mapper XML と Java ソースの探索で共通の、ワークスペースの走査処理。
@@ -34,6 +35,11 @@ final class WorkspaceWalker {
 
     /** 拡張子が {@code suffix}(小文字)のファイルを、パス順に並べて返す。 */
     static List<Path> findFiles(Path workspaceRoot, ExcludePatterns excludes, String suffix) {
+        return findFiles(workspaceRoot, excludes, name -> name.endsWith(suffix));
+    }
+
+    /** 小文字にしたファイル名が {@code nameFilter} に合うファイルを、パス順に並べて返す。 */
+    static List<Path> findFiles(Path workspaceRoot, ExcludePatterns excludes, Predicate<String> nameFilter) {
         List<Path> results = new ArrayList<>();
         if (!Files.isDirectory(workspaceRoot)) {
             return results;
@@ -56,7 +62,7 @@ final class WorkspaceWalker {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
-                    if (name.endsWith(suffix)
+                    if (nameFilter.test(name)
                             && Files.isReadable(file)
                             && !excludes.matches(workspaceRoot.relativize(file))) {
                         results.add(file);
