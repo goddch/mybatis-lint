@@ -83,7 +83,7 @@ function qualify(value: string, ownNamespace: string): { namespace: string; id: 
 /** Offsets of the `id` values of `<tag id="id">` elements (for any of `tags`). */
 export function findXmlIds(text: string, tags: string[], id: string): number[] {
   const offsets: number[] = [];
-  const element = new RegExp(`<(${tags.join('|')})\\b[^>]*>`, 'g');
+  const element = new RegExp(`<(${tags.map(escape).join('|')})\\b[^>]*>`, 'g');
   let match: RegExpExecArray | null;
   while ((match = element.exec(text)) !== null) {
     const idMatch = /\bid\s*=\s*(["'])(.*?)\1/s.exec(match[0]);
@@ -153,6 +153,7 @@ function maskJavaComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:\\.|[^"\\\n])*"/g, (match) => match.replace(/[^\n]/g, ' '));
 }
 
+/** Escapes every regular expression metacharacter, so any id is matched literally. */
 function escape(name: string): string {
-  return name.replace(/[$]/g, '\\$');
+  return name.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 }

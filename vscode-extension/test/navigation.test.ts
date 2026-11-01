@@ -122,3 +122,9 @@ test('reads the mapper method under the cursor in Java', () => {
   assert.equal(javaMethodAt(JAVA, at(JAVA, 'Long id)', 1)), undefined);
   assert.equal(javaMethodAt('public class UserService { User findById(Long id) { return null; } }', 30), undefined);
 });
+
+test('treats names with regular expression characters literally', () => {
+  assert.equal(findJavaMethod('interface A { int a$b(); }', 'a$b'), 'interface A { int '.length);
+  assert.equal(findJavaMethod('interface A { int ab(); }', 'a.b'), -1);
+  assert.equal(findJavaMethod('interface A { int ab(); }', 'a\\b'), -1);
+});
