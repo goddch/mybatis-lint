@@ -59,6 +59,31 @@ OGNL では数値と `''` を比べると `''` が 0 として扱われるので
 型は、引数の型か、引数の Bean のフィールドの型から決めます。`<bind>` や `<foreach>` の
 変数と同じ名前や、型がわからない場合は警告しません。
 
+## `mybatis-lint/unsafe-dollar-substitution`(warning)
+
+```xml
+WHERE name = '${name}'   <!-- name に ' OR '1' = '1 を渡すと条件が書き換わる -->
+```
+
+`${...}` は値を SQL の文字列としてそのまま埋め込みます。利用者が入力した値が入ると、SQL そのものを
+書き換えられます(SQL インジェクション)。`#{...}` はバインド変数になるので安全です。
+
+`ORDER BY ${column}` やテーブル名のように `#{...}` では書けない場所もあるので、値を書く場所だと
+わかるものだけを報告します。
+
+| 場所 | 直し方 |
+|---|---|
+| 比較演算子(`=`、`<>`、`!=`、`<`、`>`、`<=`、`>=`、`&lt;` などの実体参照も)や `LIKE` のすぐあと | `#{name}` に置き換える(クイックフィックスあり) |
+| `'%${name}%'` のような文字列リテラルの中 | 引用符の外に出して `'%' \|\| #{name} \|\| '%'` |
+| `IN (${ids})` の括弧のすぐ中 | `<foreach>` と `#{item}` でリストを作る |
+
+次の場合は報告しません。
+
+- 値の型が数値(int、Long、BigDecimal など)や boolean だとわかる。SQL を書き換える文字列にならないため。
+  型は `numeric-empty-string-comparison` と同じく、引数の型か引数の Bean のフィールドの型から決めます
+- `${@com.example.Const@VALUE}` のような定数の参照
+- SQL のコメントの中、`<if test>` などの属性の中(OGNL で、SQL ではない)
+
 ## 手動確認
 
 ```sh
@@ -69,3 +94,6 @@ java -jar build/libs/analyzer.jar ../fixtures/sql-pitfalls
 
 `SearchMapper.xml` の `searchInvalid` に、error 1 件と warning 2 件が出ます。
 同じ条件を正しく書いた `searchValid` には出ません。
+
+`${...}` の警告は `fixtures/dollar-substitution` で確認できます。`ProductMapper.xml` の
+`searchInvalid` に warning が 3 件出て、`searchValid` には出ません。

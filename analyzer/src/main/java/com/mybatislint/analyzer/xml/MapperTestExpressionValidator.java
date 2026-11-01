@@ -2,20 +2,18 @@ package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
-import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
+import com.mybatislint.analyzer.xml.ParameterTypeLookup.StatementContext;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -38,9 +36,7 @@ public final class MapperTestExpressionValidator {
 
     private static final Set<String> STATEMENT_TAGS = Set.of("select", "insert", "update", "delete");
     private static final Set<String> CHAR_TYPES = Set.of("char", "Character");
-    private static final Set<String> NUMERIC_TYPES = Set.of(
-            "int", "long", "short", "byte", "double", "float",
-            "Integer", "Long", "Short", "Byte", "Double", "Float", "BigDecimal", "BigInteger", "Number");
+    private static final Set<String> NUMERIC_TYPES = ParameterTypeLookup.NUMERIC_TYPES;
 
     private static final String OPERAND = "([A-Za-z_$][A-Za-z0-9_$]*(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*)";
     private static final String OPERATOR = "(==|!=|\\beq\\b|\\bneq\\b)";
@@ -53,11 +49,11 @@ public final class MapperTestExpressionValidator {
     private static final Pattern EMPTY_LEFT = Pattern.compile("''\\s*" + OPERATOR + "\\s*" + OPERAND);
 
     private final JavaMapperIndex javaIndex;
-    private final JavaTypeIndex typeIndex;
+    private final ParameterTypeLookup types;
 
     public MapperTestExpressionValidator(JavaMapperIndex javaIndex, JavaTypeIndex typeIndex) {
         this.javaIndex = javaIndex == null ? JavaMapperIndex.empty() : javaIndex;
-        this.typeIndex = typeIndex == null ? JavaTypeIndex.empty() : typeIndex;
+        this.types = new ParameterTypeLookup(typeIndex == null ? JavaTypeIndex.empty() : typeIndex);
     }
 
     public List<Diagnostic> validate(Path actualFile, Path displayFile, String uri) {
@@ -111,7 +107,7 @@ public final class MapperTestExpressionValidator {
             Matcher matcher = pattern.matcher(test);
             while (matcher.find()) {
                 String literal = "'" + matcher.group(matcher.groupCount()) + "'";
-                if (!isOneOf(CHAR_TYPES, operandType(matcher.group(1), context))) {
+                if (!isOneOf(CHAR_TYPES, types.typeOf(matcher.group(1), context))) {
                     findings.add(new Finding(literal, true));
                 }
             }
@@ -119,7 +115,7 @@ public final class MapperTestExpressionValidator {
         Matcher left = CHAR_LEFT.matcher(test);
         while (left.find()) {
             String literal = "'" + left.group(1) + "'";
-            if (!isOneOf(CHAR_TYPES, operandType(left.group(3), context))) {
+            if (!isOneOf(CHAR_TYPES, types.typeOf(left.group(3), context))) {
                 findings.add(new Finding(literal, true));
             }
         }
@@ -127,7 +123,7 @@ public final class MapperTestExpressionValidator {
             Matcher matcher = pattern.matcher(test);
             while (matcher.find()) {
                 String operand = pattern == EMPTY_RIGHT ? matcher.group(1) : matcher.group(2);
-                if (isOneOf(NUMERIC_TYPES, operandType(operand, context))) {
+                if (isOneOf(NUMERIC_TYPES, types.typeOf(operand, context))) {
                     findings.add(new Finding(matcher.group(), false));
                 }
             }
@@ -162,77 +158,13 @@ public final class MapperTestExpressionValidator {
                         + "' is also false when the value is 0; remove the '' comparison.");
     }
 
-    /**
-     * 比べる相手の型の simple name。引数の型か、引数の Bean のフィールドの型から決める。
-     * {@code <bind>} や {@code <foreach>} の変数と同じ名前や、決められない場合は null。
-     */
-    private String operandType(String operand, StatementContext context) {
-        String[] parts = operand.split("\\.");
-        if (parts.length > 2 || context.method() == null || context.scopedNames().contains(parts[0])) {
-            return null;
-        }
-        MapperMethodInfo method = context.method();
-        if (method.isSingleUnannotatedParameter()) {
-            String parameterType = simpleName(method.getParameterTypes().get(0));
-            if (parts.length == 1 && (NUMERIC_TYPES.contains(parameterType) || CHAR_TYPES.contains(parameterType))) {
-                // 単純型の引数 1 つなら、どの名前でも値そのものを指す。
-                return parameterType;
-            }
-            String qualifiedName = typeIndex.resolveJavaTypeName(method.getParameterTypes().get(0));
-            return parts.length == 1 && qualifiedName != null ? typeIndex.findFieldTypeName(qualifiedName, parts[0]) : null;
-        }
-        String parameterType = method.namedParameterTypes().get(parts[0]);
-        if (parameterType == null) {
-            return null;
-        }
-        if (parts.length == 1) {
-            return simpleName(parameterType);
-        }
-        String qualifiedName = typeIndex.resolveJavaTypeName(parameterType);
-        return qualifiedName == null ? null : typeIndex.findFieldTypeName(qualifiedName, parts[1]);
-    }
-
     // Set.of の contains は null を渡すと例外になる。型がわからない(null)ときは false にする。
     private static boolean isOneOf(Set<String> types, String type) {
         return type != null && types.contains(type);
     }
 
-    private static String simpleName(String type) {
-        String name = type.contains("<") ? type.substring(0, type.indexOf('<')) : type;
-        return name.trim().substring(name.trim().lastIndexOf('.') + 1);
-    }
-
     private static int findStartTag(String xml, String tag, int from) {
         Matcher matcher = Pattern.compile("<" + Pattern.quote(tag) + "(?=[\\s>/])").matcher(xml);
         return matcher.find(from) ? matcher.start() : -1;
-    }
-
-    /** statement ごとの情報。Java の Mapper メソッドが決まらなければ method は null。 */
-    private record StatementContext(MapperMethodInfo method, Set<String> scopedNames) {
-
-        static StatementContext of(Element statement, MapperInterfaceInfo mapperInterface) {
-            MapperMethodInfo method = mapperInterface == null ? null
-                    : mapperInterface.resolveMethod(statement.getAttribute("id"));
-            Set<String> scoped = new HashSet<>();
-            collectScopedNames(statement, scoped);
-            return new StatementContext(method, scoped);
-        }
-
-        private static void collectScopedNames(Element element, Set<String> scoped) {
-            NodeList children = element.getChildNodes();
-            for (int i = 0; i < children.getLength(); i++) {
-                Node node = children.item(i);
-                if (!(node instanceof Element child)) {
-                    continue;
-                }
-                if ("bind".equals(child.getTagName())) {
-                    scoped.add(child.getAttribute("name"));
-                } else if ("foreach".equals(child.getTagName())) {
-                    scoped.add(child.getAttribute("item"));
-                    scoped.add(child.getAttribute("index"));
-                }
-                collectScopedNames(child, scoped);
-            }
-        }
     }
 }

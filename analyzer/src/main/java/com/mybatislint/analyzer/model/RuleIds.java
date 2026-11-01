@@ -61,6 +61,8 @@ public final class RuleIds {
     public static final String EMPTY_DYNAMIC_CLAUSE = "mybatis-lint/empty-dynamic-clause";
     // INSERT INTO t (列, ...) の列の数と、VALUES / SELECT の値の数が合わないもの(ORA-00947 / ORA-00913)。
     public static final String INSERT_COLUMN_COUNT = "mybatis-lint/insert-column-count";
+    // 値を書く場所(比較のあと、文字列の中、IN の括弧の中)の ${...}。SQL インジェクションの危険がある。
+    public static final String UNSAFE_DOLLAR_SUBSTITUTION = "mybatis-lint/unsafe-dollar-substitution";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";
