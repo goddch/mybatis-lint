@@ -47,6 +47,12 @@ reference (`refid`, `resultMap`, `extends`, `<association>`/`<collection>`
 also renames the Java mapper method; with a Java extension installed its
 callers are renamed too.
 
+**CodeLens** shows small links above definitions: how many places use each
+`<sql>` and `<resultMap>` ("3 references"), the Java method of each statement
+("Java: UserMapper.findById"), and above each Java mapper method the statement
+it runs ("XML: UserMapper.xml"). Clicking one opens the places in a peek view
+(`mybatisLint.codeLens` turns them off).
+
 **Hover** over `#{name}`, `#{user.name}` or an `AS` alias to see its Java type
 and where it comes from (a mapper method parameter or a property of a class),
 over `resultType` / `parameterType` / `type` to see the class's properties, and

@@ -298,3 +298,27 @@ export function javaResultMapOccurrences(text: string, target: MapperSymbol): Ar
   }
   return found;
 }
+
+/** `kind namespace.id`, a key for counting occurrences of the same symbol across files. */
+export function symbolKey(symbol: MapperSymbol): string {
+  return `${symbol.kind} ${symbol.namespace}.${symbol.id}`;
+}
+
+/**
+ * All occurrences in several mapper XML files, grouped by symbol, so CodeLens can count references
+ * with one pass over the workspace instead of one per definition.
+ */
+export function occurrencesBySymbol<T>(
+  files: Array<{ file: T; text: string }>,
+): Map<string, Array<SymbolOccurrence & { file: T }>> {
+  const bySymbol = new Map<string, Array<SymbolOccurrence & { file: T }>>();
+  for (const { file, text } of files) {
+    for (const occurrence of symbolOccurrences(text, undefined)) {
+      const key = symbolKey(occurrence);
+      const list = bySymbol.get(key) ?? [];
+      list.push({ start: occurrence.start, end: occurrence.end, definition: occurrence.definition, file });
+      bySymbol.set(key, list);
+    }
+  }
+  return bySymbol;
+}
