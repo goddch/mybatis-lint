@@ -37,6 +37,7 @@ java -jar build/libs/analyzer.jar ../fixtures   # 誤りを含む fixture があ
 cd vscode-extension
 npm install
 npm run compile && npm run lint && npm test
+xvfb-run -a npm run test:e2e                # 実際の VS Code を起動して試す(e2e/。画面のない Linux では xvfb-run が要る)
 
 # 配布用パッケージ（Java ランタイム同梱。jar のビルド後に実行）
 JAVA_HOME=/path/to/jdk-17 npm run bundle

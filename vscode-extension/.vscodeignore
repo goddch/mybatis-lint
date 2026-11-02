@@ -2,6 +2,9 @@
 src/**
 test/**
 out/test/**
+out/e2e/**
+e2e/**
+.vscode-test/**
 scripts/**
 **/*.map
 **/*.ts

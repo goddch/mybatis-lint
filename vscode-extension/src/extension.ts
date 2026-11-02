@@ -519,7 +519,8 @@ class SqlPreview implements vscode.Disposable {
   private lastSql = '';
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  async show(): Promise<void> {
+  /** Opens or reveals the panel; returns the SQL it shows (the end-to-end tests read it). */
+  async show(): Promise<string> {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside, true);
     } else {
@@ -554,6 +555,7 @@ class SqlPreview implements vscode.Disposable {
     if (editor) {
       this.follow(editor);
     }
+    return this.lastSql;
   }
 
   dispose(): void {

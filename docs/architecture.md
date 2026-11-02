@@ -98,6 +98,10 @@ if the output shape grows significantly more complex, revisit this decision.
   modification time or size changed (`AnalyzerCli.Caches`). If the server
   fails, `extension.ts` runs the analyzer once for that check instead, and
   stops using the server after two failures in a row.
+- `e2e/` — end-to-end tests: `runTest.ts` starts a real VS Code with the
+  extension and the small workspace in `e2e/workspace`, and `suite/index.ts`
+  checks definitions, hover, completion, references, rename, CodeLens and the
+  SQL preview through VS Code's own commands. CI runs them under `xvfb-run`.
 - `src/parseAnalyzerOutput.ts` — parses/validates the analyzer's JSON.
 - `src/diagnosticsMapper.ts` — pure conversion from the analyzer's 1-based
   JSON schema to 0-based, VS-Code-shaped diagnostics, grouped by file URI.
