@@ -157,3 +157,144 @@ function maskJavaComments(text: string): string {
 function escape(name: string): string {
   return name.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 }
+
+// ---------------------------------------------------------------------------
+// Symbols for "Find All References", rename and CodeLens.
+
+/** A `<sql>`, `<resultMap>` or statement, by namespace and id. */
+export interface MapperSymbol {
+  kind: XmlReference['kind'];
+  namespace: string;
+  id: string;
+}
+
+/** Where a symbol's id is written: `start`/`end` cover only the id, not a namespace prefix. */
+export interface SymbolOccurrence {
+  start: number;
+  end: number;
+  /** The `id` attribute of the definition itself, rather than a reference to it. */
+  definition: boolean;
+}
+
+/**
+ * The symbol under `offset` in mapper XML: a reference (`refid`, `resultMap`, `extends`,
+ * `select` of a nested mapping) or a definition's `id`.
+ */
+export function symbolAt(text: string, offset: number): (MapperSymbol & { start: number; end: number }) | undefined {
+  const namespace = mapperNamespace(text);
+  if (!namespace) {
+    return undefined;
+  }
+  return symbolOccurrences(text, undefined).find(
+    (occurrence) => occurrence.start <= offset && offset <= occurrence.end,
+  );
+}
+
+/**
+ * Every definition and reference in a mapper XML file, or only those of `target`.
+ * References written with a namespace (`other.Mapper.columns`) resolve to that namespace.
+ */
+export function symbolOccurrences(
+  text: string,
+  target: MapperSymbol | undefined,
+): Array<MapperSymbol & SymbolOccurrence> {
+  const ownNamespace = mapperNamespace(text);
+  if (!ownNamespace) {
+    return [];
+  }
+  const found: Array<MapperSymbol & SymbolOccurrence> = [];
+  const element = /<([\w-]+)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+  let tag: RegExpExecArray | null;
+  while ((tag = element.exec(text)) !== null) {
+    const tagName = tag[1];
+    const attribute = /([\w-]+)\s*=\s*(["'])(.*?)\2/gs;
+    let match: RegExpExecArray | null;
+    while ((match = attribute.exec(tag[2])) !== null) {
+      const valueStart = tag.index + 1 + tagName.length + match.index + match[0].length - 1 - match[3].length;
+      const kind = symbolKind(tagName, match[1]);
+      if (!kind || match[3].includes('${')) {
+        continue;
+      }
+      const definition = match[1] === 'id';
+      // resultMap="a,b" lists several ids.
+      const items = definition ? [[0, match[3].length]] : commaItems(match[3]);
+      for (const [itemStart, itemEnd] of items) {
+        const raw = match[3].slice(itemStart, itemEnd);
+        const leading = raw.length - raw.trimStart().length;
+        const value = raw.trim();
+        if (value.length === 0) {
+          continue;
+        }
+        // A definition's id may be written with its namespace too (statements accept it).
+        const symbol = definition && value.startsWith(`${ownNamespace}.`)
+          ? { namespace: ownNamespace, id: value.slice(ownNamespace.length + 1) }
+          : definition ? { namespace: ownNamespace, id: value } : qualify(value, ownNamespace);
+        const idStart = valueStart + itemStart + leading + value.length - symbol.id.length;
+        if (target && (target.kind !== kind || target.namespace !== symbol.namespace || target.id !== symbol.id)) {
+          continue;
+        }
+        found.push({ kind, ...symbol, start: idStart, end: idStart + symbol.id.length, definition });
+      }
+    }
+  }
+  return found;
+}
+
+/** What an attribute names, if it names a mapper symbol. */
+function symbolKind(tagName: string, attribute: string): XmlReference['kind'] | undefined {
+  if (attribute === 'id') {
+    return STATEMENT_TAGS.has(tagName) ? 'statement' : tagName === 'sql' ? 'sql' : tagName === 'resultMap' ? 'resultMap' : undefined;
+  }
+  if (attribute === 'refid' && tagName === 'include') {
+    return 'sql';
+  }
+  if (attribute === 'resultMap' || (attribute === 'extends' && tagName === 'resultMap')) {
+    return 'resultMap';
+  }
+  // <association select="..."> and <collection select="..."> run another statement.
+  if (attribute === 'select' && (tagName === 'association' || tagName === 'collection')) {
+    return 'statement';
+  }
+  return undefined;
+}
+
+function commaItems(value: string): Array<[number, number]> {
+  const items: Array<[number, number]> = [];
+  let start = 0;
+  for (let i = 0; i <= value.length; i++) {
+    if (i === value.length || value[i] === ',') {
+      items.push([start, i]);
+      start = i + 1;
+    }
+  }
+  return items;
+}
+
+/**
+ * `@ResultMap("id")` / `@ResultMap({"a", "ns.b"})` values in a Java mapper interface that refer
+ * to `target`, as the offsets of the id inside the string literal.
+ */
+export function javaResultMapOccurrences(text: string, target: MapperSymbol): Array<{ start: number; end: number }> {
+  if (target.kind !== 'resultMap') {
+    return [];
+  }
+  // A short id in @ResultMap belongs to the mapper interface's own namespace.
+  const interfaceName = /\binterface\s+([\w$]+)/.exec(text)?.[1];
+  const packageName = /\bpackage\s+([\w$.]+)\s*;/.exec(text)?.[1];
+  const namespace = interfaceName && (packageName ? `${packageName}.${interfaceName}` : interfaceName);
+  if (!namespace) {
+    return [];
+  }
+  const found: Array<{ start: number; end: number }> = [];
+  for (const annotation of text.matchAll(/@ResultMap\s*\(([^)]*)\)/g)) {
+    const argumentsStart = (annotation.index ?? 0) + annotation[0].indexOf('(') + 1;
+    for (const literal of annotation[1].matchAll(/"([^"\\]*)"/g)) {
+      const symbol = qualify(literal[1].trim(), namespace);
+      if (symbol.namespace === target.namespace && symbol.id === target.id) {
+        const start = argumentsStart + (literal.index ?? 0) + 1 + literal[1].length - symbol.id.length;
+        found.push({ start, end: start + symbol.id.length });
+      }
+    }
+  }
+  return found;
+}
