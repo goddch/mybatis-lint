@@ -77,7 +77,11 @@
         },
         "mybatisLint.insertColumnHints": {
           "type": "string",
-          "enum": ["all", "differentNames", "off"],
+          "enum": [
+            "all",
+            "differentNames",
+            "off"
+          ],
           "enumDescriptions": [
             "Show the column names at the end of every line that has values.",
             "Show it only where the value's own name differs from the column, such as #{amount} for NOTE.",
@@ -114,9 +118,10 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
-    "lint": "eslint src test",
+    "lint": "eslint src test e2e",
     "pretest": "npm run compile",
     "test": "node --test out/test/*.test.js",
+    "test:e2e": "node out/e2e/runTest.js",
     "bundle": "bash scripts/prepare-bundle.sh",
     "package": "vsce package"
   },
@@ -125,6 +130,7 @@
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/test-electron": "2.5.2",
     "@vscode/vsce": "4.0.0",
     "eslint": "^10.0.0",
     "typescript": "^5.9.3"

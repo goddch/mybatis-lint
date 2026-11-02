@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.UserMapper">
+  <sql id="columns">u.USER_ID AS userId, u.USER_NAME AS userName</sql>
+  <resultMap id="userMap" type="com.example.User"/>
+
+  <select id="findById" resultMap="userMap">
+    SELECT <include refid="columns"/> FROM users u WHERE u.USER_ID = #{userId}
+  </select>
+
+  <select id="search" resultType="com.example.User">
+    SELECT <include refid="columns"/>
+      FROM users u
+    <where>
+      <if test="name != null">AND u.USER_NAME = #{name}</if>
+      <if test="ids != null">AND u.USER_ID IN
+        <foreach collection="ids" item="id" open="(" separator=", " close=")">#{id}</foreach>
+      </if>
+    </where>
+  </select>
+</mapper>

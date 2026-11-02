@@ -30,6 +30,8 @@ analyzer/.gradle/
 
 # Node / TypeScript
 vscode-extension/node_modules/
+# VS Code downloaded by the end-to-end tests.
+vscode-extension/.vscode-test/
 vscode-extension/out/
 vscode-extension/*.vsix
 vscode-extension/jre/

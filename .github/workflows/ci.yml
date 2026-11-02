@@ -56,3 +56,5 @@ jobs:
       - run: npm run compile
       - run: npm run lint
       - run: npm test
+      # Starts a real VS Code with the extension; xvfb-run gives it a display on the runner.
+      - run: xvfb-run -a npm run test:e2e

@@ -7,7 +7,7 @@ module.exports = [
     ignores: ['out/**', 'node_modules/**', '.vscode-test/**'],
   },
   {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts', 'e2e/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
