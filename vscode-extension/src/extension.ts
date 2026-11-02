@@ -25,6 +25,8 @@ type Trigger = 'command' | 'save';
 
 interface CheckContext {
   extensionPath: string;
+  /** The installed extension version, logged with every check so it is easy to tell which build is running. */
+  version: string;
   diagnosticCollection: vscode.DiagnosticCollection;
   output: vscode.OutputChannel;
   suggestions: SuggestionStore;
@@ -43,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const suggestions = new SuggestionStore();
   const checkContext: CheckContext = {
     extensionPath: context.extensionPath,
+    version: String((context.extension.packageJSON as { version?: unknown }).version ?? 'unknown'),
     diagnosticCollection,
     output,
     suggestions,
@@ -365,7 +368,10 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
   const excludes = stringArraySetting(config, 'exclude');
   const disabledRules = stringArraySetting(config, 'disabledRules');
 
-  log(output, `Checking ${workspaceFolder.uri.fsPath} (${trigger === 'save' ? 'on save' : 'command'})`);
+  log(
+    output,
+    `Checking ${workspaceFolder.uri.fsPath} (${trigger === 'save' ? 'on save' : 'command'}, MyBatis Lint ${checkContext.version})`,
+  );
   log(output, `  Java: ${javaPath}`);
   log(output, `  Analyzer: ${jarPath}`);
   if (excludes.length > 0) {

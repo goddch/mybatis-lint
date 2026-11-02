@@ -23,7 +23,7 @@ installing, open a folder containing mapper XML and run
 **MyBatis Lint: Check Workspace** from the Command Palette. Results appear in
 the Problems panel, and the workspace is checked again whenever a mapper XML
 or Java file is saved (`mybatisLint.runOnSave`). **MyBatis Lint: Show Log**
-shows what each run did: files analyzed, time taken, and skipped folders.
+shows what each run did: the extension version, files analyzed, time taken, and skipped folders.
 
 When a misspelled name has exactly one close match, the message ends with
 "Did you mean 'userName'?" and the lightbulb offers a quick fix that replaces
