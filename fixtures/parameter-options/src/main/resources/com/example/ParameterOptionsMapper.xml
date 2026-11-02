@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ParameterOptionsMapper">
+  <!--
+    MyBatis は jdbcType を JdbcType.valueOf で読むので、varchar(小文字)も VARCHR(綴りの誤り)も
+    読み込み時にエラーになる。jdbctype= のようなオプション名の誤りも同じ。4 件とも error。
+  -->
+  <resultMap id="orderMap" type="map">
+    <result property="note" column="NOTE" jdbcType="VARCHR"/>
+  </resultMap>
+
+  <select id="findInvalid" resultMap="orderMap">
+    SELECT o.NOTE FROM orders o
+     WHERE o.CUSTOMER_NAME = #{customerName,jdbcType=varchar}
+       AND o.ORDER_ID = #{orderId, jdbctype=NUMERIC}
+       AND o.STATUS = #{status,mode=OUTPUT}
+  </select>
+
+  <select id="findValid" resultMap="orderMap">
+    SELECT o.NOTE FROM orders o
+     WHERE o.CUSTOMER_NAME = #{customerName,jdbcType=VARCHAR}
+       AND o.ORDER_ID = #{orderId:NUMERIC}
+       AND o.AMOUNT = #{amount,jdbcType=DECIMAL,numericScale=2}
+  </select>
+</mapper>
