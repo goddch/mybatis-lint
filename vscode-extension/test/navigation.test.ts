@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { findJavaMethod, findXmlIds, javaMethodAt, mapperNamespace, xmlReferenceAt } from '../src/navigation';
+import {
+  findJavaMethod,
+  findXmlIds,
+  javaMethodAt,
+  javaResultMapOccurrences,
+  mapperNamespace,
+  symbolAt,
+  symbolOccurrences,
+  xmlReferenceAt,
+} from '../src/navigation';
 
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <mapper namespace="com.example.UserMapper">
@@ -127,4 +136,57 @@ test('treats names with regular expression characters literally', () => {
   assert.equal(findJavaMethod('interface A { int a$b(); }', 'a$b'), 'interface A { int '.length);
   assert.equal(findJavaMethod('interface A { int ab(); }', 'a.b'), -1);
   assert.equal(findJavaMethod('interface A { int ab(); }', 'a\\b'), -1);
+});
+
+const SYMBOLS = `<mapper namespace="a.UserMapper">
+  <sql id="columns">ID</sql>
+  <resultMap id="base" type="map"/>
+  <resultMap id="detail" type="map" extends="base">
+    <collection property="items" select="findItems" resultMap="a.UserMapper.base"/>
+  </resultMap>
+  <select id="find" resultMap="detail, base">SELECT <include refid="columns"/>, <include refid="b.Other.columns"/></select>
+  <select id="a.UserMapper.findItems" resultType="map">SELECT 1</select>
+</mapper>`;
+
+/** Each occurrence as "text at the range" plus "*" for definitions. */
+function show(text: string, occurrences: Array<{ start: number; end: number; definition?: boolean }>): string[] {
+  return occurrences.map((o) => text.slice(o.start, o.end) + (o.definition ? '*' : '') + '@' + o.start);
+}
+
+test('finds every definition and reference of a symbol, resolving namespaces', () => {
+  const base = symbolOccurrences(SYMBOLS, { kind: 'resultMap', namespace: 'a.UserMapper', id: 'base' });
+  assert.deepEqual(show(SYMBOLS, base).map((s) => s.split('@')[0]), ['base*', 'base', 'base', 'base']);
+  // In resultMap="a.UserMapper.base" only the id part is covered.
+  assert.equal(SYMBOLS.slice(base[2].start - 13, base[2].end), 'a.UserMapper.base');
+
+  const columns = symbolOccurrences(SYMBOLS, { kind: 'sql', namespace: 'a.UserMapper', id: 'columns' });
+  assert.deepEqual(show(SYMBOLS, columns).map((s) => s.split('@')[0]), ['columns*', 'columns']);
+  assert.deepEqual(
+    symbolOccurrences(SYMBOLS, { kind: 'sql', namespace: 'b.Other', id: 'columns' }).map((o) => o.definition),
+    [false],
+  );
+
+  // A statement id written with its namespace, and <collection select> referring to it.
+  const findItems = symbolOccurrences(SYMBOLS, { kind: 'statement', namespace: 'a.UserMapper', id: 'findItems' });
+  assert.deepEqual(show(SYMBOLS, findItems).map((s) => s.split('@')[0]), ['findItems', 'findItems*']);
+});
+
+test('reads the symbol under the cursor, on definitions and references alike', () => {
+  assert.deepEqual(
+    (({ kind, namespace, id }) => ({ kind, namespace, id }))(symbolAt(SYMBOLS, SYMBOLS.indexOf('detail, base') + 2)!),
+    { kind: 'resultMap', namespace: 'a.UserMapper', id: 'detail' },
+  );
+  assert.equal(symbolAt(SYMBOLS, SYMBOLS.indexOf('id="columns"') + 5)?.kind, 'sql');
+  assert.equal(symbolAt(SYMBOLS, SYMBOLS.indexOf('SELECT 1')), undefined);
+});
+
+test('finds @ResultMap values in Java that refer to a resultMap', () => {
+  const java = `package a;
+public interface UserMapper {
+    @ResultMap("base") User find();
+    @ResultMap({"a.UserMapper.base", "other"}) User find2();
+}`;
+  const found = javaResultMapOccurrences(java, { kind: 'resultMap', namespace: 'a.UserMapper', id: 'base' });
+  assert.deepEqual(found.map((o) => java.slice(o.start, o.end)), ['base', 'base']);
+  assert.equal(java.slice(found[1].start - 13, found[1].end), 'a.UserMapper.base');
 });

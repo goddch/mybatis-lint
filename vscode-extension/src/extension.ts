@@ -11,7 +11,18 @@ import { parseJavaType } from './javaSource';
 import type { JavaType } from './javaSource';
 import { completionsAt, hoverAt } from './mapperAssist';
 import type { JavaLookup } from './mapperAssist';
-import { findJavaMethod, findXmlIds, javaMethodAt, mapperNamespace, TARGET_TAGS, xmlReferenceAt } from './navigation';
+import {
+  findJavaMethod,
+  findXmlIds,
+  javaMethodAt,
+  javaResultMapOccurrences,
+  mapperNamespace,
+  symbolAt,
+  symbolOccurrences,
+  TARGET_TAGS,
+  xmlReferenceAt,
+} from './navigation';
+import type { MapperSymbol } from './navigation';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { SuggestionStore } from './quickFixes';
@@ -76,6 +87,22 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const mapperXml: vscode.DocumentSelector = { scheme: 'file', pattern: '**/*.xml' };
+  context.subscriptions.push(
+    vscode.languages.registerReferenceProvider(mapperXml, {
+      provideReferences: (document, position, referenceContext) =>
+        symbolReferences(document, position, referenceContext.includeDeclaration),
+    }),
+    vscode.languages.registerRenameProvider(mapperXml, {
+      prepareRename: (document, position) => {
+        const symbol = symbolAt(document.getText(), document.offsetAt(position));
+        if (!symbol) {
+          throw new Error('MyBatis Lint can rename <sql>, <resultMap> and statement ids, and references to them.');
+        }
+        return new vscode.Range(document.positionAt(symbol.start), document.positionAt(symbol.end));
+      },
+      provideRenameEdits: (document, position, newName) => renameSymbol(document, position, newName),
+    }),
+  );
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(mapperXml, {
       provideHover: async (document, position) => {
@@ -238,6 +265,127 @@ async function readJavaTypes(simpleName: string): Promise<JavaType[]> {
     }
   }
   return types;
+}
+
+/** Mapper XML files in the workspace with their text; open documents are read from the editor. */
+async function workspaceXmlFiles(): Promise<Array<{ uri: vscode.Uri; text: string }>> {
+  const files: Array<{ uri: vscode.Uri; text: string }> = [];
+  for (const uri of await vscode.workspace.findFiles('**/*.xml', NAVIGATION_EXCLUDE)) {
+    const open = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === uri.toString());
+    const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+    if (text.includes('<mapper')) {
+      files.push({ uri, text });
+    }
+  }
+  return files;
+}
+
+/** The Java mapper interface of a namespace, if it is in the workspace. */
+async function mapperInterfaceDocument(namespace: string): Promise<vscode.TextDocument | undefined> {
+  const [file] = await vscode.workspace.findFiles(`**/${namespace.replace(/\./g, '/')}.java`, NAVIGATION_EXCLUDE, 1);
+  return file ? vscode.workspace.openTextDocument(file) : undefined;
+}
+
+/** Every place a symbol is written: XML definitions and references, @ResultMap values, the Java method. */
+async function symbolLocations(symbol: MapperSymbol, includeDeclaration: boolean): Promise<vscode.Location[]> {
+  const locations: vscode.Location[] = [];
+  for (const file of await workspaceXmlFiles()) {
+    if (!file.text.includes(symbol.id)) {
+      continue;
+    }
+    const occurrences = symbolOccurrences(file.text, symbol).filter((occurrence) => includeDeclaration || !occurrence.definition);
+    if (occurrences.length > 0) {
+      const document = await vscode.workspace.openTextDocument(file.uri);
+      for (const occurrence of occurrences) {
+        locations.push(new vscode.Location(file.uri, new vscode.Range(document.positionAt(occurrence.start), document.positionAt(occurrence.end))));
+      }
+    }
+  }
+  const java = await mapperInterfaceDocument(symbol.namespace);
+  if (java && symbol.kind === 'resultMap') {
+    for (const occurrence of javaResultMapOccurrences(java.getText(), symbol)) {
+      locations.push(new vscode.Location(java.uri, new vscode.Range(java.positionAt(occurrence.start), java.positionAt(occurrence.end))));
+    }
+  }
+  if (java && symbol.kind === 'statement' && includeDeclaration) {
+    const offset = findJavaMethod(java.getText(), symbol.id);
+    if (offset >= 0) {
+      locations.push(new vscode.Location(java.uri, java.positionAt(offset)));
+    }
+  }
+  return locations;
+}
+
+async function symbolReferences(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  includeDeclaration: boolean,
+): Promise<vscode.Location[]> {
+  const symbol = symbolAt(document.getText(), document.offsetAt(position));
+  return symbol ? symbolLocations(symbol, includeDeclaration) : [];
+}
+
+/**
+ * Renames a <sql>, <resultMap> or statement id with every reference to it. For a statement the Java
+ * method is renamed too, through the Java extension when one is installed so that its callers follow.
+ */
+async function renameSymbol(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  newName: string,
+): Promise<vscode.WorkspaceEdit | undefined> {
+  const symbol = symbolAt(document.getText(), document.offsetAt(position));
+  if (!symbol) {
+    return undefined;
+  }
+  if (!/^[A-Za-z_$][\w$]*$/.test(newName)) {
+    throw new Error(`'${newName}' cannot be used as an id; use letters, digits, _ and $.`);
+  }
+  const edit = new vscode.WorkspaceEdit();
+  const target: MapperSymbol = { kind: symbol.kind, namespace: symbol.namespace, id: symbol.id };
+  for (const location of await symbolLocations(target, true)) {
+    const isJavaMethod = location.uri.fsPath.endsWith('.java') && symbol.kind === 'statement';
+    if (!isJavaMethod) {
+      edit.replace(location.uri, location.range, newName);
+    }
+  }
+  if (symbol.kind === 'statement') {
+    await renameJavaMethod(target, newName, edit);
+  }
+  return edit;
+}
+
+async function renameJavaMethod(symbol: MapperSymbol, newName: string, edit: vscode.WorkspaceEdit): Promise<void> {
+  const java = await mapperInterfaceDocument(symbol.namespace);
+  const offset = java ? findJavaMethod(java.getText(), symbol.id) : -1;
+  if (!java || offset < 0) {
+    return;
+  }
+  const position = java.positionAt(offset);
+  let javaEdit: vscode.WorkspaceEdit | undefined;
+  try {
+    javaEdit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
+      'vscode.executeDocumentRenameProvider',
+      java.uri,
+      position,
+      newName,
+    );
+  } catch {
+    javaEdit = undefined;
+  }
+  if (javaEdit && javaEdit.size > 0) {
+    for (const [uri, edits] of javaEdit.entries()) {
+      for (const textEdit of edits) {
+        edit.replace(uri, textEdit.range, textEdit.newText);
+      }
+    }
+    return;
+  }
+  // Without a Java language extension, only the declaration can be renamed.
+  edit.replace(java.uri, new vscode.Range(position, position.translate(0, symbol.id.length)), newName);
+  void vscode.window.showWarningMessage(
+    `MyBatis Lint renamed ${symbol.id} in the mapper interface only; callers in Java were not updated (no Java extension answered the rename).`,
+  );
 }
 
 // After this many server failures in a row, stop using it until VS Code restarts.

@@ -39,6 +39,14 @@ from a statement's `id` to the Java mapper method and back, from
 references to other files. It reads the files directly, so it works without a
 check or a save.
 
+**Find All References** (Shift+F12) on a `<sql>` / `<resultMap>` id, a
+statement id or a reference to one lists every place it is used, across files
+and in Java `@ResultMap`. **Rename** (F2) changes the id together with every
+reference (`refid`, `resultMap`, `extends`, `<association>`/`<collection>`
+`select`, `@ResultMap`), keeping namespace prefixes. Renaming a statement id
+also renames the Java mapper method; with a Java extension installed its
+callers are renamed too.
+
 **Hover** over `#{name}`, `#{user.name}` or an `AS` alias to see its Java type
 and where it comes from (a mapper method parameter or a property of a class),
 over `resultType` / `parameterType` / `type` to see the class's properties, and
