@@ -52,7 +52,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
                 </mapper>
                 """);
 
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         List<Diagnostic> diagnostics = aliases(result.getDiagnostics());
         assertEquals(5, diagnostics.size());
         List<Integer> lineNumbers = List.of(6, 7, 9, 13, 14);
@@ -103,7 +103,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
                 </mapper>
                 """);
 
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertTrue(result.getDiagnostics().isEmpty());
         assertFalse(result.hasErrors());
     }
@@ -125,7 +125,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -142,7 +142,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertEquals(1, aliases(result.getDiagnostics()).size());
         assertTrue(aliases(result.getDiagnostics()).get(0).getMessage().contains("MissingKind"));
         assertEquals(1, result.getDiagnostics().stream()
@@ -178,7 +178,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        List<Diagnostic> diagnostics = aliases(new AnalyzerCli().run(workspace).getDiagnostics());
+        List<Diagnostic> diagnostics = aliases(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics());
         assertEquals(2, diagnostics.size());
         assertTrue(diagnostics.get(0).getMessage().contains("MissingKind"));
         assertTrue(diagnostics.get(1).getMessage().contains("MissingCase"));
@@ -190,7 +190,7 @@ class MapperDiscriminatorTypeAliasValidationTest {
                 <mapper namespace="example.Mapper">
                     <resultMap id="Base" type="map"><discriminator javaType="MissingKind">
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertEquals(1, result.getDiagnostics().size());
         assertEquals(RuleIds.MALFORMED_XML, result.getDiagnostics().get(0).getRuleId());
         assertTrue(result.hasErrors());

@@ -79,6 +79,9 @@ CLI exit non-zero. Everything else is a `warning`.
 | `constructor-column-count` | error | a `<select resultType>` whose class has no no-arg constructor (for example Lombok `@Data` with only `final` fields) and fewer columns than its only constructor takes; MyBatis passes the columns to the constructor by position, so this fails at run time ([details](docs/constructor-mapping-validation.md)) |
 | `constructor-positional-binding` | warning | for such a class with a Lombok-generated constructor, a field with no column of its name: it silently keeps the value of whichever column is at its position, so a misspelled alias can pass tests while the column order happens to match ([details](docs/constructor-mapping-validation.md)) |
 | `result-map-column-not-selected` | warning | a resultMap `column` missing from the SELECT list of the only `<select>` that uses the resultMap, so the property stays null ([details](docs/result-map-validation.md#columns-missing-from-the-select-list)) |
+| `unused-sql-fragment` | warning | a `<sql>` that no `<include refid>` in the workspace uses ([details](docs/unused-definition-validation.md)) |
+| `unused-result-map` | warning | a `<resultMap>` that no statement, nested mapping, `extends` or Java `@ResultMap` uses ([details](docs/unused-definition-validation.md)) |
+| `statement-without-method` | warning | a statement whose mapper interface has no method of that name, as after renaming a method; skipped when the interface is not in the workspace, extends another interface, or the id appears as a string in Java ([details](docs/unused-definition-validation.md)) |
 | `unresolved-result-map-extends` | warning | `<resultMap extends>` pointing to a resultMap that does not exist |
 | `result-map-inheritance-cycle` | warning | resultMaps whose `extends` chain loops |
 | `unresolved-statement-result-map` | warning | a statement's `resultMap` pointing to a resultMap that does not exist |

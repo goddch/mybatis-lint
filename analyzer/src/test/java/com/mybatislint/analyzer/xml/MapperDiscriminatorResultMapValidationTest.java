@@ -61,7 +61,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -80,7 +80,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         List<Diagnostic> warnings = discriminatorDiagnostics(result.getDiagnostics());
         assertEquals(3, warnings.size());
         assertEquals(List.of(4, 5, 7), warnings.stream()
@@ -117,7 +117,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -136,7 +136,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        List<Diagnostic> warnings = discriminatorDiagnostics(new AnalyzerCli().run(workspace).getDiagnostics());
+        List<Diagnostic> warnings = discriminatorDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics());
         assertEquals(1, warnings.size());
         assertEquals(9, warnings.get(0).getRange().getStart().getLine());
         assertEquals(Files.readAllLines(file).get(8).indexOf("Missing") + 1,
@@ -162,7 +162,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        assertEquals(4, discriminatorDiagnostics(new AnalyzerCli().run(workspace).getDiagnostics()).size());
+        assertEquals(4, discriminatorDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics()).size());
     }
 
     @Test
@@ -178,7 +178,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     <resultMap id="Base" type="string"/>
                 </mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertTrue(discriminatorDiagnostics(result.getDiagnostics()).isEmpty());
         assertEquals(2, result.getDiagnostics().stream()
                 .filter(d -> RuleIds.DUPLICATE_RESULT_MAP_ID.equals(d.getRuleId())).count());
@@ -197,7 +197,7 @@ class MapperDiscriminatorResultMapValidationTest {
         write("Blank.xml", "<mapper namespace=\" \">" + content + "</mapper>");
         write("Dynamic.xml", "<mapper namespace=\"${ns}\">" + content + "</mapper>");
         write("Config.xml", "<configuration>" + content + "</configuration>");
-        assertTrue(discriminatorDiagnostics(new AnalyzerCli().run(workspace).getDiagnostics()).isEmpty());
+        assertTrue(discriminatorDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics()).isEmpty());
     }
 
     @Test
@@ -218,7 +218,7 @@ class MapperDiscriminatorResultMapValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertTrue(result.hasErrors());
         assertTrue(discriminatorDiagnostics(result.getDiagnostics()).isEmpty());
         assertEquals(1, result.getDiagnostics().stream()

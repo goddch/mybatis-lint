@@ -47,7 +47,7 @@ class MapperResultMapExtendsValidationTest {
                     <resultMap id="Leaf" type="map" extends="example.Mapper.Base"/>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -62,7 +62,7 @@ class MapperResultMapExtendsValidationTest {
                     <resultMap id="Remote" type="map" extends="other.Mapper.Missing"/>
                 </mapper>
                 """);
-        List<Diagnostic> warnings = extendsDiagnostics(new AnalyzerCli().run(workspace));
+        List<Diagnostic> warnings = extendsDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace));
         assertEquals(2, warnings.size());
         assertEquals("Mapper.xml", warnings.get(0).getFile().toString());
         assertEquals(file.toUri().toString(), warnings.get(0).getUri());
@@ -73,7 +73,7 @@ class MapperResultMapExtendsValidationTest {
         assertTrue(warnings.get(0).getMessage().contains("NoSuchParent"));
         assertTrue(warnings.get(1).getMessage().contains("other.Mapper.Missing"));
         assertTrue(warnings.stream().allMatch(d -> d.getSeverity() == Severity.WARNING));
-        assertTrue(!new AnalyzerCli().run(workspace).hasErrors());
+        assertTrue(!TestAnalyzers.ignoringUnusedDefinitions().run(workspace).hasErrors());
     }
 
     @Test
@@ -95,7 +95,7 @@ class MapperResultMapExtendsValidationTest {
                     <resultMap id="Sibling" type="map" extends="Shared"/>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -106,7 +106,7 @@ class MapperResultMapExtendsValidationTest {
                     <resultMap id="Middle" type="map" extends="MissingBase"/>
                 </mapper>
                 """);
-        List<Diagnostic> warnings = extendsDiagnostics(new AnalyzerCli().run(workspace));
+        List<Diagnostic> warnings = extendsDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace));
         assertEquals(1, warnings.size());
         assertEquals(3, warnings.get(0).getRange().getStart().getLine());
         assertTrue(warnings.get(0).getMessage().contains("MissingBase"));
@@ -126,7 +126,7 @@ class MapperResultMapExtendsValidationTest {
                     <resultMap id="Other" type="map" extends="Base"/>
                 </mapper>
                 """);
-        assertEquals(2, extendsDiagnostics(new AnalyzerCli().run(workspace)).size());
+        assertEquals(2, extendsDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace)).size());
     }
 
     @Test
@@ -150,7 +150,7 @@ class MapperResultMapExtendsValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        assertTrue(extendsDiagnostics(new AnalyzerCli().run(workspace)).isEmpty());
+        assertTrue(extendsDiagnostics(TestAnalyzers.ignoringUnusedDefinitions().run(workspace)).isEmpty());
     }
 
     @Test
@@ -163,7 +163,7 @@ class MapperResultMapExtendsValidationTest {
                     <resultMap id="Base" type="map"/>
                 </mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertTrue(result.hasErrors());
         assertTrue(extendsDiagnostics(result).isEmpty());
     }

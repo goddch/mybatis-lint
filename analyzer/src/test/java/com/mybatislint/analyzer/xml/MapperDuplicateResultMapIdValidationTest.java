@@ -87,13 +87,13 @@ class MapperDuplicateResultMapIdValidationTest {
                     <resultMap id="Child" type="map" extends="Base"/>
                 </mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertEquals(2, result.getDiagnostics().size());
         assertEquals(List.of("First.xml", "Second.xml"), duplicates(result.getDiagnostics()).stream()
                 .map(d -> d.getFile().toString()).sorted().toList());
         assertTrue(result.hasErrors());
         assertEquals(result.getDiagnostics().stream().map(Diagnostic::getMessage).toList(),
-                new AnalyzerCli().run(workspace).getDiagnostics().stream().map(Diagnostic::getMessage).toList());
+                TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().stream().map(Diagnostic::getMessage).toList());
     }
 
     @Test
@@ -109,7 +109,7 @@ class MapperDuplicateResultMapIdValidationTest {
         write("Second.xml", """
                 <mapper namespace="other.Mapper"><resultMap id="Base" type="map"/></mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertTrue(result.getDiagnostics().isEmpty());
         assertFalse(result.hasErrors());
     }
@@ -132,7 +132,7 @@ class MapperDuplicateResultMapIdValidationTest {
                     </resultMap>
                 </mapper>
                 """);
-        assertTrue(new AnalyzerCli().run(workspace).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -142,7 +142,7 @@ class MapperDuplicateResultMapIdValidationTest {
         write("Blank.xml", "<mapper namespace=\" \">" + declarations + "</mapper>");
         write("Dynamic.xml", "<mapper namespace=\"${ns}\">" + declarations + "</mapper>");
         write("Config.xml", "<configuration namespace=\"example.Mapper\">" + declarations + "</configuration>");
-        assertTrue(duplicates(new AnalyzerCli().run(workspace).getDiagnostics()).isEmpty());
+        assertTrue(duplicates(TestAnalyzers.ignoringUnusedDefinitions().run(workspace).getDiagnostics()).isEmpty());
     }
 
     @Test
@@ -151,7 +151,7 @@ class MapperDuplicateResultMapIdValidationTest {
         write("Valid.xml", """
                 <mapper namespace="example.Mapper"><resultMap id="Base" type="map"/></mapper>
                 """);
-        AnalyzerCli.Result result = new AnalyzerCli().run(workspace);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(workspace);
         assertTrue(result.hasErrors());
         assertTrue(duplicates(result.getDiagnostics()).isEmpty());
         assertEquals(1, result.getDiagnostics().size());

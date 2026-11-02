@@ -107,6 +107,9 @@ public final class JavaMapperIndex {
                 info.duplicated = true;
             }
             interfacesByQualifiedName.put(fqcn, info);
+            if (!type.getExtendedTypes().isEmpty()) {
+                info.extendsOtherInterfaces = true;
+            }
             for (MethodDeclaration method : type.getMethods()) {
                 MapperMethodInfo methodInfo = MapperMethodInfo.from(method);
                 if (methodInfo != null) {
@@ -157,6 +160,8 @@ public final class JavaMapperIndex {
         private final Map<String, List<MapperMethodInfo>> methodsByName = new HashMap<>();
         private final List<DeclaredMethod> declaredMethods = new ArrayList<>();
         private boolean duplicated;
+        // ほかのインターフェースを extends しているか。メソッドが親(ライブラリのものかもしれない)にある。
+        private boolean extendsOtherInterfaces;
 
         private MapperInterfaceInfo(String qualifiedName, Path file) {
             this.qualifiedName = qualifiedName;
@@ -175,6 +180,11 @@ public final class JavaMapperIndex {
         /** 同じ FQCN のインターフェースが複数のソースにあるか。 */
         public boolean isDuplicated() {
             return duplicated;
+        }
+
+        /** ほかのインターフェースを extends しているか(継承したメソッドは declaredMethods にない)。 */
+        public boolean extendsOtherInterfaces() {
+            return extendsOtherInterfaces;
         }
 
         public String getQualifiedName() {
