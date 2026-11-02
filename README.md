@@ -57,7 +57,9 @@ many times `<foreach>` repeats in the panel. Parameters can be written as
 `?`, or with values typed into the panel; **Copy SQL** copies the result.
 With **Pick branches from values** on, the `test` conditions are evaluated
 with the typed values (following OGNL, so `type == 'A'` never matches the
-String "A", as in MyBatis); branches that cannot be decided keep your choice. See
+String "A", as in MyBatis); branches that cannot be decided keep your choice.
+The panel follows the VS Code display language (English or Japanese;
+`mybatisLint.previewLanguage` fixes one). See
 [`docs/sql-preview.md`](docs/sql-preview.md).
 
 **CodeLens** shows small links above definitions: how many places use each

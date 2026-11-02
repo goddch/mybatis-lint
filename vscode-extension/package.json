@@ -70,6 +70,17 @@
           "default": true,
           "description": "Show how many places use each <sql> and <resultMap>, and links between statements and Java mapper methods, above their definitions."
         },
+        "mybatisLint.previewLanguage": {
+          "type": "string",
+          "enum": ["auto", "en", "ja"],
+          "enumDescriptions": [
+            "Follow the VS Code display language.",
+            "English.",
+            "Japanese (日本語)."
+          ],
+          "default": "auto",
+          "description": "Language of the SQL preview panel."
+        },
         "mybatisLint.keepAnalyzerRunning": {
           "type": "boolean",
           "default": true,

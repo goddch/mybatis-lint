@@ -176,3 +176,13 @@ test('keeps the manual choice where a test cannot be decided, and offers test-on
     ['name', 'type', 'deleted'],
   );
 });
+
+test('shows the SQL each branch adds', () => {
+  const controls = preview('search').controls;
+  assert.equal(controls[0].snippet, "AND u.NAME LIKE '%' || #{name} || '%'");
+  assert.deepEqual(controls[2].optionSnippets, ["AND u.TYPE = 'A'", "AND u.TYPE IN ('B', 'C')"]);
+  assert.equal(controls[3].snippet, '#{id}');
+  const long = previewStatement(parseXml(`<select id="x"><if test="a">${'x'.repeat(100)}</if></select>`)!, 'a', fragments);
+  assert.equal(long.controls[0].snippet?.length, 80);
+  assert.ok(long.controls[0].snippet?.endsWith('…'));
+});

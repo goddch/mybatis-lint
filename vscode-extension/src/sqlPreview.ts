@@ -24,6 +24,10 @@ export interface PreviewControl {
   label: string;
   /** For `<choose>`: the `test` of each `<when>`, then "otherwise" if there is one. */
   options?: string[];
+  /** The SQL the branch adds, shortened, so the user can see what switching it changes. */
+  snippet?: string;
+  /** For `<choose>`: the SQL each branch adds, in the order of `options`. */
+  optionSnippets?: string[];
   /** How deep the branch is nested in other branches, for indenting the controls. */
   depth: number;
   /** When branches are picked from values: the `<if>` result, if the test could be decided. */
@@ -130,7 +134,14 @@ function renderNode(node: XmlNode, key: string, depth: number, context: RenderCo
   switch (node.name) {
     case 'if': {
       const decided = context.auto ? decide(attribute('test'), context) : undefined;
-      context.controls.push({ key, kind: 'if', label: attribute('test'), depth, ...(decided !== undefined ? { decided } : {}) });
+      context.controls.push({
+        key,
+        kind: 'if',
+        label: attribute('test'),
+        depth,
+        snippet: snippet(node),
+        ...(decided !== undefined ? { decided } : {}),
+      });
       const enabled = decided ?? context.choices.ifs?.[key] !== false;
       return enabled ? renderChildren(node, `${key}.`, depth + 1, context) : '';
     }
@@ -142,6 +153,7 @@ function renderNode(node: XmlNode, key: string, depth: number, context: RenderCo
         kind: 'choose',
         label: 'choose',
         options: branches.map((branch) => (branch.name === 'when' ? branch.attributes.get('test') ?? '' : 'otherwise')),
+        optionSnippets: branches.map(snippet),
         depth,
         ...(decidedIndex !== undefined ? { decidedIndex } : {}),
       });
@@ -172,6 +184,19 @@ function renderNode(node: XmlNode, key: string, depth: number, context: RenderCo
     default:
       return renderChildren(node, `${key}.`, depth, context);
   }
+}
+
+const SNIPPET_LENGTH = 80;
+
+/**
+ * The text an element adds, as written (nested tags left out, `#{...}` kept), on one line and
+ * shortened. Shown under each branch in the panel.
+ */
+function snippet(element: XmlElement): string {
+  const text = (function collect(node: XmlElement): string {
+    return node.children.map((child) => (child.kind === 'text' ? child.text : ` ${collect(child)} `)).join('');
+  })(element).replace(/\s+/g, ' ').trim();
+  return text.length > SNIPPET_LENGTH ? `${text.slice(0, SNIPPET_LENGTH - 1)}…` : text;
 }
 
 /**
@@ -264,7 +289,7 @@ function parameterKey(name: string): string {
 
 function renderForeach(node: XmlElement, key: string, depth: number, context: RenderContext): string {
   const collection = node.attributes.get('collection') ?? '';
-  context.controls.push({ key, kind: 'foreach', label: collection, depth });
+  context.controls.push({ key, kind: 'foreach', label: collection, depth, snippet: snippet(node) });
   const count = Math.max(0, context.choices.foreachCounts?.[key] ?? DEFAULT_FOREACH_COUNT);
   const items: string[] = [];
   for (let iteration = 0; iteration < count; iteration++) {
