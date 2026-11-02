@@ -39,6 +39,16 @@ from a statement's `id` to the Java mapper method and back, from
 references to other files. It reads the files directly, so it works without a
 check or a save.
 
+**Hover** over `#{name}`, `#{user.name}` or an `AS` alias to see its Java type
+and where it comes from (a mapper method parameter or a property of a class),
+over `resultType` / `parameterType` / `type` to see the class's properties, and
+over a statement `id` to see the Java method's signature. **Completion** offers
+the names `#{` can use (parameters, or the properties of a single bean
+parameter, and the properties after `name.`), resultType properties after
+`AS`, and the file's `<sql>` / `<resultMap>` ids in `refid`, `resultMap` and
+`extends`. Both read the Java sources directly; when a type or method cannot
+be found, nothing is shown.
+
 In `<insert>` statements, the editor also shows which `INSERT INTO t (...)`
 column each `VALUES (...)` value or `SELECT` item goes to, as faint text at the
 end of the line, lined up within each statement (`mybatisLint.insertColumnHints`:
