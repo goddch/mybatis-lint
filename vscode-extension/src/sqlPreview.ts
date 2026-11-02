@@ -12,6 +12,8 @@
  */
 
 import { childElements } from './mapperXml';
+import { evaluateTest, valueFromSql } from './ognlLite';
+import type { OgnlValue } from './ognlLite';
 import type { XmlElement, XmlNode } from './mapperXml';
 
 /** A branch the user can switch: identified by its position, so choices survive edits elsewhere. */
@@ -24,6 +26,10 @@ export interface PreviewControl {
   options?: string[];
   /** How deep the branch is nested in other branches, for indenting the controls. */
   depth: number;
+  /** When branches are picked from values: the `<if>` result, if the test could be decided. */
+  decided?: boolean;
+  /** When branches are picked from values: the chosen branch of `<choose>` (-1: none), if decided. */
+  decidedIndex?: number;
 }
 
 export interface PreviewChoices {
@@ -43,6 +49,8 @@ export interface PreviewParameter {
   key: string;
   /** `${...}` is pasted into the SQL as is, so it needs a value to run. */
   dollar: boolean;
+  /** Only used in `test` conditions, not written into the SQL. */
+  testOnly?: boolean;
 }
 
 export interface PreviewResult {
@@ -77,6 +85,10 @@ interface RenderContext {
   properties: Record<string, string>;
   /** Fragments being expanded, to stop an include that includes itself. */
   including: string[];
+  /** Decide `<if>` / `<choose>` from the typed values where the test can be evaluated. */
+  auto: boolean;
+  /** Collection names of the statement's `<foreach>` and how many times each repeats. */
+  collectionSizes: Map<string, number>;
 }
 
 export function previewStatement(
@@ -86,6 +98,7 @@ export function previewStatement(
   choices: PreviewChoices = {},
   style: ParameterStyle = 'named',
   values: Record<string, string> = {},
+  auto = false,
 ): PreviewResult {
   const context: RenderContext = {
     namespace,
@@ -98,6 +111,8 @@ export function previewStatement(
     foreach: [],
     properties: {},
     including: [],
+    auto,
+    collectionSizes: collectionSizes(statement, '', choices),
   };
   const raw = renderChildren(statement, '', 0, context);
   return { sql: tidy(raw), controls: context.controls, parameters: [...context.parameters.values()] };
@@ -114,19 +129,24 @@ function renderNode(node: XmlNode, key: string, depth: number, context: RenderCo
   const attribute = (name: string) => node.attributes.get(name) ?? '';
   switch (node.name) {
     case 'if': {
-      context.controls.push({ key, kind: 'if', label: attribute('test'), depth });
-      return context.choices.ifs?.[key] === false ? '' : renderChildren(node, `${key}.`, depth + 1, context);
+      const decided = context.auto ? decide(attribute('test'), context) : undefined;
+      context.controls.push({ key, kind: 'if', label: attribute('test'), depth, ...(decided !== undefined ? { decided } : {}) });
+      const enabled = decided ?? context.choices.ifs?.[key] !== false;
+      return enabled ? renderChildren(node, `${key}.`, depth + 1, context) : '';
     }
     case 'choose': {
       const branches = childElements(node).filter((branch) => branch.name === 'when' || branch.name === 'otherwise');
+      const decidedIndex = context.auto ? decideBranch(branches, context) : undefined;
       context.controls.push({
         key,
         kind: 'choose',
         label: 'choose',
         options: branches.map((branch) => (branch.name === 'when' ? branch.attributes.get('test') ?? '' : 'otherwise')),
         depth,
+        ...(decidedIndex !== undefined ? { decidedIndex } : {}),
       });
-      const chosen = branches[Math.min(context.choices.chooses?.[key] ?? 0, branches.length - 1)];
+      const index = decidedIndex ?? Math.min(context.choices.chooses?.[key] ?? 0, branches.length - 1);
+      const chosen = branches[index];
       return chosen ? renderChildren(chosen, `${key}.${node.children.indexOf(chosen)}.`, depth + 1, context) : '';
     }
     case 'foreach':
@@ -152,6 +172,94 @@ function renderNode(node: XmlNode, key: string, depth: number, context: RenderCo
     default:
       return renderChildren(node, `${key}.`, depth, context);
   }
+}
+
+/**
+ * The `<if>` result from the typed values, or undefined to keep the user's choice. Names used in
+ * the test are offered as parameters, so the user can type their values.
+ */
+function decide(test: string, context: RenderContext): boolean | undefined {
+  for (const name of testNames(test)) {
+    const key = parameterKey(name);
+    if (!context.parameters.has(key) && !context.collectionSizes.has(name)) {
+      context.parameters.set(key, { key, dollar: false, testOnly: true });
+    }
+  }
+  return evaluateTest(test, (path) => lookup(path, context));
+}
+
+/** The first `<when>` whose test is true, the `<otherwise>` if none is (-1 without one), or undefined. */
+function decideBranch(branches: XmlElement[], context: RenderContext): number | undefined {
+  for (let i = 0; i < branches.length; i++) {
+    if (branches[i].name === 'otherwise') {
+      return i;
+    }
+    const result = decide(branches[i].attributes.get('test') ?? '', context);
+    if (result === undefined) {
+      return undefined;
+    }
+    if (result) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** A value for a name in a test: what the user typed, or the size chosen for a `<foreach>` collection. */
+function lookup(path: string, context: RenderContext): OgnlValue | undefined {
+  // Inside <foreach>, the item and index have no typed value.
+  if (context.foreach.some((scope) => [scope.item, scope.index].includes(path.split('.')[0]))) {
+    return undefined;
+  }
+  const typed = valueFromSql(context.values[parameterKey(path)] ?? '');
+  if (typed !== undefined) {
+    return typed;
+  }
+  const size = context.collectionSizes.get(path);
+  return size === undefined ? undefined : { list: size };
+}
+
+const TEST_KEYWORDS = new Set(['and', 'or', 'not', 'eq', 'neq', 'lt', 'gt', 'lte', 'gte', 'null', 'true', 'false']);
+
+/** Names a test reads: `user.name` in `user.name != null`, `ids` in `ids.size() > 0`. */
+function testNames(test: string): string[] {
+  const withoutStrings = test.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, ' ');
+  const names = new Set<string>();
+  for (const match of withoutStrings.matchAll(/[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*(\s*\()?/g)) {
+    let name = match[0].replace(/\s+/g, '');
+    if (match[1]) {
+      // A call such as ids.size(): the name is what it is called on.
+      name = name.slice(0, name.lastIndexOf('.'));
+    }
+    if (name.length > 0 && !name.includes('(') && !TEST_KEYWORDS.has(name)) {
+      names.add(name);
+    }
+  }
+  return [...names];
+}
+
+/** Each `<foreach>` collection and its repeat count, so tests such as `ids.size() > 0` can use it. */
+function collectionSizes(element: XmlElement, keyPrefix: string, choices: PreviewChoices): Map<string, number> {
+  const sizes = new Map<string, number>();
+  element.children.forEach((child, index) => {
+    if (child.kind !== 'element') {
+      return;
+    }
+    const key = `${keyPrefix}${index}`;
+    if (child.name === 'foreach') {
+      const collection = child.attributes.get('collection') ?? '';
+      sizes.set(collection, Math.max(0, choices.foreachCounts?.[key] ?? DEFAULT_FOREACH_COUNT));
+    }
+    for (const [name, size] of collectionSizes(child, `${key}.`, choices)) {
+      sizes.set(name, size);
+    }
+  });
+  return sizes;
+}
+
+/** The name used for `:name` and typed values: `user.name` → `user_name`, `ids[0]` → `ids_0`. */
+function parameterKey(name: string): string {
+  return name.replace(/\[(\d+)\]/g, '_$1').replace(/[^\w$]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 function renderForeach(node: XmlElement, key: string, depth: number, context: RenderContext): string {
@@ -228,9 +336,9 @@ function renderText(text: string, context: RenderContext): string {
     if (resolved.literal !== undefined) {
       return resolved.literal;
     }
-    const key = resolved.name.replace(/\[(\d+)\]/g, '_$1').replace(/[^\w$]+/g, '_').replace(/^_+|_+$/g, '');
+    const key = parameterKey(resolved.name);
     const dollar = sign === '$';
-    if (!context.parameters.has(key)) {
+    if (!context.parameters.has(key) || context.parameters.get(key)?.testOnly) {
       context.parameters.set(key, { key, dollar });
     }
     const value = context.values[key];

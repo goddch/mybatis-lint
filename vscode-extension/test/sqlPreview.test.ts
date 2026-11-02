@@ -122,3 +122,57 @@ test('keeps string literals as written when tidying spaces', () => {
   const result = previewStatement(parseXml("<select id=\"x\">SELECT 'a   b'   FROM dual</select>")!, 'a.UserMapper', fragments);
   assert.equal(result.sql, "SELECT 'a   b' FROM dual");
 });
+
+const AUTO = parseXml(`<select id="auto">
+  SELECT * FROM users
+  <where>
+    <if test="name != null and name != ''">AND NAME = #{name}</if>
+    <if test="status != null and status != ''">AND STATUS = #{status}</if>
+    <if test="ids != null and ids.size() > 0">AND ID IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></if>
+    <choose>
+      <when test="type == 'A'">AND TYPE = 'A'</when>
+      <when test='type == "B"'>AND TYPE = 'B'</when>
+      <otherwise>AND TYPE IS NULL</otherwise>
+    </choose>
+    <if test="deleted">AND DELETED = 1</if>
+  </where>
+</select>`)!;
+
+function auto(values: Record<string, string>, choices: PreviewChoices = {}) {
+  return previewStatement(AUTO, 'a.UserMapper', fragments, choices, 'values', values, true);
+}
+
+test('picks branches from typed values, the way OGNL evaluates the tests', () => {
+  const result = auto({ name: "'yama'", status: '0', type: "'B'", deleted: 'false' }, { foreachCounts: { '1.5.1': 0 } });
+  // status 0 compared with '' counts as 0, so that <if> is false, as in MyBatis.
+  assert.equal(result.sql, `SELECT * FROM users
+WHERE NAME = 'yama'
+  AND TYPE = 'B'`);
+  assert.deepEqual(
+    result.controls.map((control) => [control.kind, control.decided ?? control.decidedIndex]),
+    [['if', true], ['if', false], ['if', false], ['choose', 1], ['if', false]],
+  );
+});
+
+test("shows that type == 'A' never matches the String \"A\"", () => {
+  const result = auto({ type: "'A'" });
+  // Neither <when> matches the String "A", so <otherwise> is used.
+  assert.equal(result.controls.find((control) => control.kind === 'choose')?.decidedIndex, 2);
+  assert.match(result.sql, /TYPE IS NULL/);
+  assert.doesNotMatch(result.sql, /TYPE = 'A'/);
+});
+
+test('keeps the manual choice where a test cannot be decided, and offers test-only names', () => {
+  const result = auto({}, { ifs: { '1.1': false } });
+  const ifs = result.controls.filter((control) => control.kind === 'if');
+  // Nothing typed: name, status and deleted are unknown; ids uses the <foreach> count (2).
+  assert.deepEqual(ifs.map((control) => control.decided), [undefined, undefined, true, undefined]);
+  assert.doesNotMatch(result.sql, /NAME = /);
+  assert.match(result.sql, /ID IN \(:ids_0,:ids_1\)/);
+  assert.equal(result.controls.find((control) => control.kind === 'choose')?.decidedIndex, undefined);
+  assert.deepEqual(
+    result.parameters.filter((parameter) => parameter.testOnly).map((parameter) => parameter.key),
+    // #{name} is in the <if> switched off, so name is only read by the test.
+    ['name', 'type', 'deleted'],
+  );
+});

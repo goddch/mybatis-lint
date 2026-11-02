@@ -37,6 +37,7 @@ export function sqlPreviewHtml(nonce: string, cspSource: string): string {
   pre { background: var(--vscode-textCodeBlock-background); padding: 10px; white-space: pre-wrap; word-break: break-word;
     font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); }
   .note { color: var(--vscode-descriptionForeground); font-size: 0.9em; }
+  .decided { color: var(--vscode-descriptionForeground); font-size: 0.9em; }
 </style>
 </head>
 <body>
@@ -64,24 +65,38 @@ function element(tag, properties, children) {
 }
 
 function send() {
-  vscode.postMessage({ type: 'update', choices: state.choices, style: state.style, values: state.values });
+  vscode.postMessage({ type: 'update', choices: state.choices, style: state.style, values: state.values, auto: state.auto });
 }
 
 function controlRow(control) {
   const row = element('div', { className: 'control' });
   row.style.paddingLeft = (control.depth * 16) + 'px';
+  // A branch decided from the typed values cannot be switched by hand.
+  const decidedNote = element('span', { className: 'decided', textContent: '(from values)' });
   if (control.kind === 'if') {
-    const box = element('input', { type: 'checkbox', checked: state.choices.ifs[control.key] !== false });
+    const decided = control.decided !== undefined;
+    const box = element('input', { type: 'checkbox', checked: decided ? control.decided : state.choices.ifs[control.key] !== false, disabled: decided });
     box.addEventListener('change', () => { state.choices.ifs[control.key] = box.checked; send(); });
     row.append(element('span', { className: 'kind', textContent: '<if>' }), box, element('code', { textContent: control.label }));
+    if (decided) {
+      row.append(decidedNote);
+    }
   } else if (control.kind === 'choose') {
-    const select = element('select');
+    const decided = control.decidedIndex !== undefined;
+    const select = element('select', { disabled: decided });
     control.options.forEach((option, index) => select.append(element('option', { value: String(index), textContent: index === control.options.length - 1 && option === 'otherwise' ? '<otherwise>' : '<when> ' + option })));
-    select.value = String(state.choices.chooses[control.key] || 0);
+    if (control.decidedIndex === -1) {
+      select.append(element('option', { value: '-1', textContent: '(no branch matches)' }));
+    }
+    select.value = String(decided ? control.decidedIndex : state.choices.chooses[control.key] || 0);
     select.addEventListener('change', () => { state.choices.chooses[control.key] = Number(select.value); send(); });
     row.append(element('span', { className: 'kind', textContent: '<choose>' }), select);
+    if (decided) {
+      row.append(decidedNote);
+    }
   } else {
     const count = element('input', { type: 'number', min: '0', max: '20', value: String(state.choices.foreachCounts[control.key] ?? 2) });
+    count.dataset.focusKey = 'foreach:' + control.key;
     count.addEventListener('input', () => { state.choices.foreachCounts[control.key] = Math.max(0, Math.min(20, Number(count.value) || 0)); send(); });
     row.append(element('span', { className: 'kind', textContent: '<foreach>' }), element('code', { textContent: control.label }), count, element('span', { textContent: 'times' }));
   }
@@ -99,16 +114,28 @@ function styleRow() {
   return row;
 }
 
+function autoRow() {
+  const box = element('input', { type: 'checkbox', checked: state.auto });
+  box.addEventListener('change', () => { state.auto = box.checked; send(); });
+  return element('div', { className: 'control' }, [element('label', {}, [box, ' Pick branches from values (evaluates the test conditions with the values below, as OGNL does)'])]);
+}
+
+function showsInput(parameter) {
+  return state.style === 'values' || state.auto || parameter.dollar;
+}
+
 function parameterRows() {
   const rows = [];
   for (const parameter of state.parameters) {
-    if (state.style !== 'values' && !parameter.dollar) {
+    if (!showsInput(parameter)) {
       continue;
     }
     const input = element('input', { type: 'text', value: state.values[parameter.key] || '',
-      placeholder: parameter.dollar ? 'pasted into the SQL as is, e.g. u.ID DESC' : "e.g. 'abc', 123, DATE '2026-01-31'" });
+      placeholder: parameter.dollar ? 'pasted into the SQL as is, e.g. u.ID DESC' : "e.g. 'abc', 123, NULL, true" });
+    input.dataset.focusKey = 'parameter:' + parameter.key;
     input.addEventListener('input', () => { state.values[parameter.key] = input.value; send(); });
-    rows.push(element('div', { className: 'parameter' }, [element('label', { textContent: (parameter.dollar ? '$' : ':') + parameter.key }), input]));
+    const name = (parameter.dollar ? '$' : ':') + parameter.key + (parameter.testOnly ? ' (test)' : '');
+    rows.push(element('div', { className: 'parameter' }, [element('label', { textContent: name }), input]));
   }
   return rows;
 }
@@ -122,13 +149,30 @@ function draw() {
     root.append(element('fieldset', {}, [element('legend', { textContent: 'Branches' }), ...state.controls.map(controlRow)]));
   }
   const parameters = parameterRows();
-  root.append(element('fieldset', {}, [element('legend', { textContent: 'Parameters' }), styleRow(), ...parameters]));
+  root.append(element('fieldset', {}, [element('legend', { textContent: 'Parameters' }), styleRow(), autoRow(), ...parameters]));
   const copied = element('span', { className: 'copied' });
   const copy = element('button', { textContent: 'Copy SQL' });
   copy.addEventListener('click', () => { vscode.postMessage({ type: 'copy' }); copied.textContent = 'Copied'; setTimeout(() => { copied.textContent = ''; }, 1500); });
   root.append(element('div', { className: 'toolbar' }, [copy, copied]));
   root.append(element('pre', { id: 'sql', textContent: state.sql }));
-  root.append(element('p', { className: 'note', textContent: 'Conditions are not evaluated: choose the branches above. Generated as MyBatis would assemble it; <bind> variables are left as parameters.' }));
+  root.append(element('p', { className: 'note', textContent: 'Choose the branches above, or let the typed values decide them. Generated as MyBatis would assemble it; <bind> variables are left as parameters.' }));
+}
+
+/** Redraws, keeping the focus and caret in the input the user is typing in. */
+function redraw() {
+  const active = document.activeElement;
+  const focusKey = active && active.dataset ? active.dataset.focusKey : undefined;
+  const selection = focusKey && active.type === 'text' ? [active.selectionStart, active.selectionEnd] : undefined;
+  draw();
+  if (focusKey) {
+    const input = root.querySelector('[data-focus-key="' + CSS.escape(focusKey) + '"]');
+    if (input) {
+      input.focus();
+      if (selection) {
+        input.setSelectionRange(selection[0], selection[1]);
+      }
+    }
+  }
 }
 
 window.addEventListener('message', (event) => {
@@ -145,13 +189,13 @@ window.addEventListener('message', (event) => {
   state = message.statement;
   // While the user types a value or a count, only the SQL changes; redrawing the controls
   // would take the focus away from the input.
-  const inputs = state.parameters.filter((parameter) => state.style === 'values' || parameter.dollar);
-  const next = JSON.stringify([state.title, state.file, state.style, state.controls, inputs]);
+  const inputs = state.parameters.filter(showsInput);
+  const next = JSON.stringify([state.title, state.file, state.style, state.auto, state.controls, inputs]);
   if (next === signature && document.getElementById('sql')) {
     document.getElementById('sql').textContent = state.sql;
   } else {
     signature = next;
-    draw();
+    redraw();
   }
 });
 
