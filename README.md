@@ -269,7 +269,7 @@ them as workflow artifacts. Pushing a `v*` tag additionally attaches them to a
 GitHub Release (the tag must match the `package.json` version), then tries to
 publish them to the Marketplace (publisher `goddch`) with
 `vsce publish --oidc` (OIDC trusted publishing, no stored token). This is still
-experimental in vsce 4.0.0; if that job fails, the VSIX files on the Release are
+experimental in vsce; if that job fails, the VSIX files on the Release are
 uploaded manually on the Marketplace management page.
 
 ## License

@@ -72,7 +72,11 @@
         },
         "mybatisLint.previewLanguage": {
           "type": "string",
-          "enum": ["auto", "en", "ja"],
+          "enum": [
+            "auto",
+            "en",
+            "ja"
+          ],
           "enumDescriptions": [
             "Follow the VS Code display language.",
             "English.",
@@ -142,7 +146,7 @@
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "@vscode/test-electron": "2.5.2",
-    "@vscode/vsce": "4.0.0",
+    "@vscode/vsce": "4.1.0",
     "eslint": "^10.0.0",
     "typescript": "^5.9.3"
   },
