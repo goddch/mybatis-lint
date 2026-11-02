@@ -13,6 +13,7 @@ import com.mybatislint.analyzer.xml.MapperDuplicateStatementValidator;
 import com.mybatislint.analyzer.xml.MapperMethodStatementValidator;
 import com.mybatislint.analyzer.xml.MapperResultMapColumnValidator;
 import com.mybatislint.analyzer.xml.MapperStatementIndex;
+import com.mybatislint.analyzer.xml.MapperUnusedDefinitionValidator;
 import com.mybatislint.analyzer.xml.MapperXmlAnalyzer;
 import com.mybatislint.analyzer.xml.MybatisConfigAliases;
 import com.mybatislint.analyzer.xml.XmlSources;
@@ -143,6 +144,9 @@ public final class AnalyzerCli {
                 .validate(file -> relativize(workspaceRoot, file)));
         // resultMap がどの select から使われているかは、ワークスペース全体を見ないとわからない。
         diagnostics.addAll(new MapperResultMapColumnValidator(mapperFiles)
+                .validate(file -> relativize(workspaceRoot, file)));
+        // 使われているかどうかは、ワークスペースのすべての XML と Java を見ないとわからない。
+        diagnostics.addAll(new MapperUnusedDefinitionValidator(mapperFiles, javaIndex, javaSources)
                 .validate(file -> relativize(workspaceRoot, file)));
         // 止められたルールや抑制コメントの対象は、どのルールでも同じ扱いにするため最後にまとめて除く。
         return new Result(new DiagnosticFilter(disabledRules).apply(diagnostics), mapperFileCount);

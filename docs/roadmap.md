@@ -45,6 +45,9 @@ working in user-facing docs until they land:
 - **INSERT column hints for dynamic statements.** Column hints and
   `insert-column-count` skip INSERT statements whose column list or values
   contain `<if>`, `<include>` or `<foreach>`.
+- **Unused definitions across modules.** `unused-sql-fragment`,
+  `unused-result-map` and `statement-without-method` only see the opened
+  workspace; definitions used from another repository or jar are reported.
 - **Broader resultMap validation.** Inferring collection element types,
   following referenced nested mappings and inherited (`extends`) properties,
   and checking type compatibility and discriminator values. These are all

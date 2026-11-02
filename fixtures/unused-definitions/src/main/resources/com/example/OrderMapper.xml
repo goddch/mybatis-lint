@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.OrderMapper">
+  <sql id="orderColumns">o.ORDER_ID, o.CUSTOMER_NAME</sql>
+
+  <!-- どの <include> からも使われていない(warning)。 -->
+  <sql id="legacyColumns">o.ORDER_ID, o.CUSTOMER_NAME, o.OLD_STATUS</sql>
+
+  <!-- どの statement からも使われていない(warning)。 -->
+  <resultMap id="legacyOrderMap" type="map">
+    <id property="orderId" column="ORDER_ID"/>
+  </resultMap>
+
+  <select id="findAll" resultType="map">
+    SELECT <include refid="orderColumns"/> FROM orders o
+  </select>
+
+  <!-- Java のメソッドは findByCustomer に名前が変わっている(warning)。 -->
+  <select id="findByCustomerName" resultType="map">
+    SELECT <include refid="orderColumns"/> FROM orders o WHERE o.CUSTOMER_NAME = #{customerName}
+  </select>
+</mapper>

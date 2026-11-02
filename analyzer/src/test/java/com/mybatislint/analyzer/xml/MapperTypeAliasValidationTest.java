@@ -140,7 +140,7 @@ class MapperTypeAliasValidationTest {
                 </mapper>
                 """);
 
-        AnalyzerCli.Result result = new AnalyzerCli().run(tempDir);
+        AnalyzerCli.Result result = TestAnalyzers.ignoringUnusedDefinitions().run(tempDir);
         List<Diagnostic> warnings = result.getDiagnostics().stream()
                 .filter(d -> RuleIds.UNRESOLVED_TYPE_ALIAS.equals(d.getRuleId())).toList();
         assertEquals(4, warnings.size(), () -> result.getDiagnostics().toString());
@@ -189,7 +189,7 @@ class MapperTypeAliasValidationTest {
                 </mapper>
                 """);
 
-        assertTrue(new AnalyzerCli().run(tempDir).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(tempDir).getDiagnostics().isEmpty());
     }
 
     @Test
@@ -210,7 +210,7 @@ class MapperTypeAliasValidationTest {
                 </mapper>
                 """);
 
-        assertTrue(new AnalyzerCli().run(tempDir).getDiagnostics().isEmpty());
+        assertTrue(TestAnalyzers.ignoringUnusedDefinitions().run(tempDir).getDiagnostics().isEmpty());
     }
 
     private static Path writeMapperXml(Path tempDir, String fileName, String content) throws IOException {
