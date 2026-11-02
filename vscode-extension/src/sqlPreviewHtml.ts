@@ -9,10 +9,17 @@
  * and the parameters as a table.
  */
 
-/** @param nonce a random value allowing only this page's own style and script to run */
-export function sqlPreviewHtml(nonce: string, cspSource: string): string {
+import type { PreviewStrings } from './sqlPreviewStrings';
+
+/**
+ * @param nonce a random value allowing only this page's own style and script to run
+ * @param strings the panel's words in the user's language
+ */
+export function sqlPreviewHtml(nonce: string, cspSource: string, strings: PreviewStrings): string {
+  // < is escaped so that no string can end the script element.
+  const words = JSON.stringify(strings).replace(/</g, '\\u003c');
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${strings.lang}">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy"
@@ -23,8 +30,9 @@ ${STYLE}
 </style>
 </head>
 <body>
-<div id="root"><p class="empty">Put the cursor in a &lt;select&gt;, &lt;insert&gt;, &lt;update&gt; or &lt;delete&gt; of a mapper XML file.</p></div>
+<div id="root"></div>
 <script nonce="${nonce}">
+const T = ${words};
 ${SCRIPT}
 </script>
 </body>
@@ -64,6 +72,15 @@ section { margin-top: 18px; }
 h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 0.8em; font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 h3 .count { text-transform: none; letter-spacing: 0; font-weight: normal; }
+details > summary { list-style: none; cursor: pointer; user-select: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary h3::before { content: '▸'; display: inline-block; width: 0.9em; transition: transform 0.1s; }
+details[open] > summary h3::before { transform: rotate(90deg); }
+.snippet { margin-top: 3px; font-family: var(--mono); font-size: 0.85em; color: var(--muted); word-break: break-word; }
+.snippet .label { font-family: var(--vscode-font-family); font-size: 0.85em; margin-right: 6px; padding: 0 4px; border-radius: 3px;
+  border: 1px solid var(--border); }
+.branch.off .snippet { opacity: 0.6; }
+.option .snippet { margin-top: 1px; }
 
 /* The SQL, highlighted. */
 pre.sql { margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 4px;
@@ -148,6 +165,10 @@ const vscode = acquireVsCodeApi();
 const root = document.getElementById('root');
 let state = undefined;
 let signature = '';
+// Which sections are folded, kept across reloads of the panel.
+const saved = vscode.getState() || {};
+const folded = saved.folded || {};
+root.replaceChildren(element('p', { className: 'empty', textContent: T.empty }));
 
 const KEYWORDS = new Set(('SELECT FROM WHERE AND OR NOT IN IS NULL AS ON JOIN LEFT RIGHT INNER OUTER FULL CROSS UNION ALL ' +
   'ORDER GROUP BY HAVING INSERT INTO VALUES UPDATE SET DELETE MERGE USING MATCHED WHEN THEN ELSE END CASE LIKE BETWEEN EXISTS ' +
@@ -188,18 +209,35 @@ function highlighted(sql) {
 }
 
 function autoBadge() {
-  return element('span', { className: 'auto', textContent: 'auto', title: 'Decided from the values in Parameters' });
+  return element('span', { className: 'auto', textContent: T.auto, title: T.autoTitle });
+}
+
+/** The SQL a branch adds, under its condition. */
+function snippetLine(text) {
+  return text ? element('div', { className: 'snippet' }, [element('span', { className: 'label', textContent: T.adds }), text]) : undefined;
+}
+
+/** A section with a heading that folds it. */
+function foldable(id, heading, count, content) {
+  const details = element('details', { open: !folded[id] });
+  details.addEventListener('toggle', () => { folded[id] = !details.open; vscode.setState({ folded }); });
+  const title = element('h3', {}, [heading, count === undefined ? undefined : element('span', { className: 'count', textContent: String(count) })]);
+  details.append(element('summary', {}, [title]), content);
+  return element('section', {}, [details]);
 }
 
 function ifRow(control) {
   const decided = control.decided !== undefined;
   const on = decided ? control.decided : state.choices.ifs[control.key] !== false;
-  const input = element('input', { type: 'checkbox', checked: on, disabled: decided, title: on ? 'Included' : 'Left out' });
+  const input = element('input', { type: 'checkbox', checked: on, disabled: decided, title: on ? T.included : T.leftOut });
   input.dataset.focusKey = 'if:' + control.key;
   input.addEventListener('change', () => { state.choices.ifs[control.key] = input.checked; send(); });
   return { off: !on, children: [
     element('label', { className: 'switch' }, [input, element('span')]),
-    element('div', { className: 'body' }, [element('div', { className: 'condition' }, [control.label, decided ? autoBadge() : undefined])]),
+    element('div', { className: 'body' }, [
+      element('div', { className: 'condition' }, [control.label, decided ? autoBadge() : undefined]),
+      snippetLine(control.snippet),
+    ]),
   ] };
 }
 
@@ -213,12 +251,15 @@ function chooseRow(control) {
     radio.dataset.focusKey = 'choose:' + control.key + ':' + index;
     radio.addEventListener('change', () => { state.choices.chooses[control.key] = index; send(); });
     options.append(element('label', { className: 'option' + (index === chosen ? ' chosen' : '') }, [
-      radio, element('span', {}, [element('span', { className: 'which', textContent: otherwise ? 'otherwise' : 'when ' }), otherwise ? '' : option]),
-      index === chosen && decided ? autoBadge() : undefined,
+      radio, element('span', {}, [
+        element('span', { className: 'which', textContent: otherwise ? T.otherwise : 'when ' }), otherwise ? '' : option,
+        index === chosen && decided ? autoBadge() : undefined,
+        snippetLine((control.optionSnippets || [])[index]),
+      ]),
     ]));
   });
   if (control.decidedIndex === -1) {
-    options.append(element('div', { className: 'hint' }, ['No branch matches, so nothing is added.', autoBadge()]));
+    options.append(element('div', { className: 'hint' }, [T.noBranch, autoBadge()]));
   }
   return { off: false, children: [element('div', { className: 'body' }, [options])] };
 }
@@ -226,8 +267,8 @@ function chooseRow(control) {
 function foreachRow(control) {
   const count = state.choices.foreachCounts[control.key] ?? 2;
   const set = (value) => { state.choices.foreachCounts[control.key] = Math.max(0, Math.min(20, value)); send(); };
-  const minus = element('button', { className: 'secondary', textContent: '−', title: 'Fewer items', disabled: count <= 0 });
-  const plus = element('button', { className: 'secondary', textContent: '+', title: 'More items', disabled: count >= 20 });
+  const minus = element('button', { className: 'secondary', textContent: '−', title: T.fewer, disabled: count <= 0 });
+  const plus = element('button', { className: 'secondary', textContent: '+', title: T.more, disabled: count >= 20 });
   minus.addEventListener('click', () => set(count - 1));
   plus.addEventListener('click', () => set(count + 1));
   minus.dataset.focusKey = 'foreach-minus:' + control.key;
@@ -235,7 +276,8 @@ function foreachRow(control) {
   return { off: false, children: [element('div', { className: 'body' }, [
     element('span', { className: 'condition', textContent: control.label }),
     element('span', { className: 'stepper' }, [minus, element('output', { textContent: String(count) }), plus]),
-    element('span', { className: 'times', textContent: count === 1 ? 'item' : 'items' }),
+    element('span', { className: 'times', textContent: count === 1 ? T.item : T.items }),
+    snippetLine(control.snippet),
   ])] };
 }
 
@@ -248,7 +290,7 @@ function branches() {
     tree.append(element('div', { className: 'branch' + (row.off ? ' off' : '') },
       [...guides, element('span', { className: 'kind', textContent: '<' + control.kind + '>' }), ...row.children]));
   }
-  return element('section', {}, [element('h3', {}, ['Branches', element('span', { className: 'count', textContent: String(state.controls.length) })]), tree]);
+  return foldable('branches', T.branches, state.controls.length, tree);
 }
 
 function showsInput(parameter) {
@@ -257,8 +299,8 @@ function showsInput(parameter) {
 
 function parameters() {
   const segmented = element('div', { className: 'segmented' });
-  for (const [value, label, title] of [['named', ':name', 'Named parameters; DBeaver and similar clients ask for the values'],
-    ['question', '?', 'JDBC placeholders'], ['values', 'Values', 'The values typed below']]) {
+  for (const [value, label, title] of [['named', T.named, T.namedTitle], ['question', T.question, T.questionTitle],
+    ['values', T.values, T.valuesTitle]]) {
     const button = element('button', { textContent: label, title, className: state.style === value ? 'selected' : '' });
     button.dataset.focusKey = 'style:' + value;
     button.addEventListener('click', () => { state.style = value; send(); });
@@ -268,30 +310,31 @@ function parameters() {
   auto.dataset.focusKey = 'auto';
   auto.addEventListener('change', () => { state.auto = auto.checked; send(); });
   const settings = element('div', { className: 'settings' }, [
-    element('div', { className: 'setting' }, [element('span', { className: 'label', textContent: 'Write parameters as' }), segmented]),
-    element('label', { className: 'check' }, [auto, element('span', {}, ['Pick branches from values',
-      element('div', { className: 'hint', textContent: 'Evaluates each test with the values below, as OGNL does.' })])]),
+    element('div', { className: 'setting' }, [element('span', { className: 'label', textContent: T.writeAs }), segmented]),
+    element('label', { className: 'check' }, [auto, element('span', {}, [T.pickFromValues,
+      element('div', { className: 'hint', textContent: T.pickFromValuesHint })])]),
   ]);
   const rows = state.parameters.filter(showsInput).map((parameter) => {
     const input = element('input', { type: 'text', value: state.values[parameter.key] || '',
-      placeholder: parameter.dollar ? 'e.g. o.ID DESC' : "'abc'   123   NULL   true" });
+      placeholder: parameter.dollar ? T.dollarPlaceholder : T.valuePlaceholder });
     input.dataset.focusKey = 'parameter:' + parameter.key;
     input.addEventListener('input', () => { state.values[parameter.key] = input.value; send(); });
-    const badge = parameter.dollar ? 'inserted as is' : parameter.testOnly ? 'test only' : undefined;
+    const badge = parameter.dollar ? [T.insertedAsIs, T.insertedAsIsTitle] : parameter.testOnly ? [T.testOnly, T.testOnlyTitle] : undefined;
     return element('tr', {}, [
-      element('td', { className: 'name' }, [(parameter.dollar ? '$' : ':') + parameter.key, badge ? element('span', { className: 'badge', textContent: badge }) : undefined]),
+      element('td', { className: 'name' }, [(parameter.dollar ? '$' : ':') + parameter.key,
+        badge ? element('span', { className: 'badge', textContent: badge[0], title: badge[1] }) : undefined]),
       element('td', {}, [input]),
     ]);
   });
   const table = rows.length > 0 ? element('table', {}, [element('tbody', {}, rows)])
-    : element('div', { className: 'hint', textContent: 'Choose Values, or Pick branches from values, to type values.' });
-  return element('section', {}, [element('h3', {}, ['Parameters']), settings, table]);
+    : element('div', { className: 'hint', textContent: T.noInputs });
+  return foldable('parameters', T.parameters, undefined, element('div', {}, [settings, table]));
 }
 
 function draw() {
   const copied = element('span', { className: 'copied' });
-  const copy = element('button', { textContent: 'Copy SQL' });
-  copy.addEventListener('click', () => { vscode.postMessage({ type: 'copy' }); copied.textContent = 'Copied'; setTimeout(() => { copied.textContent = ''; }, 1500); });
+  const copy = element('button', { textContent: T.copy });
+  copy.addEventListener('click', () => { vscode.postMessage({ type: 'copy' }); copied.textContent = T.copied; setTimeout(() => { copied.textContent = ''; }, 1500); });
   const header = element('header', {}, [
     element('div', { className: 'heading' }, [
       element('div', { className: 'statement' }, [element('span', { className: 'tag', textContent: state.tag }), element('code', { textContent: state.id })]),
@@ -303,7 +346,7 @@ function draw() {
     element('section', {}, [highlighted(state.sql)]),
     state.controls.length > 0 ? branches() : undefined,
     parameters(),
-    element('p', { className: 'note', textContent: 'Assembled as MyBatis would. Choose the branches, or let the typed values decide them; <bind> variables stay as parameters.' }),
+    element('p', { className: 'note', textContent: T.note }),
   ]);
   root.replaceChildren(header, main);
 }

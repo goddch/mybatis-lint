@@ -15,6 +15,8 @@ import type { XmlElement } from './mapperXml';
 import { previewStatement } from './sqlPreview';
 import type { ParameterStyle, PreviewChoices } from './sqlPreview';
 import { sqlPreviewHtml } from './sqlPreviewHtml';
+import { previewStrings } from './sqlPreviewStrings';
+import type { PreviewStrings } from './sqlPreviewStrings';
 import type { JavaLookup } from './mapperAssist';
 import {
   findJavaMethod,
@@ -528,12 +530,11 @@ class SqlPreview implements vscode.Disposable {
     } else {
       this.panel = vscode.window.createWebviewPanel(
         'mybatisLint.sqlPreview',
-        'SQL Preview',
+        this.strings().panelTitle,
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true },
       );
-      const nonce = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      this.panel.webview.html = sqlPreviewHtml(nonce, this.panel.webview.cspSource);
+      this.setHtml();
       this.panel.onDidDispose(() => this.close(), undefined, this.disposables);
       this.panel.webview.onDidReceiveMessage((message) => this.onMessage(message), undefined, this.disposables);
       this.disposables.push(
@@ -542,6 +543,12 @@ class SqlPreview implements vscode.Disposable {
         vscode.workspace.onDidChangeTextDocument((event) => {
           if (event.document === this.current?.document) {
             this.schedule();
+          }
+        }),
+        vscode.workspace.onDidChangeConfiguration((event) => {
+          if (event.affectsConfiguration('mybatisLint.previewLanguage')) {
+            // The page is rebuilt in the new language; it asks for the statement again when ready.
+            this.setHtml();
           }
         }),
         vscode.workspace.onDidSaveTextDocument(async (document) => {
@@ -563,6 +570,19 @@ class SqlPreview implements vscode.Disposable {
   dispose(): void {
     this.panel?.dispose();
     this.close();
+  }
+
+  private strings(): PreviewStrings {
+    return previewStrings(vscode.workspace.getConfiguration('mybatisLint').get<string>('previewLanguage'), vscode.env.language);
+  }
+
+  private setHtml(): void {
+    if (!this.panel) {
+      return;
+    }
+    const nonce = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    this.panel.webview.html = sqlPreviewHtml(nonce, this.panel.webview.cspSource, this.strings());
+    this.panel.title = this.current ? `${this.strings().panelTitle}: ${this.current.id}` : this.strings().panelTitle;
   }
 
   private close(): void {
@@ -593,7 +613,7 @@ class SqlPreview implements vscode.Disposable {
       this.current = { document: editor.document, id };
       this.render();
     } else if (!this.current) {
-      void this.panel.webview.postMessage({ type: 'render', reason: 'Put the cursor in a <select>, <insert>, <update> or <delete> of a mapper XML file.' });
+      void this.panel.webview.postMessage({ type: 'render', reason: this.strings().empty });
     }
   }
 
@@ -621,7 +641,7 @@ class SqlPreview implements vscode.Disposable {
     const namespace = root?.attributes.get('namespace') ?? '';
     const statement = root ? childElements(root).find((element) => PREVIEW_STATEMENTS.has(element.name) && element.attributes.get('id') === id) : undefined;
     if (!root || !statement) {
-      void this.panel.webview.postMessage({ type: 'render', reason: `Statement '${id}' is no longer in the file.` });
+      void this.panel.webview.postMessage({ type: 'render', reason: this.strings().missingStatement.replace('{0}', id) });
       return;
     }
     // The open document may have unsaved fragments, so it is searched before the files on disk.
@@ -634,7 +654,7 @@ class SqlPreview implements vscode.Disposable {
     const state = this.state();
     const result = previewStatement(statement, namespace, fragments, state.choices, state.style, state.values, state.auto);
     this.lastSql = result.sql;
-    this.panel.title = `SQL Preview: ${id}`;
+    this.panel.title = `${this.strings().panelTitle}: ${id}`;
     void this.panel.webview.postMessage({
       type: 'render',
       statement: {
