@@ -29,6 +29,11 @@
       {
         "command": "mybatisLint.showLog",
         "title": "MyBatis Lint: Show Log"
+      },
+      {
+        "command": "mybatisLint.showSqlPreview",
+        "title": "MyBatis Lint: Show SQL Preview",
+        "icon": "$(open-preview)"
       }
     ],
     "configuration": {
@@ -87,7 +92,24 @@
           "description": "Path to the Java executable used to run the analyzer. Leave empty to use the Java runtime bundled with the extension."
         }
       }
-    }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mybatisLint.showSqlPreview",
+          "when": "resourceExtname == .xml",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mybatisLint.showSqlPreview",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorTextFocus && resourceExtname == .xml"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p ./",

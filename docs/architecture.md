@@ -118,6 +118,12 @@ if the output shape grows significantly more complex, revisit this decision.
   Lint rules use the analyzer's JavaParser index instead.
 - `src/mapperAssist.ts` — hover text and completion items for mapper XML,
   from the XML text and the Java types `extension.ts` looks up.
+- `src/mapperXml.ts` — a small, forgiving XML reader (Node has no XML parser
+  and the extension has no runtime dependencies), used by the SQL preview.
+- `src/sqlPreview.ts` — builds the plain SQL of a statement for chosen
+  branches, following MyBatis's rules for `<where>`, `<set>`, `<trim>`,
+  `<foreach>` and `<include>`. `src/sqlPreviewHtml.ts` is the panel's page;
+  it only draws what the extension sends, inserting text with `textContent`.
 - `src/quickFixes.ts` — remembers each diagnostic's `suggestion` so that
   `extension.ts` can offer it as a "Change to '...'" quick fix.
 - `src/summaryMessage.ts` — builds the notification shown after a check,
