@@ -55,7 +55,9 @@ plain SQL of the statement under the cursor, the way MyBatis assembles it:
 many times `<foreach>` repeats in the panel. Parameters can be written as
 `:name` (DBeaver and similar clients ask for the values when you run it), as
 `?`, or with values typed into the panel; **Copy SQL** copies the result.
-Conditions are not evaluated, so you choose the branches. See
+With **Pick branches from values** on, the `test` conditions are evaluated
+with the typed values (following OGNL, so `type == 'A'` never matches the
+String "A", as in MyBatis); branches that cannot be decided keep your choice. See
 [`docs/sql-preview.md`](docs/sql-preview.md).
 
 **CodeLens** shows small links above definitions: how many places use each

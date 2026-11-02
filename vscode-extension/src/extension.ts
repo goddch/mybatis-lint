@@ -502,6 +502,8 @@ interface PreviewState {
   choices: Required<PreviewChoices>;
   style: ParameterStyle;
   values: Record<string, string>;
+  /** Decide branches from the typed values where the tests can be evaluated. */
+  auto: boolean;
 }
 
 /**
@@ -604,7 +606,7 @@ class SqlPreview implements vscode.Disposable {
     const key = `${this.current?.document.uri.toString()}#${this.current?.id}`;
     let state = this.states.get(key);
     if (!state) {
-      state = { choices: { ifs: {}, chooses: {}, foreachCounts: {} }, style: 'named', values: {} };
+      state = { choices: { ifs: {}, chooses: {}, foreachCounts: {} }, style: 'named', values: {}, auto: false };
       this.states.set(key, state);
     }
     return state;
@@ -630,7 +632,7 @@ class SqlPreview implements vscode.Disposable {
         .flatMap(childElements)
         .find((element) => element.name === 'sql' && element.attributes.get('id') === fragmentId);
     const state = this.state();
-    const result = previewStatement(statement, namespace, fragments, state.choices, state.style, state.values);
+    const result = previewStatement(statement, namespace, fragments, state.choices, state.style, state.values, state.auto);
     this.lastSql = result.sql;
     this.panel.title = `SQL Preview: ${id}`;
     void this.panel.webview.postMessage({
@@ -644,11 +646,18 @@ class SqlPreview implements vscode.Disposable {
         choices: state.choices,
         style: state.style,
         values: state.values,
+        auto: state.auto,
       },
     });
   }
 
-  private onMessage(message: { type?: string; choices?: PreviewChoices; style?: ParameterStyle; values?: Record<string, string> }): void {
+  private onMessage(message: {
+    type?: string;
+    choices?: PreviewChoices;
+    style?: ParameterStyle;
+    values?: Record<string, string>;
+    auto?: boolean;
+  }): void {
     if (message.type === 'ready') {
       this.render();
     } else if (message.type === 'copy') {
@@ -662,6 +671,7 @@ class SqlPreview implements vscode.Disposable {
       };
       state.style = message.style === 'question' || message.style === 'values' ? message.style : 'named';
       state.values = { ...message.values };
+      state.auto = message.auto === true;
       this.render();
     }
   }
