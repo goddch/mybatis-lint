@@ -638,7 +638,8 @@ class SqlPreview implements vscode.Disposable {
     void this.panel.webview.postMessage({
       type: 'render',
       statement: {
-        title: `<${statement.name} id="${id}">`,
+        tag: statement.name,
+        id,
         file: vscode.workspace.asRelativePath(document.uri),
         controls: result.controls,
         parameters: result.parameters,
