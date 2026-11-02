@@ -60,6 +60,11 @@
           "default": [],
           "markdownDescription": "Rules whose problems are not reported, for example `unknown-select-alias` (the `mybatis-lint/` prefix is optional). To silence a single place instead, put `mybatis-lint-disable-next-line <rule>` in a comment on the line above it."
         },
+        "mybatisLint.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show how many places use each <sql> and <resultMap>, and links between statements and Java mapper methods, above their definitions."
+        },
         "mybatisLint.keepAnalyzerRunning": {
           "type": "boolean",
           "default": true,

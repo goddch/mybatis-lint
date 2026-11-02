@@ -17,7 +17,9 @@ import {
   javaMethodAt,
   javaResultMapOccurrences,
   mapperNamespace,
+  occurrencesBySymbol,
   symbolAt,
+  symbolKey,
   symbolOccurrences,
   TARGET_TAGS,
   xmlReferenceAt,
@@ -87,6 +89,25 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const mapperXml: vscode.DocumentSelector = { scheme: 'file', pattern: '**/*.xml' };
+  const codeLensesChanged = new vscode.EventEmitter<void>();
+  context.subscriptions.push(
+    codeLensesChanged,
+    vscode.languages.registerCodeLensProvider(
+      [mapperXml, { scheme: 'file', pattern: '**/*.java' }],
+      { onDidChangeCodeLenses: codeLensesChanged.event, provideCodeLenses: (document) => mapperCodeLenses(document) },
+    ),
+    // References in other files change when those files are saved.
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      if (isRelevantForCheck(document.fileName)) {
+        codeLensesChanged.fire();
+      }
+    }),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('mybatisLint.codeLens')) {
+        codeLensesChanged.fire();
+      }
+    }),
+  );
   context.subscriptions.push(
     vscode.languages.registerReferenceProvider(mapperXml, {
       provideReferences: (document, position, referenceContext) =>
@@ -386,6 +407,82 @@ async function renameJavaMethod(symbol: MapperSymbol, newName: string, edit: vsc
   void vscode.window.showWarningMessage(
     `MyBatis Lint renamed ${symbol.id} in the mapper interface only; callers in Java were not updated (no Java extension answered the rename).`,
   );
+}
+
+/**
+ * Small links above definitions: how many places use a <sql> / <resultMap>, which Java method a
+ * statement belongs to, and which statement a Java mapper method runs.
+ */
+async function mapperCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
+  if (!vscode.workspace.getConfiguration('mybatisLint').get<boolean>('codeLens', true)) {
+    return [];
+  }
+  const text = document.getText();
+  const isJava = document.fileName.endsWith('.java');
+  if (isJava ? !/\binterface\s/.test(text) : !text.includes('<mapper')) {
+    return [];
+  }
+  const files = await workspaceXmlFiles();
+  const grouped = occurrencesBySymbol(files.map(({ uri, text: fileText }) => ({ file: uri, text: fileText })));
+  const toLocation = async (occurrence: { file: vscode.Uri; start: number; end: number }) => {
+    const target = await vscode.workspace.openTextDocument(occurrence.file);
+    return new vscode.Location(occurrence.file, new vscode.Range(target.positionAt(occurrence.start), target.positionAt(occurrence.end)));
+  };
+  const lenses: vscode.CodeLens[] = [];
+  if (isJava) {
+    const type = parseJavaType(text);
+    if (!type?.isInterface) {
+      return [];
+    }
+    for (const method of new Set(type.methods.map((candidate) => candidate.name))) {
+      const statements = (grouped.get(symbolKey({ kind: 'statement', namespace: type.qualifiedName, id: method })) ?? [])
+        .filter((occurrence) => occurrence.definition);
+      const offset = findJavaMethod(text, method);
+      if (statements.length === 0 || offset < 0) {
+        continue;
+      }
+      const range = new vscode.Range(document.positionAt(offset), document.positionAt(offset + method.length));
+      const locations = await Promise.all(statements.map(toLocation));
+      const title = statements.length === 1 ? `XML: ${basename(statements[0].file)}` : `XML: ${statements.length} statements`;
+      lenses.push(new vscode.CodeLens(range, showLocations(title, document.uri, range.start, locations)));
+    }
+    return lenses;
+  }
+  const java = mapperNamespace(text);
+  const javaDocument = java ? await mapperInterfaceDocument(java) : undefined;
+  for (const definition of symbolOccurrences(text, undefined).filter((occurrence) => occurrence.definition)) {
+    const range = new vscode.Range(document.positionAt(definition.start), document.positionAt(definition.end));
+    if (definition.kind === 'statement') {
+      const offset = javaDocument ? findJavaMethod(javaDocument.getText(), definition.id) : -1;
+      if (javaDocument && offset >= 0) {
+        const location = new vscode.Location(javaDocument.uri, javaDocument.positionAt(offset));
+        const title = `Java: ${basename(javaDocument.uri).replace(/\.java$/, '')}.${definition.id}`;
+        lenses.push(new vscode.CodeLens(range, showLocations(title, document.uri, range.start, [location])));
+      }
+      continue;
+    }
+    const references = (grouped.get(symbolKey(definition)) ?? []).filter((occurrence) => !occurrence.definition);
+    const locations = await Promise.all(references.map(toLocation));
+    if (definition.kind === 'resultMap' && javaDocument) {
+      for (const occurrence of javaResultMapOccurrences(javaDocument.getText(), definition)) {
+        locations.push(new vscode.Location(javaDocument.uri, javaDocument.positionAt(occurrence.start)));
+      }
+    }
+    const title = locations.length === 0 ? 'no references' : locations.length === 1 ? '1 reference' : `${locations.length} references`;
+    lenses.push(new vscode.CodeLens(range, showLocations(title, document.uri, range.start, locations)));
+  }
+  return lenses;
+}
+
+/** A CodeLens command that opens the peek view with the given locations. */
+function showLocations(title: string, uri: vscode.Uri, position: vscode.Position, locations: vscode.Location[]): vscode.Command {
+  return locations.length === 0
+    ? { title, command: '' }
+    : { title, command: 'editor.action.showReferences', arguments: [uri, position, locations] };
+}
+
+function basename(uri: vscode.Uri): string {
+  return uri.path.slice(uri.path.lastIndexOf('/') + 1);
 }
 
 // After this many server failures in a row, stop using it until VS Code restarts.

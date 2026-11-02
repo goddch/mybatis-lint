@@ -7,7 +7,9 @@ import {
   javaMethodAt,
   javaResultMapOccurrences,
   mapperNamespace,
+  occurrencesBySymbol,
   symbolAt,
+  symbolKey,
   symbolOccurrences,
   xmlReferenceAt,
 } from '../src/navigation';
@@ -189,4 +191,18 @@ public interface UserMapper {
   const found = javaResultMapOccurrences(java, { kind: 'resultMap', namespace: 'a.UserMapper', id: 'base' });
   assert.deepEqual(found.map((o) => java.slice(o.start, o.end)), ['base', 'base']);
   assert.equal(java.slice(found[1].start - 13, found[1].end), 'a.UserMapper.base');
+});
+
+test('groups occurrences across files by symbol', () => {
+  const other = `<mapper namespace="b.Other">
+  <select id="find" resultMap="a.UserMapper.base"><include refid="a.UserMapper.columns"/></select>
+</mapper>`;
+  const grouped = occurrencesBySymbol([
+    { file: 'user', text: SYMBOLS },
+    { file: 'other', text: other },
+  ]);
+  const base = grouped.get(symbolKey({ kind: 'resultMap', namespace: 'a.UserMapper', id: 'base' })) ?? [];
+  assert.deepEqual(base.map((o) => `${o.file}${o.definition ? '*' : ''}`), ['user*', 'user', 'user', 'user', 'other']);
+  const columns = grouped.get(symbolKey({ kind: 'sql', namespace: 'a.UserMapper', id: 'columns' })) ?? [];
+  assert.deepEqual(columns.map((o) => o.file), ['user', 'user', 'other']);
 });
