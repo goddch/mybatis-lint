@@ -7,6 +7,10 @@ import { AnalyzerServer } from './analyzerServer';
 import { CheckScheduler, isRelevantForCheck } from './checkScheduler';
 import { groupDiagnosticsByUri, PlainDiagnosticSeverity } from './diagnosticsMapper';
 import { insertColumnHints, lineEndHints } from './insertColumnHints';
+import { parseJavaType } from './javaSource';
+import type { JavaType } from './javaSource';
+import { completionsAt, hoverAt } from './mapperAssist';
+import type { JavaLookup } from './mapperAssist';
 import { findJavaMethod, findXmlIds, javaMethodAt, mapperNamespace, TARGET_TAGS, xmlReferenceAt } from './navigation';
 import { bundledJavaPath, resolveJavaPath } from './javaPathResolver';
 import { parseAnalyzerOutput } from './parseAnalyzerOutput';
@@ -68,6 +72,49 @@ export function activate(context: vscode.ExtensionContext): void {
         { scheme: 'file', pattern: '**/*.java' },
       ],
       { provideDefinition: (document, position) => mapperDefinitions(document, position) },
+    ),
+  );
+
+  const mapperXml: vscode.DocumentSelector = { scheme: 'file', pattern: '**/*.xml' };
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(mapperXml, {
+      provideHover: async (document, position) => {
+        const text = document.getText();
+        const hover = text.includes('<mapper') ? await hoverAt(text, document.offsetAt(position), javaLookup()) : undefined;
+        return hover
+          ? new vscode.Hover(
+              new vscode.MarkdownString(hover.markdown),
+              new vscode.Range(document.positionAt(hover.start), document.positionAt(hover.end)),
+            )
+          : undefined;
+      },
+    }),
+    vscode.languages.registerCompletionItemProvider(
+      mapperXml,
+      {
+        provideCompletionItems: async (document, position) => {
+          const text = document.getText();
+          const offset = document.offsetAt(position);
+          const result = text.includes('<mapper') ? await completionsAt(text, offset, javaLookup()) : undefined;
+          if (!result) {
+            return undefined;
+          }
+          const range = new vscode.Range(document.positionAt(result.start), position);
+          return result.items.map((item) => {
+            const completion = new vscode.CompletionItem(
+              item.label,
+              item.kind === 'id' ? vscode.CompletionItemKind.Reference : vscode.CompletionItemKind.Field,
+            );
+            completion.detail = item.detail;
+            completion.range = range;
+            return completion;
+          });
+        },
+      },
+      '{',
+      '.',
+      '"',
+      ',',
     ),
   );
 
@@ -159,6 +206,38 @@ class ColumnHintDecorator implements vscode.Disposable {
     this.timers.forEach((timer) => clearTimeout(timer));
     this.decoration.dispose();
   }
+}
+
+/**
+ * Finds Java types by simple name in the workspace for hover and completion. One lookup serves one
+ * request, so a type asked for twice (a mapper and its domain's superclass) is read once.
+ */
+function javaLookup(): JavaLookup {
+  const cache = new Map<string, Promise<JavaType[]>>();
+  return {
+    findTypes: (simpleName) => {
+      if (!/^[\w$]+$/.test(simpleName)) {
+        return Promise.resolve([]);
+      }
+      const cached = cache.get(simpleName) ?? readJavaTypes(simpleName);
+      cache.set(simpleName, cached);
+      return cached;
+    },
+  };
+}
+
+async function readJavaTypes(simpleName: string): Promise<JavaType[]> {
+  const types: JavaType[] = [];
+  for (const file of await vscode.workspace.findFiles(`**/${simpleName}.java`, NAVIGATION_EXCLUDE, 20)) {
+    // Open documents may have unsaved edits; read those from the editor, the rest from disk.
+    const open = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === file.toString());
+    const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(file)).toString('utf8');
+    const type = parseJavaType(text);
+    if (type) {
+      types.push(type);
+    }
+  }
+  return types;
 }
 
 // After this many server failures in a row, stop using it until VS Code restarts.

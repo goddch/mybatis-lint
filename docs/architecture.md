@@ -113,6 +113,11 @@ if the output shape grows significantly more complex, revisit this decision.
 - `src/navigation.ts` — finds, in raw XML / Java text, what a "Go to
   Definition" request points at (a statement id, `<include refid>`,
   `resultMap`) and where its target is; `extension.ts` searches the files.
+- `src/javaSource.ts` — a forgiving text-level reader of Java source (fields,
+  getters/setters, method signatures with `@Param`) for editor assistance.
+  Lint rules use the analyzer's JavaParser index instead.
+- `src/mapperAssist.ts` — hover text and completion items for mapper XML,
+  from the XML text and the Java types `extension.ts` looks up.
 - `src/quickFixes.ts` — remembers each diagnostic's `suggestion` so that
   `extension.ts` can offer it as a "Change to '...'" quick fix.
 - `src/summaryMessage.ts` — builds the notification shown after a check,
