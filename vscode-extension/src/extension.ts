@@ -10,6 +10,11 @@ import { insertColumnHints, lineEndHints } from './insertColumnHints';
 import { parseJavaType } from './javaSource';
 import type { JavaType } from './javaSource';
 import { completionsAt, hoverAt } from './mapperAssist';
+import { childElements, parseXml } from './mapperXml';
+import type { XmlElement } from './mapperXml';
+import { previewStatement } from './sqlPreview';
+import type { ParameterStyle, PreviewChoices } from './sqlPreview';
+import { sqlPreviewHtml } from './sqlPreviewHtml';
 import type { JavaLookup } from './mapperAssist';
 import {
   findJavaMethod,
@@ -89,6 +94,11 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const mapperXml: vscode.DocumentSelector = { scheme: 'file', pattern: '**/*.xml' };
+  const sqlPreview = new SqlPreview();
+  context.subscriptions.push(
+    sqlPreview,
+    vscode.commands.registerCommand('mybatisLint.showSqlPreview', () => sqlPreview.show()),
+  );
   const codeLensesChanged = new vscode.EventEmitter<void>();
   context.subscriptions.push(
     codeLensesChanged,
@@ -483,6 +493,176 @@ function showLocations(title: string, uri: vscode.Uri, position: vscode.Position
 
 function basename(uri: vscode.Uri): string {
   return uri.path.slice(uri.path.lastIndexOf('/') + 1);
+}
+
+const PREVIEW_STATEMENTS = new Set(['select', 'insert', 'update', 'delete']);
+
+/** What the user chose for one statement, kept while the preview is open. */
+interface PreviewState {
+  choices: Required<PreviewChoices>;
+  style: ParameterStyle;
+  values: Record<string, string>;
+}
+
+/**
+ * A panel beside the editor showing the plain SQL of the statement under the cursor, like the
+ * Markdown preview. It follows the cursor and edits; the user switches branches in the panel.
+ */
+class SqlPreview implements vscode.Disposable {
+  private panel: vscode.WebviewPanel | undefined;
+  private readonly disposables: vscode.Disposable[] = [];
+  private readonly states = new Map<string, PreviewState>();
+  /** The statement shown: its document and id. */
+  private current: { document: vscode.TextDocument; id: string } | undefined;
+  /** Other mapper files, for <include> across files; refreshed when the panel opens and on save. */
+  private mappers: XmlElement[] = [];
+  private lastSql = '';
+  private timer: ReturnType<typeof setTimeout> | undefined;
+
+  async show(): Promise<void> {
+    if (this.panel) {
+      this.panel.reveal(vscode.ViewColumn.Beside, true);
+    } else {
+      this.panel = vscode.window.createWebviewPanel(
+        'mybatisLint.sqlPreview',
+        'SQL Preview',
+        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+        { enableScripts: true, retainContextWhenHidden: true },
+      );
+      const nonce = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      this.panel.webview.html = sqlPreviewHtml(nonce, this.panel.webview.cspSource);
+      this.panel.onDidDispose(() => this.close(), undefined, this.disposables);
+      this.panel.webview.onDidReceiveMessage((message) => this.onMessage(message), undefined, this.disposables);
+      this.disposables.push(
+        vscode.window.onDidChangeTextEditorSelection((event) => this.follow(event.textEditor)),
+        vscode.window.onDidChangeActiveTextEditor((editor) => editor && this.follow(editor)),
+        vscode.workspace.onDidChangeTextDocument((event) => {
+          if (event.document === this.current?.document) {
+            this.schedule();
+          }
+        }),
+        vscode.workspace.onDidSaveTextDocument(async (document) => {
+          if (document.fileName.endsWith('.xml')) {
+            await this.loadMappers();
+            this.render();
+          }
+        }),
+      );
+      await this.loadMappers();
+    }
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      this.follow(editor);
+    }
+  }
+
+  dispose(): void {
+    this.panel?.dispose();
+    this.close();
+  }
+
+  private close(): void {
+    this.panel = undefined;
+    this.current = undefined;
+    clearTimeout(this.timer);
+    this.disposables.splice(0).forEach((disposable) => disposable.dispose());
+  }
+
+  private async loadMappers(): Promise<void> {
+    this.mappers = (await workspaceXmlFiles())
+      .map((file) => parseXml(file.text))
+      .filter((root): root is XmlElement => root?.name === 'mapper');
+  }
+
+  /** Shows the statement under the cursor; outside statements, the last one stays. */
+  private follow(editor: vscode.TextEditor): void {
+    if (!this.panel || !editor.document.fileName.endsWith('.xml')) {
+      return;
+    }
+    const root = parseXml(editor.document.getText());
+    const offset = editor.document.offsetAt(editor.selection.active);
+    const statement = root?.name === 'mapper'
+      ? childElements(root).find((element) => PREVIEW_STATEMENTS.has(element.name) && element.start <= offset && offset <= element.end)
+      : undefined;
+    const id = statement?.attributes.get('id');
+    if (id && (this.current?.document !== editor.document || this.current.id !== id)) {
+      this.current = { document: editor.document, id };
+      this.render();
+    } else if (!this.current) {
+      void this.panel.webview.postMessage({ type: 'render', reason: 'Put the cursor in a <select>, <insert>, <update> or <delete> of a mapper XML file.' });
+    }
+  }
+
+  private schedule(): void {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.render(), 200);
+  }
+
+  private state(): PreviewState {
+    const key = `${this.current?.document.uri.toString()}#${this.current?.id}`;
+    let state = this.states.get(key);
+    if (!state) {
+      state = { choices: { ifs: {}, chooses: {}, foreachCounts: {} }, style: 'named', values: {} };
+      this.states.set(key, state);
+    }
+    return state;
+  }
+
+  private render(): void {
+    if (!this.panel || !this.current) {
+      return;
+    }
+    const { document, id } = this.current;
+    const root = parseXml(document.getText());
+    const namespace = root?.attributes.get('namespace') ?? '';
+    const statement = root ? childElements(root).find((element) => PREVIEW_STATEMENTS.has(element.name) && element.attributes.get('id') === id) : undefined;
+    if (!root || !statement) {
+      void this.panel.webview.postMessage({ type: 'render', reason: `Statement '${id}' is no longer in the file.` });
+      return;
+    }
+    // The open document may have unsaved fragments, so it is searched before the files on disk.
+    const mappers = [root, ...this.mappers.filter((mapper) => mapper.attributes.get('namespace') !== namespace)];
+    const fragments = (fragmentNamespace: string, fragmentId: string) =>
+      mappers
+        .filter((mapper) => mapper.attributes.get('namespace') === fragmentNamespace)
+        .flatMap(childElements)
+        .find((element) => element.name === 'sql' && element.attributes.get('id') === fragmentId);
+    const state = this.state();
+    const result = previewStatement(statement, namespace, fragments, state.choices, state.style, state.values);
+    this.lastSql = result.sql;
+    this.panel.title = `SQL Preview: ${id}`;
+    void this.panel.webview.postMessage({
+      type: 'render',
+      statement: {
+        title: `<${statement.name} id="${id}">`,
+        file: vscode.workspace.asRelativePath(document.uri),
+        controls: result.controls,
+        parameters: result.parameters,
+        sql: result.sql,
+        choices: state.choices,
+        style: state.style,
+        values: state.values,
+      },
+    });
+  }
+
+  private onMessage(message: { type?: string; choices?: PreviewChoices; style?: ParameterStyle; values?: Record<string, string> }): void {
+    if (message.type === 'ready') {
+      this.render();
+    } else if (message.type === 'copy') {
+      void vscode.env.clipboard.writeText(this.lastSql);
+    } else if (message.type === 'update' && this.current) {
+      const state = this.state();
+      state.choices = {
+        ifs: { ...message.choices?.ifs },
+        chooses: { ...message.choices?.chooses },
+        foreachCounts: { ...message.choices?.foreachCounts },
+      };
+      state.style = message.style === 'question' || message.style === 'values' ? message.style : 'named';
+      state.values = { ...message.values };
+      this.render();
+    }
+  }
 }
 
 // After this many server failures in a row, stop using it until VS Code restarts.

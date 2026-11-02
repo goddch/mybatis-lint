@@ -47,6 +47,17 @@ reference (`refid`, `resultMap`, `extends`, `<association>`/`<collection>`
 also renames the Java mapper method; with a Java extension installed its
 callers are renamed too.
 
+**SQL Preview** (Ctrl+Shift+V / Cmd+Shift+V in a mapper XML file, or the
+preview button in the editor title) opens a panel beside the editor with the
+plain SQL of the statement under the cursor, the way MyBatis assembles it:
+`<include>` expanded (across files), `<where>` / `<set>` / `<trim>` applied and
+`<foreach>` repeated. Switch each `<if>`, pick the `<choose>` branch and set how
+many times `<foreach>` repeats in the panel. Parameters can be written as
+`:name` (DBeaver and similar clients ask for the values when you run it), as
+`?`, or with values typed into the panel; **Copy SQL** copies the result.
+Conditions are not evaluated, so you choose the branches. See
+[`docs/sql-preview.md`](docs/sql-preview.md).
+
 **CodeLens** shows small links above definitions: how many places use each
 `<sql>` and `<resultMap>` ("3 references"), the Java method of each statement
 ("Java: UserMapper.findById"), and above each Java mapper method the statement
