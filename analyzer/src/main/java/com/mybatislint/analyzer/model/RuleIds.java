@@ -67,6 +67,10 @@ public final class RuleIds {
     public static final String UNUSED_SQL_FRAGMENT = "mybatis-lint/unused-sql-fragment";
     public static final String UNUSED_RESULT_MAP = "mybatis-lint/unused-result-map";
     public static final String STATEMENT_WITHOUT_METHOD = "mybatis-lint/statement-without-method";
+    // JdbcType にない jdbcType(大文字小文字も区別する)や IN / OUT / INOUT でない mode、
+    // #{...} に書けないオプション。どれも MyBatis が読み込むときに失敗する。
+    public static final String INVALID_JDBC_TYPE = "mybatis-lint/invalid-jdbc-type";
+    public static final String UNKNOWN_PARAMETER_OPTION = "mybatis-lint/unknown-parameter-option";
     public static final String UNRESOLVED_RESULT_MAP_EXTENDS = "mybatis-lint/unresolved-result-map-extends";
     public static final String RESULT_MAP_INHERITANCE_CYCLE = "mybatis-lint/result-map-inheritance-cycle";
     public static final String UNRESOLVED_STATEMENT_RESULT_MAP = "mybatis-lint/unresolved-statement-result-map";

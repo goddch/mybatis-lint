@@ -84,6 +84,24 @@ WHERE name = '${name}'   <!-- name に ' OR '1' = '1 を渡すと条件が書き
 - `${@com.example.Const@VALUE}` のような定数の参照
 - SQL のコメントの中、`<if test>` などの属性の中(OGNL で、SQL ではない)
 
+## `mybatis-lint/invalid-jdbc-type`、`mybatis-lint/unknown-parameter-option`(error)
+
+```xml
+#{name,jdbcType=varchar}   <!-- JdbcType.valueOf は大文字小文字を区別する -->
+#{id, jdbctype=NUMERIC}    <!-- オプション名の誤り -->
+```
+
+MyBatis は `jdbcType` の値を `JdbcType.valueOf` で読むので、`JdbcType` にない値や小文字の値は、
+mapper を読み込むときに失敗します。`#{...}` に書けるオプションは `javaType`、`jdbcType`、`mode`、
+`numericScale`、`resultMap`、`typeHandler`、`jdbcTypeName` だけで、ほかの名前は
+`BuilderException` になります。
+
+- `#{name,jdbcType=...}`、古い書き方の `#{name:TYPE}`、`<result jdbcType="...">` などの属性を見ます
+- `mode` は IN / OUT / INOUT のどれかでなければ報告します
+- 正しい値が 1 つに決まるとき(大文字にすれば正しい、1〜2 文字の違い)は、クイックフィックスで直せます
+- `javaType`、`typeHandler`、`resultMap` の値は、設定やクラスパスで決まるので見ません。`${...}` を含む値や、
+  `#{(式)}` の形、XML のコメントの中も見ません
+
 ## 手動確認
 
 ```sh
@@ -97,3 +115,6 @@ java -jar build/libs/analyzer.jar ../fixtures/sql-pitfalls
 
 `${...}` の警告は `fixtures/dollar-substitution` で確認できます。`ProductMapper.xml` の
 `searchInvalid` に warning が 3 件出て、`searchValid` には出ません。
+
+jdbcType とオプションの誤りは `fixtures/parameter-options` で確認できます。`findInvalid` と `orderMap` に
+error が 4 件出て、`findValid` には出ません。
