@@ -268,8 +268,9 @@ npx vsce package --target linux-x64   # Node 20+ required
 them as workflow artifacts. Pushing a `v*` tag additionally attaches them to a
 GitHub Release (the tag must match the `package.json` version), then tries to
 publish them to the Marketplace (publisher `goddch`) with
-`vsce publish --oidc` (OIDC trusted publishing, no stored token). This is still
-experimental in vsce; if that job fails, the VSIX files on the Release are
+`vsce publish --oidc` (OIDC trusted publishing, no stored token; the
+publisher has a Trusted Publishing policy for this repository's
+`package.yml`). If that job fails, the VSIX files on the Release can be
 uploaded manually on the Marketplace management page.
 
 ## License

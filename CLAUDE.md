@@ -67,7 +67,10 @@ CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後�
 5. `publish` ジョブが失敗したときは、ユーザーが Release から VSIX をダウンロードし、Marketplace の管理画面（publisher `goddch`）から手動でアップロードする
 
 トークン（PAT）による公開は Azure サブスクリプションが必要で、2026-12-01 で廃止されるため使わない。
-OIDC 方式は vsce では実験的な扱いで、Marketplace 側に信頼された公開元の登録が要る。vsce 4.0.0 は `api-version` を付けずに 400 で失敗していたので、それを直した 4.1.0 を使う。
+OIDC 方式は、Marketplace の管理画面の Trusted Publishing に、このリポジトリの `package.yml` を
+公開元として登録してある（v0.3.3 から自動公開できている）。vsce は 4.1.0 以上が要る（4.0.0 は
+`api-version` を付けずに 400 で失敗していた）。ワークフローのファイル名や environment を変えると、
+登録したポリシーと合わなくなって 401 で失敗するので、変えるときはポリシーも直してもらう。
 タグの push は、ユーザーの明示的な指示があるときだけ行う。
 
 ## 基本方針
