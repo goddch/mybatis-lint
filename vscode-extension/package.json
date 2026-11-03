@@ -2,7 +2,7 @@
   "name": "mybatis-lint",
   "displayName": "MyBatis Lint",
   "description": "Static analysis diagnostics for MyBatis mapper XML files.",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "publisher": "goddch",
   "preview": true,
   "license": "Apache-2.0",
@@ -59,7 +59,13 @@
         },
         "mybatisLint.sqlDialect": {
           "type": "string",
-          "enum": ["auto", "oracle", "postgresql", "mysql", "off"],
+          "enum": [
+            "auto",
+            "oracle",
+            "postgresql",
+            "mysql",
+            "off"
+          ],
           "enumDescriptions": [
             "Guess the database from JDBC URLs, driver names and driver dependencies in the project's settings and build files. If none or more than one database is found, only statements with a databaseId are checked.",
             "Check SQL as Oracle SQL.",
