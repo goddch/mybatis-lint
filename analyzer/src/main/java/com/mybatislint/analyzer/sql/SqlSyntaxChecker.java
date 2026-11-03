@@ -58,6 +58,24 @@ public final class SqlSyntaxChecker implements AutoCloseable {
         if (sql.isBlank() || isKnownUnsupported(sql, dialect)) {
             return Result.SKIPPED;
         }
+        Result result = parse(sql);
+        if (result.error() == null) {
+            return result;
+        }
+        // JSqlParser は FINAL、OUTPUT、STATEMENT、INT、MAP など、Oracle では列名や別名に使える語の一部を
+        // 予約語として扱い、A.FINAL や INT.ID の「.」で読めなくなる。どの語が当たるかは版によって変わるので、
+        // 「.」でつないだ名前をすべて引用符で囲んで読み直し、読めたら名前のせいだったとして報告しない。
+        String quoted = quoteDottedNames(sql);
+        if (!quoted.equals(sql)) {
+            Result retry = parse(quoted);
+            if (retry.checked() && retry.error() == null) {
+                return Result.OK;
+            }
+        }
+        return result;
+    }
+
+    private Result parse(String sql) {
         try {
             CCJSqlParserUtil.parse(sql, executor, parser -> parser.withTimeOut(TIMEOUT_MILLIS));
             return Result.OK;
@@ -68,6 +86,86 @@ public final class SqlSyntaxChecker implements AutoCloseable {
         } catch (RuntimeException e) {
             return Result.SKIPPED;
         }
+    }
+
+    /**
+     * {@code A.FINAL} を {@code "A"."FINAL"} のように、「.」でつないだ名前を引用符で囲む。
+     * 文字列、引用符で囲んだ名前、コメントの中は変えない。
+     */
+    static String quoteDottedNames(String sql) {
+        StringBuilder out = new StringBuilder(sql.length() + 16);
+        int i = 0;
+        while (i < sql.length()) {
+            char c = sql.charAt(i);
+            int skipTo = skipQuotedOrComment(sql, i);
+            if (skipTo > i) {
+                out.append(sql, i, skipTo);
+                i = skipTo;
+            } else if (isNameStart(c) && (i == 0 || !isNamePart(sql.charAt(i - 1)))) {
+                int end = nameEnd(sql, i);
+                String name = sql.substring(i, end);
+                int next = skipSpaces(sql, end);
+                boolean before = next < sql.length() && sql.charAt(next) == '.';
+                boolean after = precededByDot(out);
+                out.append(before || after ? '"' + name + '"' : name);
+                i = end;
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    /** 文字列('...')、引用符で囲んだ名前("...")、コメントなら、その終わりの位置。そうでなければ {@code i}。 */
+    private static int skipQuotedOrComment(String sql, int i) {
+        char c = sql.charAt(i);
+        if (c == '\'' || c == '"') {
+            int close = sql.indexOf(c, i + 1);
+            return close < 0 ? sql.length() : close + 1;
+        }
+        if (sql.startsWith("--", i)) {
+            int close = sql.indexOf('\n', i);
+            return close < 0 ? sql.length() : close;
+        }
+        if (sql.startsWith("/*", i)) {
+            int close = sql.indexOf("*/", i + 2);
+            return close < 0 ? sql.length() : close + 2;
+        }
+        return i;
+    }
+
+    private static boolean precededByDot(StringBuilder out) {
+        int j = out.length() - 1;
+        while (j >= 0 && Character.isWhitespace(out.charAt(j))) {
+            j--;
+        }
+        return j >= 0 && out.charAt(j) == '.';
+    }
+
+    private static int nameEnd(String sql, int start) {
+        int end = start;
+        while (end < sql.length() && isNamePart(sql.charAt(end))) {
+            end++;
+        }
+        return end;
+    }
+
+    private static int skipSpaces(String sql, int start) {
+        int i = start;
+        while (i < sql.length() && Character.isWhitespace(sql.charAt(i))) {
+            i++;
+        }
+        return i;
+    }
+
+    private static boolean isNameStart(char c) {
+        return Character.isLetter(c) || c == '_';
+    }
+
+    // Oracle の名前には $ と # も使える(SERIAL# など)。
+    private static boolean isNamePart(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
     }
 
     private static SyntaxError toSyntaxError(Throwable exception) {
