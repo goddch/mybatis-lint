@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.cli.AnalyzerCli;
 import com.mybatislint.analyzer.cli.DiagnosticFilter;
 import com.mybatislint.analyzer.discovery.ExcludePatterns;
 import com.mybatislint.analyzer.json.JsonWriter;
+import com.mybatislint.analyzer.model.Language;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.util.List;
 /**
  * CLI entry point.
  *
- * <p>Usage: {@code java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... [--sql-dialect <db>] <workspace-directory>}
+ * <p>Usage: {@code java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... [--sql-dialect <db>] [--lang <en|ja>] <workspace-directory>}
  *
  * <p>{@code --exclude} takes a glob relative to the workspace (see
  * {@link ExcludePatterns}) and may be given more than once. {@code --disable}
@@ -26,7 +27,8 @@ import java.util.List;
  * also be repeated (see {@link DiagnosticFilter}). {@code --sql-dialect} picks
  * the database whose grammar the SQL syntax check uses: {@code auto} (the
  * default, guessed from the project's settings and build files), {@code off},
- * {@code oracle}, {@code postgresql} or {@code mysql}.
+ * {@code oracle}, {@code postgresql} or {@code mysql}. {@code --lang} picks the
+ * language of the messages: {@code en} (the default) or {@code ja}.
  *
  * <p>Emits a single, deterministic JSON document to stdout (see
  * {@code docs/diagnostics-schema.md}) and exits with a non-zero status code
@@ -39,19 +41,22 @@ import java.util.List;
 public final class Main {
 
     private static final String USAGE =
-            "Usage: java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... [--sql-dialect <db>] <workspace-directory>\n"
+            "Usage: java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... [--sql-dialect <db>] [--lang <en|ja>]\n"
+                    + "       <workspace-directory>\n"
                     + "       java -jar analyzer.jar --server";
 
     private Main() {
     }
 
     /** 1 回の解析の指定。引数が正しくなければ {@link #parse} は null を返す。 */
-    private record Request(List<String> excludes, List<String> disabledRules, String sqlDialect, String workspace) {
+    private record Request(List<String> excludes, List<String> disabledRules, String sqlDialect, Language language,
+                           String workspace) {
 
         static Request parse(String[] args) {
             List<String> excludes = new ArrayList<>();
             List<String> disabledRules = new ArrayList<>();
             String sqlDialect = "auto";
+            Language language = Language.EN;
             String workspace = null;
             for (int i = 0; i < args.length; i++) {
                 if ("--exclude".equals(args[i]) && i + 1 < args.length) {
@@ -60,13 +65,18 @@ public final class Main {
                     disabledRules.add(args[++i]);
                 } else if ("--sql-dialect".equals(args[i]) && i + 1 < args.length) {
                     sqlDialect = args[++i];
+                } else if ("--lang".equals(args[i]) && i + 1 < args.length) {
+                    language = Language.fromName(args[++i]);
+                    if (language == null) {
+                        return null;
+                    }
                 } else if (workspace == null && !args[i].startsWith("--")) {
                     workspace = args[i];
                 } else {
                     return null;
                 }
             }
-            return workspace == null ? null : new Request(excludes, disabledRules, sqlDialect, workspace);
+            return workspace == null ? null : new Request(excludes, disabledRules, sqlDialect, language, workspace);
         }
 
         AnalyzerCli.Result run(AnalyzerCli.Caches caches) {
@@ -94,7 +104,7 @@ public final class Main {
         AnalyzerCli.Result result = request.run(null);
 
         PrintStream stdout = new PrintStream(System.out, true, StandardCharsets.UTF_8);
-        stdout.print(JsonWriter.write(result.getDiagnostics(), result.getMapperFileCount()));
+        stdout.print(JsonWriter.write(result.getDiagnostics(), result.getMapperFileCount(), request.language()));
         stdout.flush();
 
         System.exit(result.hasErrors() ? 1 : 0);
@@ -125,7 +135,7 @@ public final class Main {
                 } else {
                     try {
                         AnalyzerCli.Result result = request.run(caches);
-                        body = JsonWriter.write(result.getDiagnostics(), result.getMapperFileCount())
+                        body = JsonWriter.write(result.getDiagnostics(), result.getMapperFileCount(), request.language())
                                 .getBytes(StandardCharsets.UTF_8);
                     } catch (RuntimeException | OutOfMemoryError e) {
                         // 1 回の失敗でプロセスを終わらせない。拡張は長さ 0 の応答を失敗として扱う。

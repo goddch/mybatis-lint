@@ -5,6 +5,7 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -242,9 +243,11 @@ public final class MapperParameterValidator {
         String suggestion = propertyStart < 0 ? null : NameSuggestions.closest(property, properties);
         context.diagnostics().add(new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                 RuleIds.UNKNOWN_PARAMETER_PROPERTY,
-                "Unknown property '" + property + "' of parameter '" + parameter + "' (" + qualifiedName
-                        + ") in mapper method '" + context.method().getName() + "'."
-                        + NameSuggestions.didYouMean(suggestion), suggestion));
+                Message.of("Unknown property '" + property + "' of parameter '" + parameter + "' (" + qualifiedName
+                                + ") in mapper method '" + context.method().getName() + "'.",
+                        "mapper メソッド '" + context.method().getName() + "' の引数 '" + parameter + "' ("
+                                + qualifiedName + ") にプロパティ '" + property + "' がありません。")
+                        .plus(NameSuggestions.didYouMean(suggestion)), suggestion));
     }
 
     /**
@@ -303,9 +306,11 @@ public final class MapperParameterValidator {
                 String suggestion = found < 0 ? null : NameSuggestions.closest(property, properties);
                 context.diagnostics().add(new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                         RuleIds.UNKNOWN_PARAMETER_PROPERTY,
-                        "Unknown property '" + property + "' of foreach item '" + item + "' (" + qualifiedName
-                                + ") in mapper method '" + context.method().getName() + "'."
-                                + NameSuggestions.didYouMean(suggestion), suggestion));
+                        Message.of("Unknown property '" + property + "' of foreach item '" + item + "' ("
+                                        + qualifiedName + ") in mapper method '" + context.method().getName() + "'.",
+                                "mapper メソッド '" + context.method().getName() + "' の foreach の item '" + item
+                                        + "' (" + qualifiedName + ") にプロパティ '" + property + "' がありません。")
+                                .plus(NameSuggestions.didYouMean(suggestion)), suggestion));
             }
         }
     }
@@ -550,14 +555,17 @@ public final class MapperParameterValidator {
         if (context.beanType() != null) {
             return new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                     RuleIds.UNKNOWN_PARAMETER_PROPERTY,
-                    "Unknown property '" + root + "' of parameter type '" + context.beanType()
-                            + "' in mapper method '" + context.method().getName() + "'."
-                            + NameSuggestions.didYouMean(suggestion), suggestion);
+                    Message.of("Unknown property '" + root + "' of parameter type '" + context.beanType()
+                                    + "' in mapper method '" + context.method().getName() + "'.",
+                            "mapper メソッド '" + context.method().getName() + "' の引数の型 '" + context.beanType()
+                                    + "' にプロパティ '" + root + "' がありません。")
+                            .plus(NameSuggestions.didYouMean(suggestion)), suggestion);
         }
         return new Diagnostic(context.displayFile(), context.uri(), range, Severity.ERROR,
                 RuleIds.UNDEFINED_PARAMETER,
-                "Undefined parameter '" + root + "' in mapper method '" + context.method().getName() + "'."
-                        + NameSuggestions.didYouMean(suggestion), suggestion);
+                Message.of("Undefined parameter '" + root + "' in mapper method '" + context.method().getName() + "'.",
+                        "mapper メソッド '" + context.method().getName() + "' に引数 '" + root + "' がありません。")
+                        .plus(NameSuggestions.didYouMean(suggestion)), suggestion);
     }
 
     private static int findStartOfElement(String xml, Element element, int lowerBound) {

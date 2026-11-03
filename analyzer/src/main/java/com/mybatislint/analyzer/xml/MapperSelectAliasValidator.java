@@ -2,6 +2,7 @@ package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Position;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
@@ -137,9 +138,11 @@ public final class MapperSelectAliasValidator {
                     : NameSuggestions.closest(alias, properties, MapperSelectAliasValidator::normalize);
             diagnostics.add(new Diagnostic(displayFile, uri, range, Severity.WARNING,
                     RuleIds.UNKNOWN_SELECT_ALIAS,
-                    "Select column alias '" + alias + "' does not match any property of resultType '"
-                            + qualifiedName + "'; MyBatis will ignore this column."
-                            + NameSuggestions.didYouMean(suggestion), suggestion));
+                    Message.of("Select column alias '" + alias + "' does not match any property of resultType '"
+                                    + qualifiedName + "'; MyBatis will ignore this column.",
+                            "別名 '" + alias + "' は resultType '" + qualifiedName
+                                    + "' のどのプロパティとも一致しないため、この列は MyBatis に無視されます。")
+                            .plus(NameSuggestions.didYouMean(suggestion)), suggestion));
         }
     }
 

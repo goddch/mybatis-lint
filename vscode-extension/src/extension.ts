@@ -37,6 +37,8 @@ import { parseAnalyzerOutput } from './parseAnalyzerOutput';
 import { SuggestionStore } from './quickFixes';
 import { resolveAnalyzerJarPath } from './jarPathResolver';
 import { buildSummaryMessage } from './summaryMessage';
+import { format, resolveLanguage, uiStrings } from './language';
+import type { DisplayLanguage } from './language';
 
 const COMMAND_ID = 'mybatisLint.checkWorkspace';
 const SHOW_LOG_COMMAND_ID = 'mybatisLint.showLog';
@@ -115,7 +117,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('mybatisLint.codeLens')) {
+      if (event.affectsConfiguration('mybatisLint.codeLens') || affectsLanguage(event)) {
         codeLensesChanged.fire();
       }
     }),
@@ -193,6 +195,14 @@ export function activate(context: vscode.ExtensionContext): void {
   vscode.window.visibleTextEditors.forEach((editor) => columnHints.update(editor));
   const scheduler = new CheckScheduler(() => checkWorkspace(checkContext, 'save'), SAVE_DEBOUNCE_MS);
   context.subscriptions.push({ dispose: () => scheduler.dispose() });
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      // The messages already in the Problems panel are in the old language until the next check.
+      if (affectsLanguage(event) && vscode.workspace.getConfiguration('mybatisLint').get<boolean>('runOnSave', true)) {
+        scheduler.request();
+      }
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand(COMMAND_ID, () => checkWorkspace(checkContext, 'command')),
@@ -480,7 +490,11 @@ async function mapperCodeLenses(document: vscode.TextDocument): Promise<vscode.C
         locations.push(new vscode.Location(javaDocument.uri, javaDocument.positionAt(occurrence.start)));
       }
     }
-    const title = locations.length === 0 ? 'no references' : locations.length === 1 ? '1 reference' : `${locations.length} references`;
+    const strings = uiStrings(displayLanguage());
+    const title =
+      locations.length === 0 ? strings.noReferences
+        : locations.length === 1 ? strings.oneReference
+          : format(strings.references, locations.length);
     lenses.push(new vscode.CodeLens(range, showLocations(title, document.uri, range.start, locations)));
   }
   return lenses;
@@ -546,7 +560,7 @@ class SqlPreview implements vscode.Disposable {
           }
         }),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (event.affectsConfiguration('mybatisLint.previewLanguage')) {
+          if (affectsLanguage(event)) {
             // The page is rebuilt in the new language; it asks for the statement again when ready.
             this.setHtml();
           }
@@ -573,7 +587,7 @@ class SqlPreview implements vscode.Disposable {
   }
 
   private strings(): PreviewStrings {
-    return previewStrings(vscode.workspace.getConfiguration('mybatisLint').get<string>('previewLanguage'), vscode.env.language);
+    return previewStrings(displayLanguage());
   }
 
   private setHtml(): void {
@@ -820,7 +834,7 @@ function suggestionFixes(
     if (suggestion === undefined) {
       continue;
     }
-    const action = new vscode.CodeAction(`Change to '${suggestion}'`, vscode.CodeActionKind.QuickFix);
+    const action = new vscode.CodeAction(format(uiStrings(displayLanguage()).changeTo, suggestion), vscode.CodeActionKind.QuickFix);
     action.edit = new vscode.WorkspaceEdit();
     action.edit.replace(document.uri, diagnostic.range, suggestion);
     action.diagnostics = [diagnostic];
@@ -905,6 +919,7 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
   const excludes = stringArraySetting(config, 'exclude');
   const disabledRules = stringArraySetting(config, 'disabledRules');
   const sqlDialect = config.get<string>('sqlDialect', 'auto');
+  const language = displayLanguage();
 
   log(
     output,
@@ -943,6 +958,7 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
           excludes,
           disabledRules,
           sqlDialect,
+          language,
         }),
     );
     for (const line of stderr.split(/\r?\n/).filter((text) => text.trim().length > 0)) {
@@ -981,7 +997,7 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
       diagnosticCollection.set(documentUri, vscodeDiagnostics);
     }
 
-    const summaryMessage = buildSummaryMessage(result.summary);
+    const summaryMessage = buildSummaryMessage(result.summary, language);
     const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
     log(output, `Done in ${seconds}s. ${summaryMessage.text.replace(/^MyBatis Lint: /, '')}`);
     checkContext.lastSaveError = undefined;
@@ -1000,4 +1016,14 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
     checkContext.suggestions.clear();
     reportFailure(checkContext, trigger, error instanceof Error ? error.message : String(error));
   }
+}
+
+/** The language of diagnostics and of what the extension shows, from the settings and VS Code's display language. */
+function displayLanguage(): DisplayLanguage {
+  const config = vscode.workspace.getConfiguration('mybatisLint');
+  return resolveLanguage(config.get<string>('language'), vscode.env.language, config.get<string>('previewLanguage'));
+}
+
+function affectsLanguage(event: vscode.ConfigurationChangeEvent): boolean {
+  return event.affectsConfiguration('mybatisLint.language') || event.affectsConfiguration('mybatisLint.previewLanguage');
 }

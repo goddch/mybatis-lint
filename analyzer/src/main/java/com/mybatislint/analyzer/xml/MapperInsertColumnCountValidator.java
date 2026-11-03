@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -68,8 +69,11 @@ public final class MapperInsertColumnCountValidator {
                     }
                 }
                 diagnostics.add(new Diagnostic(displayFile, uri, range, Severity.ERROR, RuleIds.INSERT_COLUMN_COUNT,
-                        "INSERT lists " + counts[0] + " column(s) but " + (counts[2] == 1 ? "VALUES has " : "SELECT returns ")
-                                + counts[1] + (counts[2] == 1 ? " value(s)." : " column(s).")));
+                        Message.of("INSERT lists " + counts[0] + " column(s) but "
+                                        + (counts[2] == 1 ? "VALUES has " : "SELECT returns ")
+                                        + counts[1] + (counts[2] == 1 ? " value(s)." : " column(s)."),
+                                "INSERT の列が " + counts[0] + " 個なのに、" + (counts[2] == 1 ? "VALUES の値" : "SELECT の列")
+                                        + "が " + counts[1] + " 個です。")));
             }
             return diagnostics;
         } catch (Exception e) {

@@ -90,7 +90,7 @@ OIDC 方式は、Marketplace の管理画面の Trusted Publishing に、この�
 ## 新しいルールを追加するとき
 
 1. `model/RuleIds.java` に ID を追加する（`mybatis-lint/kebab-case`）
-2. 該当する validator に実装する
+2. 該当する validator に実装する。警告文は `Message.of(英語, 日本語)` で両方書く（`--lang ja` で日本語を出す）
 3. `fixtures/` に誤り例と正しい例を追加する
 4. テストを書く。検出するケースだけでなく、**fail-open でスキップするケースも**テストする
 5. `README.md` と `docs/roadmap.md` を更新する。必要なら `docs/` にルールの仕様を書く

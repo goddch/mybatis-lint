@@ -61,7 +61,7 @@ With **Pick branches from values** on, the `test` conditions are evaluated
 with the typed values (following OGNL, so `type == 'A'` never matches the
 String "A", as in MyBatis); branches that cannot be decided keep your choice.
 The panel follows the VS Code display language (English or Japanese;
-`mybatisLint.previewLanguage` fixes one). See
+`mybatisLint.language` fixes one). See
 [`docs/sql-preview.md`](docs/sql-preview.md).
 
 **CodeLens** shows small links above definitions: how many places use each
@@ -219,6 +219,11 @@ path, once per pattern (for example `--exclude docker --exclude 'modules/*/gener
 Globs are relative to the workspace and use `/`; a pattern without `/` matches
 a folder or file name at any depth. Folders that cannot be read are skipped
 automatically. In VS Code, use the `mybatisLint.exclude` setting.
+
+`--lang ja` writes the messages in Japanese (the default is `--lang en`). The
+VS Code extension follows the display language, and the `mybatisLint.language`
+setting (`auto` / `en` / `ja`) fixes one; it also applies to the SQL preview,
+quick fixes, CodeLens and notifications. Rule IDs stay in English.
 
 `java -jar build/libs/analyzer.jar --server` keeps the analyzer running and
 reads one request per line (see [`docs/diagnostics-schema.md`](docs/diagnostics-schema.md#server-mode)).

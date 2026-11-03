@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
 import org.w3c.dom.Element;
@@ -43,6 +44,9 @@ public final class MapperParameterOptionValidator {
     // SqlSourceBuilder が受け付けるオプション。property は無視されるが、エラーにはならない。
     private static final Set<String> OPTIONS = Set.of(
             "javaType", "jdbcType", "mode", "numericScale", "resultMap", "typeHandler", "jdbcTypeName", "property");
+    // 警告に並べる一覧。property は MyBatis の内部用なので、利用者には案内しない。
+    private static final String OPTION_LIST = String.join(", ",
+            List.of("javaType", "jdbcType", "mode", "numericScale", "resultMap", "typeHandler", "jdbcTypeName"));
 
     private static final Pattern PARAMETER = Pattern.compile("#\\{([^}]*)\\}");
     private static final Pattern JDBC_TYPE_ATTRIBUTE = Pattern.compile("\\sjdbcType\\s*=\\s*([\"'])([^\"']*)\\1");
@@ -106,9 +110,10 @@ public final class MapperParameterOptionValidator {
                     diagnostics.add(new Diagnostic(displayFile, uri,
                             XmlPositions.range(xml, nameStart, nameStart + name.length()), Severity.ERROR,
                             RuleIds.UNKNOWN_PARAMETER_OPTION,
-                            "'" + name + "' is not an option of #{...}; MyBatis accepts " + String.join(", ",
-                                    List.of("javaType", "jdbcType", "mode", "numericScale", "resultMap", "typeHandler",
-                                            "jdbcTypeName")) + "." + NameSuggestions.didYouMean(suggestion),
+                            Message.of("'" + name + "' is not an option of #{...}; MyBatis accepts " + OPTION_LIST + ".",
+                                    "'" + name + "' は #{...} に書けるオプションではありません。書けるのは "
+                                            + OPTION_LIST + " です。")
+                                    .plus(NameSuggestions.didYouMean(suggestion)),
                             suggestion));
                 } else if ("jdbcType".equals(name) || "mode".equals(name)) {
                     checkValue(xml, offset + equals + 1, part.substring(equals + 1), name, displayFile, uri, diagnostics);
@@ -129,12 +134,16 @@ public final class MapperParameterOptionValidator {
         String suggestion = allowed.contains(value.toUpperCase(Locale.ROOT))
                 ? value.toUpperCase(Locale.ROOT)
                 : NameSuggestions.closest(value, allowed);
-        String message = "mode".equals(option)
-                ? "mode must be IN, OUT or INOUT, not '" + value + "'."
-                : "'" + value + "' is not a JDBC type MyBatis knows; it reads jdbcType with JdbcType.valueOf, "
-                        + "which is case-sensitive.";
+        Message message = "mode".equals(option)
+                ? Message.of("mode must be IN, OUT or INOUT, not '" + value + "'.",
+                        "mode に書けるのは IN、OUT、INOUT のどれかです('" + value + "' は書けません)。")
+                : Message.of("'" + value + "' is not a JDBC type MyBatis knows; it reads jdbcType with JdbcType.valueOf, "
+                                + "which is case-sensitive.",
+                        "'" + value + "' は MyBatis が知っている JDBC の型ではありません(jdbcType は JdbcType.valueOf で"
+                                + "読むので、大文字と小文字も区別されます)。");
         diagnostics.add(new Diagnostic(displayFile, uri, XmlPositions.range(xml, start, start + value.length()),
-                Severity.ERROR, RuleIds.INVALID_JDBC_TYPE, message + NameSuggestions.didYouMean(suggestion), suggestion));
+                Severity.ERROR, RuleIds.INVALID_JDBC_TYPE, message.plus(NameSuggestions.didYouMean(suggestion)),
+                suggestion));
     }
 
     private static String blankComments(String xml) {

@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -204,9 +205,14 @@ public final class MapperDynamicClauseValidator {
                 boolean certain = i == 0;
                 diagnostics.add(diagnostic(xml, offsets, piece, true, keywordOffset, clause, displayFile, uri,
                         certain ? Severity.ERROR : Severity.WARNING,
-                        (certain ? "When this is included, the SQL becomes '" : "If every condition before this is false, the SQL becomes '")
-                                + clause.keyword + " " + leadingText(clause) + " ...'; use " + clause.tag
-                                + ", which removes the leading " + leadingText(clause) + "."));
+                        Message.of((certain ? "When this is included, the SQL becomes '"
+                                        : "If every condition before this is false, the SQL becomes '")
+                                        + clause.keyword + " " + leadingText(clause) + " ...'; use " + clause.tag
+                                        + ", which removes the leading " + leadingText(clause) + ".",
+                                (certain ? "これが含まれると" : "これより前の条件がすべて false だと")
+                                        + "、SQL が '" + clause.keyword + " " + leadingText(clause)
+                                        + " ...' になります。先頭の " + leadingText(clause) + " を取り除く "
+                                        + clause.tag + " を使ってください。")));
             }
             onlyConditionalBefore &= piece.conditional();
         }
@@ -218,17 +224,23 @@ public final class MapperDynamicClauseValidator {
                     boolean certain = i == pieces.size() - 1 && piece.conditional();
                     diagnostics.add(diagnostic(xml, offsets, piece, false, keywordOffset, clause, displayFile, uri,
                             certain ? Severity.ERROR : Severity.WARNING,
-                            (certain ? "When this is included, the " : "If every condition after this is false, the ")
-                                    + clause.keyword + " clause ends with '" + trailingText(clause) + "'; "
-                                    + trailingAdvice(clause)));
+                            Message.of((certain ? "When this is included, the "
+                                            : "If every condition after this is false, the ")
+                                            + clause.keyword + " clause ends with '" + trailingText(clause) + "'; ",
+                                    (certain ? "これが含まれると" : "これより後の条件がすべて false だと")
+                                            + "、" + clause.keyword + " 句が '" + trailingText(clause)
+                                            + "' で終わります。")
+                                    .plus(trailingAdvice(clause))));
                 }
                 onlyConditionalAfter &= piece.conditional();
             }
             if (pieces.stream().allMatch(Piece::conditional)) {
                 diagnostics.add(new Diagnostic(displayFile, uri, keywordRange(xml, keywordOffset, clause),
                         Severity.WARNING, RuleIds.EMPTY_DYNAMIC_CLAUSE,
-                        "If every condition is false, nothing follows " + clause.keyword + "; use " + clause.tag
-                                + ", which leaves out " + clause.keyword + " when it would be empty."));
+                        Message.of("If every condition is false, nothing follows " + clause.keyword + "; use "
+                                        + clause.tag + ", which leaves out " + clause.keyword + " when it would be empty.",
+                                "条件がすべて false だと、" + clause.keyword + " の後に何も続きません。中身が空のときに "
+                                        + clause.keyword + " ごと省く " + clause.tag + " を使ってください。")));
             }
         }
     }
@@ -241,11 +253,13 @@ public final class MapperDynamicClauseValidator {
         return clause == Clause.WHERE ? "AND/OR" : ",";
     }
 
-    private static String trailingAdvice(Clause clause) {
+    private static Message trailingAdvice(Clause clause) {
         // <where> は先頭の AND / OR しか取り除かない。<set> は末尾のカンマも取り除く。
         return clause == Clause.WHERE
-                ? "move AND/OR to the start of the next condition and use <where>."
-                : "use <set>, which removes the trailing comma.";
+                ? Message.of("move AND/OR to the start of the next condition and use <where>.",
+                        "AND/OR を次の条件の先頭に移して、<where> を使ってください。")
+                : Message.of("use <set>, which removes the trailing comma.",
+                        "末尾のカンマを取り除く <set> を使ってください。");
     }
 
     private static Piece textPiece(Clause clause, String text) {
@@ -361,7 +375,7 @@ public final class MapperDynamicClauseValidator {
     }
 
     private static Diagnostic diagnostic(String xml, Map<Element, Integer> offsets, Piece piece, boolean leading,
-                                         int keywordOffset, Clause clause, Path displayFile, String uri, Severity severity, String message) {
+                                         int keywordOffset, Clause clause, Path displayFile, String uri, Severity severity, Message message) {
         Range range = keywordRange(xml, keywordOffset, clause);
         Integer start = piece.element() == null ? null : offsets.get(piece.element());
         if (start != null) {

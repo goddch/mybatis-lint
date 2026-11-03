@@ -18,7 +18,8 @@ statement に移すと、表示も切り替わります。編集すると、保�
 分岐とパラメータの見出しを押すと折りたためます(状態は覚えておきます)。
 
 表示する言語は、VS Code の表示言語に合わせます(日本語なら日本語)。設定
-`mybatisLint.previewLanguage`(`auto` / `en` / `ja`)で固定することもできます。
+`mybatisLint.language`(`auto` / `en` / `ja`)で固定することもできます。この設定は警告文にも効きます。
+以前の `mybatisLint.previewLanguage` も、`mybatisLint.language` が `auto` の間は使われます。
 
 ## 分岐の切り替え
 

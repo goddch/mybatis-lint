@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -204,8 +205,11 @@ public final class MapperParameterTypeValidator {
                         rangeForAttributeValue(xml, statement, "parameterType", parameterType, elementStart),
                         Severity.WARNING,
                         RuleIds.PARAMETER_TYPE_MISMATCH,
-                        "Statement parameterType '" + parameterType + "' does not match the single argument type '"
-                                + javaRawType + "' of mapper method '" + method.getName() + "'."));
+                        Message.of("Statement parameterType '" + parameterType
+                                        + "' does not match the single argument type '" + javaRawType
+                                        + "' of mapper method '" + method.getName() + "'.",
+                                "parameterType '" + parameterType + "' が mapper メソッド '" + method.getName()
+                                        + "' の引数の型 '" + javaRawType + "' と合いません。")));
             }
             return diagnostics;
         } catch (Exception e) {

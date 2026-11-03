@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.xml.ParameterTypeLookup.StatementContext;
@@ -156,12 +157,18 @@ public final class MapperDollarSubstitutionValidator {
                                          Path displayFile, String uri) {
         String written = xml.substring(start, end);
         String parameter = "#{" + expression + "}";
-        String message = written + " is inserted into the SQL as is, so a value from user input can change the SQL "
-                + "(SQL injection); " + switch (place) {
-                    case VALUE -> "use " + parameter + ".";
-                    case LITERAL -> "use " + parameter + " outside the quotes, e.g. '%' || " + parameter + " || '%'.";
-                    case IN_LIST -> "build the list with <foreach> and " + parameter.replace(expression, "item") + ".";
-                };
+        String item = parameter.replace(expression, "item");
+        Message message = Message.of(written + " is inserted into the SQL as is, so a value from user input can change "
+                        + "the SQL (SQL injection); ",
+                written + " は値を SQL にそのまま埋め込むため、利用者が入力した値で SQL を書き換えられます"
+                        + "(SQL インジェクション)。").plus(switch (place) {
+                    case VALUE -> Message.of("use " + parameter + ".", parameter + " を使ってください。");
+                    case LITERAL -> Message.of(
+                            "use " + parameter + " outside the quotes, e.g. '%' || " + parameter + " || '%'.",
+                            "引用符の外で " + parameter + " を使ってください(例: '%' || " + parameter + " || '%')。");
+                    case IN_LIST -> Message.of("build the list with <foreach> and " + item + ".",
+                            "<foreach> と " + item + " で一覧を組み立ててください。");
+                });
         // 値の場所なら ${...} を #{...} に置き換えるだけで直る。文字列や IN の中は書き換えが要る。
         String suggestion = place == Place.VALUE ? parameter : null;
         return new Diagnostic(displayFile, uri, XmlPositions.range(xml, start, end), Severity.WARNING,

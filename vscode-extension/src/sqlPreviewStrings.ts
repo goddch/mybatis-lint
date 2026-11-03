@@ -4,6 +4,8 @@
  * language and sends the whole set to the page.
  */
 
+import type { DisplayLanguage } from './language';
+
 export interface PreviewStrings {
   /** The page's language, for `<html lang>`. */
   lang: 'en' | 'ja';
@@ -123,11 +125,7 @@ const JA: PreviewStrings = {
   note: 'MyBatis と同じ規則で組み立てています。分岐は手で選ぶか、入力した値から自動で選べます。<bind> の変数はパラメータのまま残ります。',
 };
 
-/**
- * @param setting the `mybatisLint.previewLanguage` setting: `auto`, `en` or `ja`
- * @param displayLanguage VS Code's display language, such as `ja` or `en-us`, used for `auto`
- */
-export function previewStrings(setting: string | undefined, displayLanguage: string): PreviewStrings {
-  const language = setting === 'en' || setting === 'ja' ? setting : displayLanguage.toLowerCase().startsWith('ja') ? 'ja' : 'en';
+/** The words in the language from {@link resolveLanguage}. */
+export function previewStrings(language: DisplayLanguage): PreviewStrings {
   return language === 'ja' ? JA : EN;
 }

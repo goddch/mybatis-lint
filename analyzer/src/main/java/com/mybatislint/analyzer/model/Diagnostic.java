@@ -14,15 +14,15 @@ public final class Diagnostic {
     private final Range range;
     private final Severity severity;
     private final String ruleId;
-    private final String message;
+    private final Message message;
     // 範囲の文字列をこれに置き換えれば直る、という候補(打ち間違えた名前の正しい名前)。なければ null。
     private final String suggestion;
 
-    public Diagnostic(Path file, String uri, Range range, Severity severity, String ruleId, String message) {
+    public Diagnostic(Path file, String uri, Range range, Severity severity, String ruleId, Message message) {
         this(file, uri, range, severity, ruleId, message, null);
     }
 
-    public Diagnostic(Path file, String uri, Range range, Severity severity, String ruleId, String message,
+    public Diagnostic(Path file, String uri, Range range, Severity severity, String ruleId, Message message,
                       String suggestion) {
         this.file = Objects.requireNonNull(file, "file");
         this.uri = Objects.requireNonNull(uri, "uri");
@@ -53,8 +53,13 @@ public final class Diagnostic {
         return ruleId;
     }
 
+    /** 英語の文。テストやログで使う。 */
     public String getMessage() {
-        return message;
+        return message.en();
+    }
+
+    public String getMessage(Language language) {
+        return message.in(language);
     }
 
     /** 範囲の文字列を置き換える候補。なければ null。 */

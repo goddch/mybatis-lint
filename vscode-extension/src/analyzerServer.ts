@@ -50,7 +50,13 @@ export class AnalyzerServer {
   }
 
   private send(options: AnalyzerRunOptions, processKey: string): Promise<AnalyzerServerResult> {
-    const args = buildRequestArgs(options.workspacePath, options.excludes, options.disabledRules, options.sqlDialect);
+    const args = buildRequestArgs(
+      options.workspacePath,
+      options.excludes,
+      options.disabledRules,
+      options.sqlDialect,
+      options.language,
+    );
     if (args.some((arg) => /[\t\r\n]/.test(arg))) {
       return Promise.reject(new Error('MyBatis Lint: a path or setting contains a tab or line break.'));
     }

@@ -12,6 +12,7 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex.DeclaredMethod;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaSources;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -165,11 +166,14 @@ public final class MapperUnusedDefinitionValidator {
 
         if (sqlKnown) {
             reportUnused(sqlFragments, usedSql, usedSqlIds, brokenNamespaces, RuleIds.UNUSED_SQL_FRAGMENT,
-                    "<sql id=\"%s\"> is not used by any <include refid>.", displayPath, diagnostics);
+                    Message.of("<sql id=\"%s\"> is not used by any <include refid>.",
+                            "<sql id=\"%s\"> はどの <include refid> からも使われていません。"), displayPath, diagnostics);
         }
         if (resultMapsKnown) {
             reportUnused(resultMaps, usedResultMaps, usedResultMapIds, brokenNamespaces, RuleIds.UNUSED_RESULT_MAP,
-                    "<resultMap id=\"%s\"> is not used by any statement, nested mapping, extends or @ResultMap.",
+                    Message.of("<resultMap id=\"%s\"> is not used by any statement, nested mapping, extends or @ResultMap.",
+                            "<resultMap id=\"%s\"> はどの statement、入れ子のマッピング、extends、@ResultMap からも"
+                                    + "使われていません。"),
                     displayPath, diagnostics);
         }
         // 同じ実行で結果が変わらないよう、ファイルと位置の順に並べる。
@@ -196,12 +200,14 @@ public final class MapperUnusedDefinitionValidator {
         }
         diagnostics.add(new Diagnostic(displayPath.apply(file), file.toUri().toString(), idRange(xml, tag, id),
                 Severity.WARNING, RuleIds.STATEMENT_WITHOUT_METHOD,
-                "Statement '" + id + "' has no method of that name in " + mapperInterface.getQualifiedName()
-                        + ", so it cannot be called through the mapper interface."));
+                Message.of("Statement '" + id + "' has no method of that name in " + mapperInterface.getQualifiedName()
+                                + ", so it cannot be called through the mapper interface.",
+                        mapperInterface.getQualifiedName() + " に statement '" + id
+                                + "' と同じ名前のメソッドがないため、mapper インターフェースから呼び出せません。")));
     }
 
     private static void reportUnused(Map<String, Definition> definitions, Set<String> used, Set<String> usedIds,
-                                     Set<String> brokenNamespaces, String ruleId, String format,
+                                     Set<String> brokenNamespaces, String ruleId, Message format,
                                      Function<Path, Path> displayPath, List<Diagnostic> diagnostics) {
         definitions.forEach((qualified, definition) -> {
             // 同じ id が複数あるもの(別ルールで報告する)は、どれが使われているか決めない。
@@ -211,7 +217,8 @@ public final class MapperUnusedDefinitionValidator {
             }
             diagnostics.add(new Diagnostic(displayPath.apply(definition.file()), definition.file().toUri().toString(),
                     idRange(definition.xml(), definition.tag(), definition.rawId()), Severity.WARNING, ruleId,
-                    String.format(format, definition.rawId())));
+                    Message.of(String.format(format.en(), definition.rawId()),
+                            String.format(format.ja(), definition.rawId()))));
         });
     }
 

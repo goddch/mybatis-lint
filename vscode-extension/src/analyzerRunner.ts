@@ -1,5 +1,7 @@
 import { spawn as defaultSpawn } from 'child_process';
 
+import type { DisplayLanguage } from './language';
+
 export interface AnalyzerRunOptions {
   javaPath: string;
   jarPath: string;
@@ -13,6 +15,8 @@ export interface AnalyzerRunOptions {
    * settings and build files), `off`, `oracle`, `postgresql` or `mysql`.
    */
   sqlDialect?: string;
+  /** The language of the diagnostic messages. */
+  language?: DisplayLanguage;
 }
 
 export interface AnalyzerRunResult {
@@ -29,6 +33,7 @@ export function buildAnalyzerArgs(
   excludes: string[] = [],
   disabledRules: string[] = [],
   sqlDialect = 'auto',
+  language: DisplayLanguage = 'en',
 ): string[] {
   return [
     // The analyzer runs for a second or two per save, which is too short for the optimizing
@@ -36,7 +41,7 @@ export function buildAnalyzerArgs(
     '-XX:TieredStopAtLevel=1',
     '-jar',
     jarPath,
-    ...buildRequestArgs(workspacePath, excludes, disabledRules, sqlDialect),
+    ...buildRequestArgs(workspacePath, excludes, disabledRules, sqlDialect, language),
   ];
 }
 
@@ -46,13 +51,15 @@ export function buildRequestArgs(
   excludes: string[] = [],
   disabledRules: string[] = [],
   sqlDialect = 'auto',
+  language: DisplayLanguage = 'en',
 ): string[] {
-  // `auto` is the analyzer's default, so it is left out and an older analyzer jar still accepts the request.
+  // `auto` and `en` are the analyzer's defaults, so they are left out and an older analyzer jar still accepts the request.
   const dialect = sqlDialect.trim();
   return [
     ...repeatedOption('--exclude', excludes),
     ...repeatedOption('--disable', disabledRules),
     ...(dialect.length > 0 && dialect !== 'auto' ? ['--sql-dialect', dialect] : []),
+    ...(language === 'ja' ? ['--lang', 'ja'] : []),
     workspacePath,
   ];
 }
@@ -80,7 +87,7 @@ export function runAnalyzer(
   spawnFn: SpawnFn = defaultSpawn,
 ): Promise<AnalyzerRunResult> {
   const { javaPath, jarPath, workspacePath, excludes, disabledRules } = options;
-  const args = buildAnalyzerArgs(jarPath, workspacePath, excludes, disabledRules, options.sqlDialect);
+  const args = buildAnalyzerArgs(jarPath, workspacePath, excludes, disabledRules, options.sqlDialect, options.language);
 
   return new Promise((resolve, reject) => {
     const child = spawnFn(javaPath, args);
