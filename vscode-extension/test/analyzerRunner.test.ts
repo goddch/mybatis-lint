@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 
-import { buildAnalyzerArgs, runAnalyzer } from '../src/analyzerRunner';
+import { buildAnalyzerArgs, buildRequestArgs, runAnalyzer } from '../src/analyzerRunner';
 
 test('passes each non-blank exclude pattern before the workspace path', () => {
   assert.deepEqual(buildAnalyzerArgs('/path/analyzer.jar', '/workspace', ['docker', ' ', ' modules/*/generated ']), [
@@ -28,6 +28,12 @@ test('passes disabled rules after excludes', () => {
     'unknown-select-alias',
     '/w',
   ]);
+});
+
+test('passes the SQL dialect only when it is not auto', () => {
+  assert.deepEqual(buildRequestArgs('/w', [], [], 'oracle'), ['--sql-dialect', 'oracle', '/w']);
+  assert.deepEqual(buildRequestArgs('/w', [], [], 'auto'), ['/w']);
+  assert.deepEqual(buildRequestArgs('/w'), ['/w']);
 });
 
 test('builds the expected java CLI arguments', () => {

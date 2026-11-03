@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- SQL プレビュー(TypeScript)と構文チェック(Java)が同じ SQL を組み立てることを確かめる見本。expected.json と対応する。 -->
+<mapper namespace="example.CommonMapper">
+  <sql id="audit">${alias}.CREATED_BY, ${alias}.CREATED_AT</sql>
+</mapper>

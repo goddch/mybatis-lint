@@ -27,9 +27,23 @@ MyBatis の mapper XML を静的解析し、実行しないと気づきにくい
 - Java の Mapper メソッドに存在しないパラメータの参照（`#{missing}` など）
 - `parameterType` / `resultType` と Java メソッドの型の不一致
 - resultMap の `property` に対応するフィールドや setter がないもの
+- SQL の構文の誤り（`FORM` の綴り間違い、カンマ抜けなど）。Oracle / PostgreSQL / MySQL のうち、
+  プロジェクトの DB が分かったときだけ、その DB の文法でチェックします（下の「SQL の構文チェック」）
 
 確実に誤りと判断できないケースは、誤検知を避けるため報告しません。
-MyBatis の設定ファイルやコンパイル済みのクラスは読み込まず、ワークスペース内のソースだけで判定します。
+コンパイル済みのクラスは読み込まず、ワークスペース内のソースだけで判定します。
+
+## SQL の構文チェック
+
+違う DB の文法でチェックすると正しい SQL まで誤りになるので、DB が 1 つに決まったときだけチェックします。
+
+1. 設定 `mybatisLint.sqlDialect` で `oracle` / `postgresql` / `mysql` を選んでいれば、その DB
+2. statement に `databaseId="oracle"` などがあれば、その DB
+3. 既定（`auto`）では、`application.properties` / `application.yml` の JDBC URL、mybatis-config.xml の
+   ドライバ、`pom.xml` / `build.gradle` のドライバの依存から推定します。見つからないときや、
+   2 つ以上の DB が見つかったときはチェックしません
+
+どの DB としてチェックしたかは **MyBatis Lint: Show Log** に出ます。DB に接続することはありません。
 
 ## プライバシー
 
@@ -43,6 +57,7 @@ MyBatis の設定ファイルやコンパイル済みのクラスは読み込ま
 |---|---|
 | `mybatisLint.runOnSave` | mapper XML や Java ファイルを保存したときに自動でチェックするか（既定はオン） |
 | `mybatisLint.exclude` | 解析しないフォルダやファイル。ワークスペースからの相対パスで、`*` や `**` が使えます（例: `docker`、`modules/*/generated`）。`/` を含まない名前は、どの階層のフォルダ名・ファイル名にも一致します |
+| `mybatisLint.sqlDialect` | SQL の構文チェックに使う DB（`auto` / `oracle` / `postgresql` / `mysql` / `off`）。既定の `auto` は設定ファイルとビルドファイルから推定します |
 | `mybatisLint.disabledRules` | 報告しないルール（例: `unknown-select-alias`）。`mybatis-lint/` は省略できます |
 | `mybatisLint.javaPath` | 解析に使う Java のパス。空なら同梱の Java を使います |
 | `mybatisLint.analyzerJarPath` | 解析エンジンの jar のパス。空なら同梱の jar を使います |

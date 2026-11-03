@@ -46,10 +46,22 @@ lines a future split would follow, so extracting modules later (e.g. a
   - `MapperParameterTypeValidator` — `parameterType` vs. Java argument type
   - `MapperResultTypeValidator` — `resultType` vs. Java return type
 
+  `MapperSqlSyntaxValidator` builds each statement's SQL with
+  `DynamicSqlRenderer` (the same rules as the extension's SQL preview, read
+  by `MapperXmlTree`, which keeps the XML offset of every character so errors
+  are reported in the XML) and parses it with JSqlParser. Both renderers are
+  tested against the shared fixture in `fixtures/sql-render/`.
+
   `MapperSqlFragmentIndex` and `MapperResultMapIndex` are built once over all
   mapper files, so references across files can be resolved. Every validator
   reads XML through `XmlSources`; during one CLI run it caches each file's
   text and DOM, so a file is parsed once instead of once per validator.
+- `sql` — SQL syntax checking: `SqlDialect` (Oracle, PostgreSQL, MySQL),
+  `SqlDialectDetector` (guesses the database from JDBC URLs, driver names and
+  driver dependencies in settings and build files found by
+  `ProjectSettingsScanner`; only a single database counts), and
+  `SqlSyntaxChecker` (JSqlParser with a timeout; skips SQL the parser is known
+  not to read, such as PL/SQL blocks and Oracle's `RETURNING ... INTO`).
 - `model` — `Diagnostic`, `Range`, `Position`, `Severity`, and the canonical
   list of rule IDs (`RuleIds`).
 - `json` — a small hand-written JSON writer (see below for why).
@@ -126,7 +138,9 @@ if the output shape grows significantly more complex, revisit this decision.
   and the extension has no runtime dependencies), used by the SQL preview.
 - `src/sqlPreview.ts` — builds the plain SQL of a statement for chosen
   branches, following MyBatis's rules for `<where>`, `<set>`, `<trim>`,
-  `<foreach>` and `<include>`. `src/sqlPreviewHtml.ts` is the panel's page;
+  `<foreach>` and `<include>`. The analyzer's `DynamicSqlRenderer` follows the
+  same rules for the SQL syntax check; both are tested against
+  `fixtures/sql-render/`. `src/sqlPreviewHtml.ts` is the panel's page;
   it only draws what the extension sends, inserting text with `textContent`.
 - `src/quickFixes.ts` — remembers each diagnostic's `suggestion` so that
   `extension.ts` can offer it as a "Change to '...'" quick fix.

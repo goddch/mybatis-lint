@@ -10,8 +10,10 @@ The analyzer favors silence over false positives: whenever something cannot be
 decided statically (`${...}` values, unresolved or ambiguous Java types,
 references to mappers that are not in the opened folder, and so on) it reports
 nothing. Only the XML and Java sources in the workspace are read; from MyBatis
-configuration files only `<typeAlias alias>` names are used, and compiled
-classes and other modules are not loaded.
+configuration files only `<typeAlias alias>` names are used, settings and build
+files are only used to tell which database the SQL is for, and compiled
+classes and other modules are not loaded. The analyzer never connects to a
+database.
 
 ## Installing
 
@@ -101,6 +103,7 @@ CLI exit non-zero. Everything else is a `warning`.
 | `unknown-parameter-property` | error | a property that the parameter object cannot provide: `#{userNmae}` when the only parameter is a bean without `@Param`, `#{user.userNmae}` for `@Param("user")`, or `#{u.userNmae}` for a `<foreach item="u">` over `List<UserDomain>`; fails at run time with "There is no getter for property" ([details](docs/mapper-binding-validation.md)) |
 | `insert-column-count` | error | `INSERT INTO t (...)` whose column count differs from its `VALUES (...)` or `SELECT` list (ORA-00947 / ORA-00913); statements with `<if>` or `<include>` in those lists are skipped ([details](docs/insert-column-validation.md)) |
 | `parameter-in-string-literal` | error | `#{...}` inside a SQL string literal such as `LIKE '%#{name}%'`; it is not bound and fails at run time ([details](docs/sql-pitfalls.md)) |
+| `sql-syntax-error` | warning | SQL that the project's database cannot parse, such as `FORM` for `FROM` or a missing comma. Checked only when the database is known: the `mybatisLint.sqlDialect` setting, a statement's `databaseId`, or a single database found in the project's settings and build files (Oracle, PostgreSQL, MySQL). Dynamic SQL is built like the SQL preview; errors that appear only for some combinations of branches are not reported ([details](docs/sql-syntax-validation.md)) |
 | `unsafe-dollar-substitution` | warning | `${...}` where a value is written (after `=`, `<>`, `LIKE` and the like, inside a string literal, or right inside `IN (...)`), which inserts the value into the SQL as is and allows SQL injection; `ORDER BY ${column}`, table names and values known to be numeric or boolean are not reported ([details](docs/sql-pitfalls.md)) |
 | `invalid-jdbc-type` | error | a `jdbcType` that `org.apache.ibatis.type.JdbcType` does not have, in `#{name,jdbcType=...}`, `#{name:TYPE}` or a `jdbcType` attribute, including wrong case such as `varchar`, and a `mode` other than IN, OUT or INOUT; MyBatis fails when it loads the mapper ([details](docs/sql-pitfalls.md)) |
 | `unknown-parameter-option` | error | an option `#{...}` does not accept, such as `jdbctype=` ([details](docs/sql-pitfalls.md)) |
@@ -163,7 +166,7 @@ If a rule reports something that is not a problem in your project:
 
 ## What is **not** implemented yet
 
-Oracle SQL syntax validation, column-to-property validation beyond explicit
+Syntax checks for databases other than Oracle, PostgreSQL and MySQL, column-to-property validation beyond explicit
 `AS` aliases (unaliased columns, `resultMap` statements, `*` and `<include>`
 in the select list), and dynamic SQL branch expansion are roadmap items — see
 [`docs/roadmap.md`](docs/roadmap.md).
@@ -275,6 +278,8 @@ uploaded manually on the Marketplace management page.
 
 ## License
 
-[Apache License 2.0](LICENSE). The packaged VS Code extension also bundles an
+[Apache License 2.0](LICENSE). The analyzer jar includes JavaParser and
+JSqlParser, both used under the Apache License 2.0 (each is dual-licensed).
+The packaged VS Code extension also bundles an
 OpenJDK runtime, which is distributed under its own license (GPLv2 with the
 Classpath Exception); its license files are included under `jre/legal/`.

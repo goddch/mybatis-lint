@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- PostgreSQL として判定されるプロジェクト。PostgreSQL 独自の書き方は報告されず、FORM の綴り間違いだけが報告される。 -->
+<mapper namespace="com.example.PostgresMapper">
+  <select id="postgresSyntax" resultType="map">
+    SELECT id::text, data->>'name' AS name FROM users WHERE name ILIKE '%' || #{name} || '%' LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <insert id="upsert">
+    INSERT INTO users (id, name) VALUES (#{id}, #{name})
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id
+  </insert>
+
+  <select id="misspelledFrom" resultType="map">SELECT id FORM users</select>
+</mapper>

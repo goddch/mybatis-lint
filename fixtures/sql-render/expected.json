@@ -1,0 +1,7 @@
+{
+  "_comment": "Each statement of RenderCasesMapper.xml with every <if> on, the first branch of each <choose>, <foreach> repeated twice and #{...} as ?. Whitespace is compared after collapsing runs to one space.",
+  "search": "SELECT u.ID, u.NAME, u.CREATED_BY, u.CREATED_AT FROM USERS u WHERE u.NAME LIKE '%' || ? || '%' AND u.STATUS = ? AND u.TYPE = 'A' AND u.ID IN (?, ?)",
+  "update": "UPDATE USERS SET NAME = ?, MAIL = ? WHERE ID = ? AND AGE < 100",
+  "insertAll": "INSERT INTO USERS (ID, NAME) SELECT ?, ? FROM DUAL UNION ALL SELECT ?, ? FROM DUAL",
+  "deleteTrimmed": "DELETE FROM USERS WHERE ID = ? OR NAME LIKE ?"
+}
