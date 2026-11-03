@@ -69,6 +69,10 @@ PostgreSQL のプロジェクトで誤りになることはありません。DB 
 - Oracle の `RETURNING ... INTO`(JSqlParser が読めない)
 - 末尾以外に `;` があり、複数の SQL をつないでいるもの(末尾の `;` 1 つは外して読む)
 - パーサーが時間内に読み終わらなかったもの、字句の段階で読めなかったもの
+- `.` でつないだ名前を `"A"."FINAL"` のように引用符で囲むと読めるもの。JSqlParser は `FINAL`、`OUTPUT`、
+  `STATEMENT`、`SAMPLE`、`INT`、`MAP` など、Oracle では列名や別名に使える語の一部を予約語として扱い、
+  `A.FINAL` や `INT.ID` の `.` で読めなくなるため。綴りの誤りやカンマ抜けは引用符で囲んでも直らないので、
+  これまでどおり報告する
 
 読めないことは SQL の誤りとは限らない(パーサーが知らない書き方かもしれない)ので、warning にしています。
 誤検知があれば、`mybatis-lint-disable-next-line sql-syntax-error` で止められます。
