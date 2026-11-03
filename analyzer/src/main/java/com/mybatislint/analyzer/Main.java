@@ -18,12 +18,15 @@ import java.util.List;
 /**
  * CLI entry point.
  *
- * <p>Usage: {@code java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... <workspace-directory>}
+ * <p>Usage: {@code java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... [--sql-dialect <db>] <workspace-directory>}
  *
  * <p>{@code --exclude} takes a glob relative to the workspace (see
  * {@link ExcludePatterns}) and may be given more than once. {@code --disable}
  * takes a rule ID, with or without the {@code mybatis-lint/} prefix, and may
- * also be repeated (see {@link DiagnosticFilter}).
+ * also be repeated (see {@link DiagnosticFilter}). {@code --sql-dialect} picks
+ * the database whose grammar the SQL syntax check uses: {@code auto} (the
+ * default, guessed from the project's settings and build files), {@code off},
+ * {@code oracle}, {@code postgresql} or {@code mysql}.
  *
  * <p>Emits a single, deterministic JSON document to stdout (see
  * {@code docs/diagnostics-schema.md}) and exits with a non-zero status code
@@ -36,31 +39,34 @@ import java.util.List;
 public final class Main {
 
     private static final String USAGE =
-            "Usage: java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... <workspace-directory>\n"
+            "Usage: java -jar analyzer.jar [--exclude <glob>]... [--disable <rule>]... [--sql-dialect <db>] <workspace-directory>\n"
                     + "       java -jar analyzer.jar --server";
 
     private Main() {
     }
 
     /** 1 回の解析の指定。引数が正しくなければ {@link #parse} は null を返す。 */
-    private record Request(List<String> excludes, List<String> disabledRules, String workspace) {
+    private record Request(List<String> excludes, List<String> disabledRules, String sqlDialect, String workspace) {
 
         static Request parse(String[] args) {
             List<String> excludes = new ArrayList<>();
             List<String> disabledRules = new ArrayList<>();
+            String sqlDialect = "auto";
             String workspace = null;
             for (int i = 0; i < args.length; i++) {
                 if ("--exclude".equals(args[i]) && i + 1 < args.length) {
                     excludes.add(args[++i]);
                 } else if ("--disable".equals(args[i]) && i + 1 < args.length) {
                     disabledRules.add(args[++i]);
+                } else if ("--sql-dialect".equals(args[i]) && i + 1 < args.length) {
+                    sqlDialect = args[++i];
                 } else if (workspace == null && !args[i].startsWith("--")) {
                     workspace = args[i];
                 } else {
                     return null;
                 }
             }
-            return workspace == null ? null : new Request(excludes, disabledRules, workspace);
+            return workspace == null ? null : new Request(excludes, disabledRules, sqlDialect, workspace);
         }
 
         AnalyzerCli.Result run(AnalyzerCli.Caches caches) {
@@ -68,7 +74,9 @@ public final class Main {
             for (String unknown : DiagnosticFilter.unknownRuleIds(disabledRules)) {
                 System.err.println("Unknown rule id in --disable: " + unknown);
             }
-            return new AnalyzerCli(ExcludePatterns.of(excludes), disabledRules).run(Path.of(workspace), caches);
+            return new AnalyzerCli(ExcludePatterns.of(excludes), disabledRules)
+                    .withSqlDialect(sqlDialect)
+                    .run(Path.of(workspace), caches);
         }
     }
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- わざと SQL の構文を誤らせた mapper。mybatis-lint/sql-syntax-error が 4 件出る。 -->
+<mapper namespace="com.example.SyntaxInvalidMapper">
+  <!-- FROM の綴り間違い -->
+  <select id="misspelledFrom" resultType="map">
+    SELECT ID, NAME
+      FORM USERS
+  </select>
+
+  <!-- SET の項目の間のカンマ抜け -->
+  <update id="missingComma">
+    UPDATE USERS SET NAME = #{name} MAIL = #{mail} WHERE ID = #{id}
+  </update>
+
+  <!-- <if> の中の誤り。その <if> だけを成り立たせても読めないので報告する -->
+  <select id="typoInsideIf" resultType="map">
+    SELECT * FROM USERS
+    <where>
+      <if test="name != null">AND NAME = #{name}</if>
+      <if test="age != null">AND AGE &gt;= = #{age}</if>
+    </where>
+  </select>
+
+  <!-- 閉じていない括弧 -->
+  <select id="unclosedParen" resultType="map">
+    SELECT * FROM USERS WHERE (STATUS = #{status}
+  </select>
+</mapper>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- SQL プレビュー(TypeScript)と構文チェック(Java)が同じ SQL を組み立てることを確かめる見本。expected.json と対応する。 -->
+<mapper namespace="example.RenderCasesMapper">
+  <sql id="columns">u.ID, u.NAME</sql>
+
+  <select id="search" resultType="map">
+    SELECT <include refid="columns"/>, <include refid="example.CommonMapper.audit"><property name="alias" value="u"/></include>
+      FROM USERS u
+    <where>
+      <if test="name != null">AND u.NAME LIKE '%' || #{name} || '%'</if>
+      <if test="status != null and status &gt; 0">AND u.STATUS = #{status,jdbcType=NUMERIC}</if>
+      <choose>
+        <when test="type == 'A'">AND u.TYPE = 'A'</when>
+        <otherwise>AND u.TYPE IN ('B', 'C')</otherwise>
+      </choose>
+      AND u.ID IN
+      <foreach collection="ids" item="id" open="(" separator=", " close=")">#{id}</foreach>
+    </where>
+  </select>
+
+  <update id="update">
+    <![CDATA[UPDATE USERS]]>
+    <set>
+      <if test="name != null">NAME = #{name},</if>
+      <if test="mail != null">MAIL = #{mail},</if>
+    </set>
+    WHERE ID = #{id} AND AGE &lt; 100
+  </update>
+
+  <insert id="insertAll">
+    INSERT INTO USERS (ID, NAME)
+    <foreach collection="users" item="user" separator=" UNION ALL ">
+      SELECT #{user.id}, #{user.name} FROM DUAL
+    </foreach>
+  </insert>
+
+  <delete id="deleteTrimmed">
+    DELETE FROM USERS
+    <trim prefix="WHERE" prefixOverrides="AND |OR ">
+      <if test="id != null">AND ID = #{id}</if>
+      <bind name="pattern" value="'%' + name + '%'"/>
+      <if test="name != null">OR NAME LIKE #{pattern}</if>
+    </trim>
+  </delete>
+</mapper>

@@ -1,6 +1,10 @@
 package com.mybatislint.analyzer.cli;
 
 import com.mybatislint.analyzer.discovery.ExcludePatterns;
+import com.mybatislint.analyzer.discovery.ProjectSettingsScanner;
+import com.mybatislint.analyzer.sql.SqlDialect;
+import com.mybatislint.analyzer.sql.SqlDialectDetector;
+import com.mybatislint.analyzer.xml.MapperSqlSyntaxValidator;
 import com.mybatislint.analyzer.discovery.MapperFileScanner;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaSources;
@@ -33,6 +37,8 @@ public final class AnalyzerCli {
     private final MapperFileScanner scanner;
     private final MapperXmlAnalyzer analyzer;
     private final List<String> disabledRules;
+    /** {@code auto}、{@code off}、または DB 名({@link SqlDialect#fromName})。 */
+    private String sqlDialectSetting = "auto";
 
     public AnalyzerCli() {
         this(ExcludePatterns.none());
@@ -97,6 +103,15 @@ public final class AnalyzerCli {
     }
 
     /** {@code caches} があれば、前の解析から変わっていないファイルは読み直さない。 */
+    /**
+     * SQL の構文チェックに使う DB。{@code auto}(既定)は設定ファイルとビルドファイルから推定し、
+     * {@code off} はチェックしない。
+     */
+    public AnalyzerCli withSqlDialect(String setting) {
+        this.sqlDialectSetting = setting == null || setting.isBlank() ? "auto" : setting.trim();
+        return this;
+    }
+
     public Result run(Path workspaceRoot, Caches caches) {
         // 索引づくりと validator ごとに同じ XML を読み直さないよう、解析の間だけ読んだ結果を覚えておく。
         try (XmlSources.Scope ignored = XmlSources.cached(caches == null ? null : caches.xmlSources)) {
@@ -148,8 +163,43 @@ public final class AnalyzerCli {
         // 使われているかどうかは、ワークスペースのすべての XML と Java を見ないとわからない。
         diagnostics.addAll(new MapperUnusedDefinitionValidator(mapperFiles, javaIndex, javaSources)
                 .validate(file -> relativize(workspaceRoot, file)));
+        diagnostics.addAll(checkSqlSyntax(workspaceRoot, mapperFiles));
         // 止められたルールや抑制コメントの対象は、どのルールでも同じ扱いにするため最後にまとめて除く。
         return new Result(new DiagnosticFilter(disabledRules).apply(diagnostics), mapperFileCount);
+    }
+
+    /**
+     * SQL の構文チェック。どの DB の文法で読むかと、読めた statement の数を stderr に出す
+     * (拡張機能のログに表示され、チェックが動いていないときに理由がわかる)。
+     */
+    private List<Diagnostic> checkSqlSyntax(Path workspaceRoot, List<Path> mapperFiles) {
+        if (sqlDialectSetting.equalsIgnoreCase("off")) {
+            System.err.println("SQL syntax check: off (turned off in the settings).");
+            return List.of();
+        }
+        SqlDialect dialect;
+        String reason;
+        if (sqlDialectSetting.equalsIgnoreCase("auto")) {
+            List<Path> candidates = new ArrayList<>(mapperFiles);
+            candidates.addAll(new ProjectSettingsScanner(excludes).scan(workspaceRoot));
+            SqlDialectDetector.Detection detection =
+                    SqlDialectDetector.detect(candidates, file -> relativize(workspaceRoot, file));
+            dialect = detection.dialect();
+            reason = detection.reason();
+        } else {
+            dialect = SqlDialect.fromName(sqlDialectSetting);
+            reason = dialect == null ? "unknown database '" + sqlDialectSetting + "'" : "set in the settings";
+        }
+        MapperSqlSyntaxValidator.Output output = new MapperSqlSyntaxValidator(mapperFiles, dialect)
+                .validate(file -> relativize(workspaceRoot, file));
+        MapperSqlSyntaxValidator.Stats stats = output.stats();
+        String target = dialect == null
+                ? "only statements with a known databaseId; the database could not be decided (" + reason + ")"
+                : dialect.displayName() + " (" + reason + ")";
+        System.err.println("SQL syntax check: " + target + ". Checked " + stats.checked()
+                + " statement(s), skipped " + stats.skipped() + " (${...}, unknown database, or SQL the parser"
+                + " cannot read).");
+        return output.diagnostics();
     }
 
     private static Path relativize(Path workspaceRoot, Path file) {

@@ -63,6 +63,8 @@ public final class RuleIds {
     public static final String INSERT_COLUMN_COUNT = "mybatis-lint/insert-column-count";
     // 値を書く場所(比較のあと、文字列の中、IN の括弧の中)の ${...}。SQL インジェクションの危険がある。
     public static final String UNSAFE_DOLLAR_SUBSTITUTION = "mybatis-lint/unsafe-dollar-substitution";
+    // DB の文法として読めない SQL。DB が判定できたときだけ、その DB の文法で読む(warning)。
+    public static final String SQL_SYNTAX_ERROR = "mybatis-lint/sql-syntax-error";
     // どこからも使われていない <sql> / <resultMap>、インターフェースに同じ名前のメソッドがない statement。
     public static final String UNUSED_SQL_FRAGMENT = "mybatis-lint/unused-sql-fragment";
     public static final String UNUSED_RESULT_MAP = "mybatis-lint/unused-result-map";

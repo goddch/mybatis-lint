@@ -1,8 +1,13 @@
 # Oracle SQL パーサーの比較(下調べ)
 
-Oracle SQL の構文チェックに使うパーサーを選ぶための下調べです。まだ解析エンジンには
-組み込んでいません。組み込む前に、実際のプロジェクトでよく使われている書き方を確かめます
-(下の「実プロジェクトで確かめること」)。
+Oracle SQL の構文チェックに使うパーサーを選ぶための下調べです。この結果から JSqlParser を選び、
+構文チェック(`mybatis-lint/sql-syntax-error`)として組み込みました。チェックの仕様は
+[`sql-syntax-validation.md`](sql-syntax-validation.md) にあります。
+
+組み込むときに、PostgreSQL と MySQL に独自の書き方(`::`、`ON CONFLICT`、`RETURNING`、`ILIKE`、
+バッククォート、`LIMIT ?, ?`、`ON DUPLICATE KEY UPDATE` など 31 個)も自作の SQL で試し、
+すべて読めることを確かめました。Oracle の `RETURNING ... INTO ?` と PL/SQL ブロックは読めなかったので、
+チェックの対象から外しています。
 
 ## 候補
 

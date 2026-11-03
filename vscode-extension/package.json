@@ -57,6 +57,19 @@
           "default": [],
           "markdownDescription": "Folders or files to skip, as globs relative to the workspace folder (for example `docker` or `modules/*/generated`). A pattern without `/` matches a folder or file name at any depth. Folders that cannot be read are always skipped."
         },
+        "mybatisLint.sqlDialect": {
+          "type": "string",
+          "enum": ["auto", "oracle", "postgresql", "mysql", "off"],
+          "enumDescriptions": [
+            "Guess the database from JDBC URLs, driver names and driver dependencies in the project's settings and build files. If none or more than one database is found, only statements with a databaseId are checked.",
+            "Check SQL as Oracle SQL.",
+            "Check SQL as PostgreSQL SQL.",
+            "Check SQL as MySQL SQL.",
+            "Do not check SQL syntax."
+          ],
+          "default": "auto",
+          "markdownDescription": "The database whose grammar the SQL syntax check (`sql-syntax-error`) uses. A statement with a `databaseId` of `oracle`, `postgresql` or `mysql` is always checked as that database. The log (**MyBatis Lint: Show Log**) shows which database was used."
+        },
         "mybatisLint.disabledRules": {
           "type": "array",
           "items": {

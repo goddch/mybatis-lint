@@ -904,6 +904,7 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
   const jarPath = resolveAnalyzerJarPath(config.get<string>('analyzerJarPath'), extensionPath);
   const excludes = stringArraySetting(config, 'exclude');
   const disabledRules = stringArraySetting(config, 'disabledRules');
+  const sqlDialect = config.get<string>('sqlDialect', 'auto');
 
   log(
     output,
@@ -934,7 +935,15 @@ async function checkWorkspace(checkContext: CheckContext, trigger: Trigger): Pro
     // extension; the notification is reserved for runs the user asked for.
     const { stdout, stderr } = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: 'MyBatis Lint: checking…' },
-      () => analyze(checkContext, { javaPath, jarPath, workspacePath: workspaceFolder.uri.fsPath, excludes, disabledRules }),
+      () =>
+        analyze(checkContext, {
+          javaPath,
+          jarPath,
+          workspacePath: workspaceFolder.uri.fsPath,
+          excludes,
+          disabledRules,
+          sqlDialect,
+        }),
     );
     for (const line of stderr.split(/\r?\n/).filter((text) => text.trim().length > 0)) {
       log(output, `  ${line}`);

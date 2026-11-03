@@ -28,13 +28,11 @@ extension descriptions never overstate current capabilities.
 These are explicitly **not** implemented yet, and should not be described as
 working in user-facing docs until they land:
 
-- **Oracle SQL syntax validation.** No SQL parser is included yet. The plan
-  is to add a `sqlparser` extension point in the analyzer and evaluate an
-  existing Java SQL parser with Oracle dialect support (e.g. Druid's parser
-  or JSqlParser) against real, anonymized mapper SQL before committing to
-  one, rather than assuming either is a perfect match up front. A first
-  comparison with made-up Oracle SQL favors JSqlParser; see
-  [`sql-parser-evaluation.md`](sql-parser-evaluation.md).
+- **SQL syntax validation for more databases.** Oracle, PostgreSQL and MySQL
+  are checked with JSqlParser when the database is known
+  ([`sql-syntax-validation.md`](sql-syntax-validation.md)). PostgreSQL and
+  MySQL were tried only with made-up SQL; other databases (SQL Server, DB2,
+  ...) are added when someone needs them.
 - **Broader SQL column to property validation.** Explicit `AS` aliases in a
   `<select resultType>` are checked (`unknown-select-alias`), and so is
   positional constructor binding for classes without a no-arg constructor

@@ -351,6 +351,34 @@ VS Code 拡張から確認したい場合は、
 Extension Development Host で開き、**MyBatis Lint: Check Workspace** を
 実行してください。Problems パネルに warning 3 件が表示されれば成功です。
 
+## スモークテスト H: SQL の構文チェックを確認する
+
+`mybatis-lint/sql-syntax-error` は、プロジェクトの DB が分かったときだけ、その DB の文法で SQL を読みます。
+[`fixtures/sql-syntax-validation/`](../fixtures/sql-syntax-validation/) には、Oracle と判定される
+プロジェクト(`pom.xml` に ojdbc)と、PostgreSQL と判定されるプロジェクト(`application.properties` に
+`jdbc:postgresql:`)があります。
+
+```sh
+cd analyzer
+./gradlew jar
+java -jar build/libs/analyzer.jar ../fixtures/sql-syntax-validation/oracle
+java -jar build/libs/analyzer.jar ../fixtures/sql-syntax-validation/postgresql
+```
+
+期待結果:
+
+- `oracle`: [`SyntaxInvalidMapper.xml`](../fixtures/sql-syntax-validation/oracle/src/main/resources/com/example/SyntaxInvalidMapper.xml)
+  に warning が **4 件** 出ます(`FORM` の綴り間違い、カンマ抜け、`<if>` の中の `>= =`、閉じていない括弧)。
+  メッセージの末尾は `(checked as Oracle SQL).` です。
+  [`SyntaxValidMapper.xml`](../fixtures/sql-syntax-validation/oracle/src/main/resources/com/example/SyntaxValidMapper.xml)
+  には何も出ません(Oracle 独自の書き方、同時には成り立たない `<if>`、`${...}`、`RETURNING ... INTO`、PL/SQL、
+  知らない `databaseId`)。stderr に `SQL syntax check: Oracle (detected from pom.xml).` と出ます
+- `postgresql`: `PostgresMapper.xml` の `misspelledFrom` に warning が **1 件** だけ出ます
+  (`::`、`ILIKE`、`ON CONFLICT`、`RETURNING` は誤りになりません)。メッセージの末尾は `(checked as PostgreSQL SQL).` です
+
+`fixtures/` 全体を開いた場合は、Oracle と PostgreSQL の両方が見つかるので、構文チェックはされません
+(ログに `the database could not be decided` と出ます)。
+
 ## トラブルシューティング
 
 次のメッセージが表示された場合:

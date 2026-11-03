@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 構文チェックで何も報告されない mapper。Oracle 独自の書き方と、チェックしない(フェイルオープンする)ものを含む。 -->
+<mapper namespace="com.example.SyntaxValidMapper">
+  <sql id="columns">u.ID, u.NAME</sql>
+
+  <!-- Oracle 独自の書き方(ヒント句、(+)、ROWNUM、NVL、CONNECT BY) -->
+  <select id="oracleSyntax" resultType="map">
+    SELECT /*+ INDEX(u USERS_PK) */ <include refid="columns"/>, NVL(d.NAME, '-') AS DEPT
+      FROM USERS u, DEPTS d
+     WHERE u.DEPT_ID = d.ID(+)
+       AND ROWNUM &lt;= #{limit}
+  </select>
+
+  <select id="hierarchy" resultType="map">
+    SELECT ID, PARENT_ID, LEVEL FROM DEPTS START WITH PARENT_ID IS NULL CONNECT BY PRIOR ID = PARENT_ID
+  </select>
+
+  <!-- 同時には成り立たない 2 つの <if>。すべて成り立たせると ORDER BY が 2 つになるが、書き間違いではない -->
+  <select id="exclusiveIfs" resultType="map">
+    SELECT * FROM USERS
+    <if test="sort == 'id'">ORDER BY ID</if>
+    <if test="sort == 'name'">ORDER BY NAME</if>
+  </select>
+
+  <!-- 以下はチェックしない -->
+  <select id="dollar" resultType="map">SELECT * FROM ${table} WHRE 1 = 1</select>
+  <insert id="returningInto">INSERT INTO USERS (ID) VALUES (#{id}) RETURNING ID INTO #{out}</insert>
+  <update id="plsql">BEGIN UPDATE_USER(#{id}); END;</update>
+  <select id="otherDatabase" databaseId="db2" resultType="map">SELECT * FROM USERS FETCH FRIST 1 ROWS ONLY</select>
+</mapper>

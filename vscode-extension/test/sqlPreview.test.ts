@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import { childElements, parseXml } from '../src/mapperXml';
@@ -185,4 +187,25 @@ test('shows the SQL each branch adds', () => {
   const long = previewStatement(parseXml(`<select id="x"><if test="a">${'x'.repeat(100)}</if></select>`)!, 'a', fragments);
   assert.equal(long.controls[0].snippet?.length, 80);
   assert.ok(long.controls[0].snippet?.endsWith('…'));
+});
+
+test('builds the same SQL as the analyzer SQL syntax check (shared fixture)', () => {
+  // analyzer の DynamicSqlRendererTest も同じ見本と期待値を使う。片方だけ組み立て方を変えると、どちらかが落ちる。
+  const dir = path.resolve(__dirname, '..', '..', '..', 'fixtures', 'sql-render');
+  const cases = parseXml(fs.readFileSync(path.join(dir, 'RenderCasesMapper.xml'), 'utf8'))!;
+  const common = parseXml(fs.readFileSync(path.join(dir, 'CommonMapper.xml'), 'utf8'))!;
+  const expected = JSON.parse(fs.readFileSync(path.join(dir, 'expected.json'), 'utf8')) as Record<string, string>;
+  const fragments = (namespace: string, id: string) =>
+    [cases, common]
+      .filter((mapper) => mapper.attributes.get('namespace') === namespace)
+      .flatMap(childElements)
+      .find((child) => child.name === 'sql' && child.attributes.get('id') === id);
+
+  const statements = childElements(cases).filter((child) => child.name !== 'sql');
+  assert.equal(statements.length, 4);
+  for (const statement of statements) {
+    const id = statement.attributes.get('id') ?? '';
+    const { sql } = previewStatement(statement, 'example.RenderCasesMapper', fragments, {}, 'question');
+    assert.equal(sql.replace(/\s+/g, ' ').trim(), expected[id], id);
+  }
 });
