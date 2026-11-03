@@ -1,6 +1,8 @@
 package com.mybatislint.analyzer.json;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Language;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -23,7 +25,7 @@ class JsonWriterTest {
                 Range.at(3, 5),
                 Severity.ERROR,
                 RuleIds.MISSING_NAMESPACE,
-                "namespace is missing \"quoted\"");
+                Message.of("namespace is missing \"quoted\"", "namespace がありません"));
 
         String json = JsonWriter.write(List.of(diagnostic), 2);
 
@@ -44,11 +46,20 @@ class JsonWriterTest {
     @Test
     void writesASuggestionOnlyWhenThereIsOne() {
         Diagnostic diagnostic = new Diagnostic(Path.of("UserMapper.xml"), "file:///UserMapper.xml",
-                Range.at(3, 5), Severity.WARNING, RuleIds.UNKNOWN_SELECT_ALIAS, "typo", "userName");
+                Range.at(3, 5), Severity.WARNING, RuleIds.UNKNOWN_SELECT_ALIAS, Message.of("typo", "誤り"), "userName");
 
         String json = JsonWriter.write(List.of(diagnostic), 1);
 
         assertTrue(json.contains("\"suggestion\": \"userName\""));
+    }
+
+    @Test
+    void writesMessagesInTheRequestedLanguage() {
+        Diagnostic diagnostic = new Diagnostic(Path.of("UserMapper.xml"), "file:///UserMapper.xml",
+                Range.at(1, 1), Severity.ERROR, RuleIds.MISSING_NAMESPACE, Message.of("missing", "ありません"));
+
+        assertTrue(JsonWriter.write(List.of(diagnostic), 1).contains("\"message\": \"missing\""));
+        assertTrue(JsonWriter.write(List.of(diagnostic), 1, Language.JA).contains("\"message\": \"ありません\""));
     }
 
     @Test

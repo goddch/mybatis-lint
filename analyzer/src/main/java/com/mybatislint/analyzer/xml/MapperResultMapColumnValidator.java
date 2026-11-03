@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -198,9 +199,13 @@ public final class MapperResultMapColumnValidator {
             String property = column.getAttribute("property");
             diagnostics.add(new Diagnostic(displayPath.apply(declaration.file()), declaration.file().toUri().toString(),
                     range, Severity.WARNING, RuleIds.RESULT_MAP_COLUMN_NOT_SELECTED,
-                    "Column '" + name + "' of resultMap '" + resultMap.getAttribute("id")
-                            + "' is not in the SELECT list of '" + select.getAttribute("id") + "'"
-                            + (property.isBlank() ? "" : ", so property '" + property + "' stays null") + "."));
+                    Message.of("Column '" + name + "' of resultMap '" + resultMap.getAttribute("id")
+                                    + "' is not in the SELECT list of '" + select.getAttribute("id") + "'"
+                                    + (property.isBlank() ? "" : ", so property '" + property + "' stays null") + ".",
+                            "resultMap '" + resultMap.getAttribute("id") + "' の列 '" + name + "' が、'"
+                                    + select.getAttribute("id") + "' の SELECT にありません"
+                                    + (property.isBlank() ? "" : "。プロパティ '" + property + "' は null のままになります")
+                                    + "。")));
         }
     }
 

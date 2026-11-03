@@ -1,5 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
+import com.mybatislint.analyzer.model.Message;
+
 import java.util.Collection;
 import java.util.Locale;
 import java.util.function.UnaryOperator;
@@ -72,7 +74,8 @@ final class NameSuggestions {
     }
 
     /** メッセージの末尾に付ける文。候補がなければ空文字。 */
-    static String didYouMean(String suggestion) {
-        return suggestion == null ? "" : " Did you mean '" + suggestion + "'?";
+    static Message didYouMean(String suggestion) {
+        return suggestion == null ? Message.of("", "")
+                : Message.of(" Did you mean '" + suggestion + "'?", "'" + suggestion + "' の誤りではありませんか？");
     }
 }

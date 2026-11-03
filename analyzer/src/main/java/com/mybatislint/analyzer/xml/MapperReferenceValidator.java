@@ -2,6 +2,7 @@ package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -140,7 +141,8 @@ public final class MapperReferenceValidator {
                     rangeForAttributeValue(xml, include, "refid", refid, includeStart),
                     Severity.ERROR,
                     RuleIds.UNRESOLVED_INCLUDE,
-                    "Unresolved <include> refid '" + refid + "'."));
+                    Message.of("Unresolved <include> refid '" + refid + "'.",
+                            "<include> の refid '" + refid + "' に当たる <sql> が見つかりません。")));
         }
     }
 
@@ -167,7 +169,8 @@ public final class MapperReferenceValidator {
                     rangeForAttributeValue(xml, element, "resultMap", resultMap, elementStart),
                     Severity.WARNING,
                     RuleIds.RESULT_MAP_AND_TYPE,
-                    "Statement specifies both resultMap and resultType; use only one result mapping strategy."));
+                    Message.of("Statement specifies both resultMap and resultType; use only one result mapping strategy.",
+                            "resultMap と resultType の両方が書かれています。どちらか一方にしてください。")));
         }
     }
 
@@ -283,8 +286,9 @@ public final class MapperReferenceValidator {
                 rangeForAttributeValue(xml, element, attributeName, value, elementStart),
                 Severity.WARNING,
                 RuleIds.UNRESOLVED_TYPE_ALIAS,
-                "Unresolved typeAlias candidate '" + value + "' for attribute '" + attributeName
-                        + "'; no matching Java class/interface simple name was found in the workspace."));
+                Message.of("Unresolved typeAlias candidate '" + value + "' for attribute '" + attributeName
+                        + "'; no matching Java class/interface simple name was found in the workspace.",
+                        attributeName + " 属性の '" + value + "' に当たるクラスや typeAlias がワークスペースに見つかりません。")));
     }
 
     private static boolean isLikelyFullyQualifiedClassName(String value) {
@@ -332,8 +336,10 @@ public final class MapperReferenceValidator {
             diagnostics.add(new Diagnostic(displayFile, uri, range,
                     Severity.WARNING,
                     RuleIds.UNKNOWN_RESULT_PROPERTY,
-                    "Unknown resultMap property '" + property + "' on Java type '" + type
-                            + "'; no matching field or setter was found." + NameSuggestions.didYouMean(suggestion),
+                    Message.of("Unknown resultMap property '" + property + "' on Java type '" + type
+                            + "'; no matching field or setter was found.",
+                            "型 '" + type + "' にプロパティ '" + property + "' のフィールドや setter がありません。")
+                            .plus(NameSuggestions.didYouMean(suggestion)),
                     suggestion));
         }
     }
@@ -421,7 +427,8 @@ public final class MapperReferenceValidator {
                 diagnostics.add(new Diagnostic(displayFile, uri,
                         rangeForAttributeValue(xml, resultMap, "id", id, elementStart),
                         Severity.ERROR, RuleIds.DUPLICATE_RESULT_MAP_ID,
-                        "Duplicate resultMap id '" + id + "' in namespace '" + namespace + "'."));
+                        Message.of("Duplicate resultMap id '" + id + "' in namespace '" + namespace + "'.",
+                                "resultMap の id '" + id + "' が namespace '" + namespace + "' の中で重複しています。")));
             }
         }
     }
@@ -455,16 +462,18 @@ public final class MapperReferenceValidator {
                     diagnostics.add(new Diagnostic(displayFile, uri,
                             rangeForAttributeValue(xml, resultMap, "extends", parent, elementStart),
                             Severity.WARNING, RuleIds.RESULT_MAP_INHERITANCE_CYCLE,
-                            "ResultMap '" + id + "' participates in an inheritance cycle through extends '"
-                                    + parent + "'."));
+                            Message.of("ResultMap '" + id + "' participates in an inheritance cycle through extends '"
+                                    + parent + "'.",
+                                    "resultMap '" + id + "' の extends '" + parent + "' をたどると自分自身に戻ります(継承が循環しています)。")));
                 }
                 continue;
             }
             diagnostics.add(new Diagnostic(displayFile, uri,
                     rangeForAttributeValue(xml, resultMap, "extends", parent, elementStart),
                     Severity.WARNING, RuleIds.UNRESOLVED_RESULT_MAP_EXTENDS,
-                    "Unresolved resultMap extends '" + parent
-                            + "'; no matching top-level resultMap was found in the workspace."));
+                    Message.of("Unresolved resultMap extends '" + parent
+                            + "'; no matching top-level resultMap was found in the workspace.",
+                            "extends の '" + parent + "' に当たる resultMap がワークスペースに見つかりません。")));
         }
     }
 
@@ -494,8 +503,9 @@ public final class MapperReferenceValidator {
             diagnostics.add(new Diagnostic(displayFile, uri,
                     rangeForAttributeValue(xml, statement, "resultMap", value, elementStart),
                     Severity.WARNING, RuleIds.UNRESOLVED_STATEMENT_RESULT_MAP,
-                    "Unresolved statement resultMap '" + value
-                            + "'; no matching top-level resultMap was found in the workspace."));
+                    Message.of("Unresolved statement resultMap '" + value
+                            + "'; no matching top-level resultMap was found in the workspace.",
+                            "resultMap '" + value + "' がワークスペースに見つかりません。")));
         }
     }
 
@@ -526,8 +536,9 @@ public final class MapperReferenceValidator {
             diagnostics.add(new Diagnostic(displayFile, uri,
                     rangeForAttributeValue(xml, element, "resultMap", value, elementStart),
                     Severity.WARNING, RuleIds.UNRESOLVED_NESTED_RESULT_MAP,
-                    "Unresolved nested resultMap '" + value
-                            + "'; no matching top-level resultMap was found in the workspace."));
+                    Message.of("Unresolved nested resultMap '" + value
+                            + "'; no matching top-level resultMap was found in the workspace.",
+                            "入れ子の resultMap '" + value + "' がワークスペースに見つかりません。")));
         }
     }
 
@@ -558,8 +569,9 @@ public final class MapperReferenceValidator {
             diagnostics.add(new Diagnostic(displayFile, uri,
                     rangeForAttributeValue(xml, element, "resultMap", value, elementStart),
                     Severity.WARNING, RuleIds.UNRESOLVED_DISCRIMINATOR_RESULT_MAP,
-                    "Unresolved discriminator case resultMap '" + value
-                            + "'; no matching top-level resultMap was found in the workspace."));
+                    Message.of("Unresolved discriminator case resultMap '" + value
+                            + "'; no matching top-level resultMap was found in the workspace.",
+                            "discriminator の case の resultMap '" + value + "' がワークスペースに見つかりません。")));
         }
     }
 
@@ -588,8 +600,9 @@ public final class MapperReferenceValidator {
             diagnostics.add(new Diagnostic(displayFile, uri,
                     rangeForAttributeValue(xml, element, "value", value, elementStart),
                     Severity.WARNING, RuleIds.DUPLICATE_DISCRIMINATOR_CASE_VALUE,
-                    "Duplicate discriminator case value '" + value
-                            + "'; only the first matching case is used."));
+                    Message.of("Duplicate discriminator case value '" + value
+                            + "'; only the first matching case is used.",
+                            "discriminator の case の value '" + value + "' が重複しています。使われるのは最初の case だけです。")));
         }
     }
 

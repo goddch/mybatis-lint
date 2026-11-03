@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
 import org.w3c.dom.Element;
@@ -121,8 +122,10 @@ public final class MapperStringLiteralParameterValidator {
                     located ? XmlPositions.range(xml, found, found + parameter.length())
                             : XmlPositions.range(xml, statementStart, statementStart),
                     Severity.ERROR, RuleIds.PARAMETER_IN_STRING_LITERAL,
-                    "Parameter " + parameter + " is inside a SQL string literal, so it is not bound; "
-                            + "concatenate it instead, e.g. '%' || " + parameter + " || '%'."));
+                    Message.of("Parameter " + parameter + " is inside a SQL string literal, so it is not bound; "
+                                    + "concatenate it instead, e.g. '%' || " + parameter + " || '%'.",
+                            parameter + " が SQL の文字列('...')の中にあるため、値が渡されません。"
+                                    + "'%' || " + parameter + " || '%' のように連結してください。")));
         }
     }
 }

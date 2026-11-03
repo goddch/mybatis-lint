@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.DeclaredMethod;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Position;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
@@ -62,9 +63,12 @@ public final class MapperMethodStatementValidator {
                         new Position(method.line(), method.endColumn()));
                 diagnostics.add(new Diagnostic(displayPath.apply(mapper.getFile()), mapper.getFile().toUri().toString(),
                         range, Severity.WARNING, RuleIds.MISSING_MAPPER_STATEMENT,
-                        "Mapper method '" + method.name() + "' has no <select>/<insert>/<update>/<delete> with id '"
-                                + method.name() + "' in namespace '" + mapper.getQualifiedName()
-                                + "'; calling it fails with BindingException."));
+                        Message.of("Mapper method '" + method.name()
+                                        + "' has no <select>/<insert>/<update>/<delete> with id '"
+                                        + method.name() + "' in namespace '" + mapper.getQualifiedName()
+                                        + "'; calling it fails with BindingException.",
+                                "mapper メソッド '" + method.name() + "' に当たる id の statement が namespace '"
+                                        + mapper.getQualifiedName() + "' にありません。呼び出すと BindingException になります。")));
             }
         }
         // 同じ実行で結果が変わらないよう、ファイルと位置の順に並べる。

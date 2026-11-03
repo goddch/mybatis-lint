@@ -51,6 +51,9 @@ Notes:
   it with `suggestion` fixes the problem. The VS Code extension offers it as a
   quick fix. Consumers should treat it as optional, since older analyzer jars
   omit it.
+- `message` is in English unless `--lang ja` is given, which writes it in
+  Japanese. Nothing else in the document changes with the language, so
+  consumers should match on `ruleId`, never on `message`.
 - Rule IDs are stable strings under the `mybatis-lint/` namespace; see
   `analyzer/src/main/java/com/mybatislint/analyzer/model/RuleIds.java` for the
   authoritative list.
@@ -63,7 +66,8 @@ reuse files parsed by earlier requests; a file is read again when its
 modification time or size changes.
 
 - A request is one line on stdin: the same arguments as the CLI
-  (`--exclude`, `--disable`, the workspace path) joined with tab characters.
+  (`--exclude`, `--disable`, `--sql-dialect`, `--lang`, the workspace path)
+  joined with tab characters.
 - The response on stdout is a `Content-Length: <bytes>` line followed by
   exactly that many bytes of UTF-8: the same JSON document the CLI prints.
 - `Content-Length: 0` means the request was invalid or the analysis failed;

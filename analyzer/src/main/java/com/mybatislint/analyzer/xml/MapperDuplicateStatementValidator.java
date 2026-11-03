@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -64,8 +65,10 @@ public final class MapperDuplicateStatementValidator {
             String xml = texts.computeIfAbsent(file, MapperDuplicateStatementValidator::read);
             diagnostics.add(new Diagnostic(displayPath.apply(file), file.toUri().toString(),
                     idRange(xml, first.rawId()), Severity.ERROR, RuleIds.DUPLICATE_STATEMENT_ID,
-                    "Statement id '" + id + "' in namespace '" + namespace + "' is also declared in " + others
-                            + "; MyBatis fails at startup."));
+                    Message.of("Statement id '" + id + "' in namespace '" + namespace + "' is also declared in "
+                                    + others + "; MyBatis fails at startup.",
+                            "namespace '" + namespace + "' の statement の id '" + id + "' は " + others
+                                    + " にもあります。MyBatis の起動時にエラーになります。")));
         }
     }
 

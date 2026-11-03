@@ -19,6 +19,8 @@ MyBatis の mapper XML を静的解析し、実行しないと気づきにくい
 
 **Java のインストールは不要です。** 解析に必要な Java ランタイムを拡張機能に同梱しています。
 
+警告文は VS Code の表示言語に合わせて日本語か英語で表示します（`mybatisLint.language` で固定できます）。
+
 ## 主な検出内容
 
 - XML の構文エラー、`namespace` の欠落、statement ID の重複
@@ -58,6 +60,7 @@ MyBatis の mapper XML を静的解析し、実行しないと気づきにくい
 | `mybatisLint.runOnSave` | mapper XML や Java ファイルを保存したときに自動でチェックするか（既定はオン） |
 | `mybatisLint.exclude` | 解析しないフォルダやファイル。ワークスペースからの相対パスで、`*` や `**` が使えます（例: `docker`、`modules/*/generated`）。`/` を含まない名前は、どの階層のフォルダ名・ファイル名にも一致します |
 | `mybatisLint.sqlDialect` | SQL の構文チェックに使う DB（`auto` / `oracle` / `postgresql` / `mysql` / `off`）。既定の `auto` は設定ファイルとビルドファイルから推定します |
+| `mybatisLint.language` | 警告文、SQL プレビュー、クイックフィックス、CodeLens の言語（`auto` / `en` / `ja`）。既定の `auto` は VS Code の表示言語に合わせます。ルール ID は英語のままです |
 | `mybatisLint.disabledRules` | 報告しないルール（例: `unknown-select-alias`）。`mybatis-lint/` は省略できます |
 | `mybatisLint.javaPath` | 解析に使う Java のパス。空なら同梱の Java を使います |
 | `mybatisLint.analyzerJarPath` | 解析エンジンの jar のパス。空なら同梱の jar を使います |

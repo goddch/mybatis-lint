@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.xml;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
 import com.mybatislint.analyzer.sql.SqlDialect;
@@ -219,7 +220,7 @@ public final class MapperSqlSyntaxValidator {
         SqlSyntaxChecker.SyntaxError error = attempt.error;
         int start;
         int end;
-        String message;
+        Message message;
         if (error.atEnd()) {
             // SQL の終わりで読めなくなった(WHERE のあとが空、など)ときは、最後の語を指す。
             int last = sql.length() - 1;
@@ -229,13 +230,17 @@ public final class MapperSqlSyntaxValidator {
             }
             start = rendered.xmlOffset(wordStart);
             end = rendered.xmlOffset(last) + 1;
-            message = "SQL ends unexpectedly (checked as " + dialect.displayName() + " SQL).";
+            message = Message.of("SQL ends unexpectedly (checked as " + dialect.displayName() + " SQL).",
+                    "SQL が途中で終わっています(" + dialect.displayName() + " の文法で確認しました)。");
         } else {
             int index = sqlIndex(sql, error.line(), error.column());
             int last = Math.min(sql.length(), index + error.near().length()) - 1;
             start = rendered.xmlOffset(index);
             end = last >= index ? rendered.xmlOffset(last) + 1 : start;
-            message = "SQL syntax error near '" + error.near() + "' (checked as " + dialect.displayName() + " SQL).";
+            message = Message.of(
+                    "SQL syntax error near '" + error.near() + "' (checked as " + dialect.displayName() + " SQL).",
+                    "'" + error.near() + "' のあたりで SQL の構文が正しくありません(" + dialect.displayName()
+                            + " の文法で確認しました)。");
         }
         if (end < start) {
             // <include> の先のように、SQL の並びと XML の並びが違うときは開始位置だけを指す。

@@ -1,6 +1,7 @@
 package com.mybatislint.analyzer.json;
 
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Language;
 import com.mybatislint.analyzer.model.Severity;
 
 import java.util.List;
@@ -21,6 +22,14 @@ public final class JsonWriter {
      * @param mapperFileCount number of analyzed files whose root element was {@code <mapper>}
      */
     public static String write(List<Diagnostic> diagnostics, int mapperFileCount) {
+        return write(diagnostics, mapperFileCount, Language.EN);
+    }
+
+    /**
+     * @param mapperFileCount number of analyzed files whose root element was {@code <mapper>}
+     * @param language        the language of the {@code message} fields
+     */
+    public static String write(List<Diagnostic> diagnostics, int mapperFileCount, Language language) {
         long errorCount = diagnostics.stream().filter(d -> d.getSeverity() == Severity.ERROR).count();
         long warningCount = diagnostics.stream().filter(d -> d.getSeverity() == Severity.WARNING).count();
 
@@ -41,7 +50,7 @@ public final class JsonWriter {
             sb.append("      \"uri\": \"").append(escape(d.getUri())).append("\",\n");
             sb.append("      \"ruleId\": \"").append(escape(d.getRuleId())).append("\",\n");
             sb.append("      \"severity\": \"").append(d.getSeverity().toJson()).append("\",\n");
-            sb.append("      \"message\": \"").append(escape(d.getMessage())).append("\",\n");
+            sb.append("      \"message\": \"").append(escape(d.getMessage(language))).append("\",\n");
             if (d.getSuggestion() != null) {
                 sb.append("      \"suggestion\": \"").append(escape(d.getSuggestion())).append("\",\n");
             }

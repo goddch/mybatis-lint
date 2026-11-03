@@ -3,6 +3,7 @@ package com.mybatislint.analyzer.xml;
 import com.mybatislint.analyzer.javaindex.AutoMappingConstructor;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -103,9 +104,12 @@ public final class MapperConstructorMappingValidator {
         Range range = XmlPositions.rangeForAttributeValue(xml, "resultType", resultType, elementStart);
         if (labels.size() < constructor.parameterCount()) {
             diagnostics.add(new Diagnostic(displayFile, uri, range, Severity.ERROR, RuleIds.CONSTRUCTOR_COLUMN_COUNT,
-                    "'" + qualifiedName + "' has no no-arg constructor, so MyBatis passes the columns to its "
-                            + constructor.parameterCount() + "-argument constructor by position, but this SELECT "
-                            + "returns only " + labels.size() + " column(s)."));
+                    Message.of("'" + qualifiedName + "' has no no-arg constructor, so MyBatis passes the columns to its "
+                                    + constructor.parameterCount() + "-argument constructor by position, but this SELECT "
+                                    + "returns only " + labels.size() + " column(s).",
+                            "'" + qualifiedName + "' には引数なしのコンストラクタがないため、MyBatis は列を引数 "
+                                    + constructor.parameterCount() + " 個のコンストラクタに順番どおり渡します。"
+                                    + "ところが、この SELECT の列は " + labels.size() + " 個しかありません。")));
             return;
         }
         if (constructor.fieldNames() == null) {
@@ -120,9 +124,12 @@ public final class MapperConstructorMappingValidator {
             }
             diagnostics.add(new Diagnostic(displayFile, uri, range, Severity.WARNING,
                     RuleIds.CONSTRUCTOR_POSITIONAL_BINDING,
-                    "No column is named '" + field + "', so '" + qualifiedName + "." + field
-                            + "' gets the value of column '" + labels.get(i) + "' only because of its position "
-                            + "in the constructor; alias the column as '" + field + "', or add @NoArgsConstructor."));
+                    Message.of("No column is named '" + field + "', so '" + qualifiedName + "." + field
+                                    + "' gets the value of column '" + labels.get(i) + "' only because of its position "
+                                    + "in the constructor; alias the column as '" + field + "', or add @NoArgsConstructor.",
+                            "'" + field + "' という名前の列がないため、'" + qualifiedName + "." + field + "' には列 '"
+                                    + labels.get(i) + "' の値が、コンストラクタでの順番だけを頼りに入ります。"
+                                    + "列に別名 '" + field + "' を付けるか、@NoArgsConstructor を付けてください。")));
         }
     }
 }

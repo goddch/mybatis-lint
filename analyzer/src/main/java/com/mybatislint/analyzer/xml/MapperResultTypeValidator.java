@@ -5,6 +5,7 @@ import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperMethodInfo;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -158,8 +159,10 @@ public final class MapperResultTypeValidator {
                             rangeForAttributeValue(xml, select, "resultType", resultType, elementStart),
                             Severity.WARNING,
                             RuleIds.RESULT_TYPE_MISMATCH,
-                            "Statement resultType '" + resultType + "' does not match the return type '"
-                                    + method.getReturnType() + "' of mapper method '" + method.getName() + "'."));
+                            Message.of("Statement resultType '" + resultType + "' does not match the return type '"
+                                            + method.getReturnType() + "' of mapper method '" + method.getName() + "'.",
+                                    "resultType '" + resultType + "' が mapper メソッド '" + method.getName()
+                                            + "' の戻り値の型 '" + method.getReturnType() + "' と合いません。")));
                 }
             }
             return diagnostics;

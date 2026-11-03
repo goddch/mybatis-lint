@@ -33,3 +33,9 @@ test('falls back to the old message when the analyzer does not report mapperFile
   assert.equal(message.level, 'info');
   assert.equal(message.text, 'MyBatis Lint: checked workspace, found 1 error(s) and 1 warning(s) across 2 file(s).');
 });
+
+test('writes the summary in Japanese', () => {
+  const message = buildSummaryMessage({ mapperFileCount: 12, fileCount: 2, errorCount: 1, warningCount: 3 }, 'ja');
+  assert.equal(message.text, 'MyBatis Lint: mapper ファイル 12 個を確認しました。エラー 1 件、警告 3 件です。');
+  assert.equal(buildSummaryMessage({ mapperFileCount: 0, fileCount: 0, errorCount: 0, warningCount: 0 }, 'ja').level, 'warning');
+});

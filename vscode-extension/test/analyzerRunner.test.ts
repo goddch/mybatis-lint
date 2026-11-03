@@ -34,6 +34,8 @@ test('passes the SQL dialect only when it is not auto', () => {
   assert.deepEqual(buildRequestArgs('/w', [], [], 'oracle'), ['--sql-dialect', 'oracle', '/w']);
   assert.deepEqual(buildRequestArgs('/w', [], [], 'auto'), ['/w']);
   assert.deepEqual(buildRequestArgs('/w'), ['/w']);
+  assert.deepEqual(buildRequestArgs('/w', [], [], 'auto', 'ja'), ['--lang', 'ja', '/w']);
+  assert.deepEqual(buildRequestArgs('/w', [], [], 'auto', 'en'), ['/w']);
 });
 
 test('builds the expected java CLI arguments', () => {

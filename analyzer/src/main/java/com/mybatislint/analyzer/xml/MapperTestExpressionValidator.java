@@ -4,6 +4,7 @@ import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex.MapperInterfaceInfo;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -150,12 +151,16 @@ public final class MapperTestExpressionValidator {
         if (finding.charLiteral()) {
             String quoted = finding.text().substring(1, finding.text().length() - 1);
             return new Diagnostic(displayFile, uri, range, Severity.WARNING, RuleIds.SINGLE_CHAR_LITERAL_COMPARISON,
-                    "OGNL treats " + finding.text() + " as a char, which never equals a String; "
-                            + "write \"" + quoted + "\" (double quotes) or " + finding.text() + ".toString().");
+                    Message.of("OGNL treats " + finding.text() + " as a char, which never equals a String; "
+                                    + "write \"" + quoted + "\" (double quotes) or " + finding.text() + ".toString().",
+                            "OGNL は " + finding.text() + " を 1 文字(char)として読むので、String とは等しくなりません。"
+                                    + "\"" + quoted + "\"(二重引用符)か " + finding.text() + ".toString() と書いてください。"));
         }
         return new Diagnostic(displayFile, uri, range, Severity.WARNING, RuleIds.NUMERIC_EMPTY_STRING_COMPARISON,
-                "Comparing a number with '' treats '' as 0 in OGNL, so '" + finding.text()
-                        + "' is also false when the value is 0; remove the '' comparison.");
+                Message.of("Comparing a number with '' treats '' as 0 in OGNL, so '" + finding.text()
+                                + "' is also false when the value is 0; remove the '' comparison.",
+                        "OGNL では数値と '' を比べると '' が 0 として扱われるため、'" + finding.text()
+                                + "' は値が 0 のときも false になります。'' との比較を外してください。"));
     }
 
     // Set.of の contains は null を渡すと例外になる。型がわからない(null)ときは false にする。

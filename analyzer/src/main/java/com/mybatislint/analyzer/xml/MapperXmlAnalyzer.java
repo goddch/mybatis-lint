@@ -3,6 +3,7 @@ package com.mybatislint.analyzer.xml;
 import com.mybatislint.analyzer.javaindex.JavaMapperIndex;
 import com.mybatislint.analyzer.javaindex.JavaTypeIndex;
 import com.mybatislint.analyzer.model.Diagnostic;
+import com.mybatislint.analyzer.model.Message;
 import com.mybatislint.analyzer.model.Range;
 import com.mybatislint.analyzer.model.RuleIds;
 import com.mybatislint.analyzer.model.Severity;
@@ -127,11 +128,13 @@ public final class MapperXmlAnalyzer {
             return new FileResult(diagnostics, false);
         } catch (SAXException e) {
             diagnostics.add(new Diagnostic(displayFile, uri, Range.at(1, 1), Severity.ERROR,
-                    RuleIds.MALFORMED_XML, "Malformed XML: " + e.getMessage()));
+                    RuleIds.MALFORMED_XML, Message.of("Malformed XML: " + e.getMessage(),
+                            "XML の形式が正しくありません: " + e.getMessage())));
             return new FileResult(diagnostics, false);
         } catch (IOException e) {
             diagnostics.add(new Diagnostic(displayFile, uri, Range.at(1, 1), Severity.ERROR,
-                    RuleIds.MALFORMED_XML, "Unable to read file: " + e.getMessage()));
+                    RuleIds.MALFORMED_XML, Message.of("Unable to read file: " + e.getMessage(),
+                            "ファイルを読めません: " + e.getMessage())));
             return new FileResult(diagnostics, false);
         }
         // SAX の基本構造チェックが通ったファイルだけ、DOM ベースの追加検証へ進める。
@@ -157,7 +160,8 @@ public final class MapperXmlAnalyzer {
         int line = Math.max(e.getLineNumber(), 1);
         int column = Math.max(e.getColumnNumber(), 1);
         return new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
-                RuleIds.MALFORMED_XML, "Malformed XML: " + e.getMessage());
+                RuleIds.MALFORMED_XML, Message.of("Malformed XML: " + e.getMessage(),
+                        "XML の形式が正しくありません: " + e.getMessage()));
     }
 
     /** Tracking context for one element on the ancestor stack. */
@@ -216,7 +220,8 @@ public final class MapperXmlAnalyzer {
                     if (namespace == null || namespace.isBlank()) {
                         diagnostics.add(new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
                                 RuleIds.MISSING_NAMESPACE,
-                                "<mapper> element is missing a non-blank 'namespace' attribute."));
+                                Message.of("<mapper> element is missing a non-blank 'namespace' attribute.",
+                                        "<mapper> に namespace 属性がありません。")));
                     }
                 }
             } else if (sawMapperRoot) {
@@ -227,7 +232,8 @@ public final class MapperXmlAnalyzer {
                         if (previousCount != null) {
                             diagnostics.add(new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
                                     RuleIds.DUPLICATE_STATEMENT_ID,
-                                    "Duplicate statement id '" + id + "' in this mapper file."));
+                                    Message.of("Duplicate statement id '" + id + "' in this mapper file.",
+                                            "statement の id '" + id + "' がこのファイルの中で重複しています。")));
                         }
                         parent.statementIdOccurrences().merge(id, 1, Integer::sum);
                     }
@@ -235,19 +241,22 @@ public final class MapperXmlAnalyzer {
                     if (!CHOOSE.equals(parent.name)) {
                         diagnostics.add(new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
                                 RuleIds.WHEN_OUTSIDE_CHOOSE,
-                                "<when> must be a direct child of <choose>."));
+                                Message.of("<when> must be a direct child of <choose>.",
+                                        "<when> は <choose> の直下に書く必要があります。")));
                     }
                 } else if (OTHERWISE.equals(qName)) {
                     if (!CHOOSE.equals(parent.name)) {
                         diagnostics.add(new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
                                 RuleIds.OTHERWISE_OUTSIDE_CHOOSE,
-                                "<otherwise> must be a direct child of <choose>."));
+                                Message.of("<otherwise> must be a direct child of <choose>.",
+                                        "<otherwise> は <choose> の直下に書く必要があります。")));
                     } else {
                         parent.otherwiseCount++;
                         if (parent.otherwiseCount > 1) {
                             diagnostics.add(new Diagnostic(file, uri, Range.at(line, column), Severity.ERROR,
                                     RuleIds.DUPLICATE_OTHERWISE,
-                                    "A <choose> element must contain at most one <otherwise> child."));
+                                    Message.of("A <choose> element must contain at most one <otherwise> child.",
+                                            "<choose> に書ける <otherwise> は 1 つだけです。")));
                         }
                     }
                 }
