@@ -1,39 +1,78 @@
 # MyBatis Lint（プレビュー版）
 
-> ⚠️ **プレビュー版です。** 開発の初期段階のため、誤検知や検出漏れなどのバグがあり得ます。
-> 結果は参考情報として扱ってください。
+MyBatis の mapper XML を静的解析して、**実行しないと気づきにくい誤りをエディタ上に表示**します。
+`<if>` や `<foreach>` を組み立てた後の SQL を確認できる **SQL プレビュー**も付いています。
 
-MyBatis の mapper XML を静的解析し、実行しないと気づきにくい誤りを Problems パネルに表示します。
+インストールするだけで使えます。Java の準備は不要で、データベースにも接続しません。
+
+> ⚠️ プレビュー版のため、誤検知や検出漏れがあり得ます。結果は参考情報として扱ってください。
+
+## SQL プレビュー
+
+動的 SQL が実際にどんな SQL になるかを、実行せずに確認できます。Markdown のプレビューと同じ感覚で、
+mapper XML の statement の中にカーソルを置いて `Ctrl+Shift+V`（Mac は `Cmd+Shift+V`）を押すだけです。
+エディタ右上のプレビューボタンからも開けます。
+
+![分岐を切り替えると SQL が変わる様子](https://raw.githubusercontent.com/goddch/mybatis-lint/main/vscode-extension/images/sql-preview.gif)
+
+- `<include>`、`<where>`、`<set>`、`<trim>`、`<foreach>` を MyBatis と同じ規則で組み立てます
+- `<if>` のオンとオフ、`<choose>` の分岐、`<foreach>` の繰り返し回数を画面で切り替えられます
+- パラメータは `:name`、`?`、入力した値のどれかで出力できます。**SQL をコピー** して、DBeaver などの SQL クライアントで
+  そのまま試せます
+
+値を入力すると、その値で `test` の条件を評価して、分岐を自動で選ぶこともできます。
+
+![入力した値から分岐が自動で決まる様子](https://raw.githubusercontent.com/goddch/mybatis-lint/main/vscode-extension/images/sql-preview-values.png)
+
+## 静的解析
+
+mapper XML や Java ファイルを保存するたびに自動でチェックし、結果を Problems パネルとエディタに表示します。
+たとえば次のような誤りを見つけます。
+
+| 書いたもの | 見つける内容 |
+|---|---|
+| `#{userNmae}` | Java の引数やクラスにないパラメータ。近い名前があれば候補を出します |
+| `<include refid="missing"/>`、`resultMap="missing"` | 参照先が見つからない |
+| `LIKE '%#{name}%'` | 文字列の中に書いたので、値が渡されない |
+| `<if test="type == 'A'">` | OGNL では `'A'` が 1 文字扱いになり、String と等しくならない |
+| `WHERE` の直後に `<if>` で `AND ...` | 条件によって `WHERE AND ...` になる |
+| `SELECT ... FORM USERS` | SQL の構文の誤り（Oracle / PostgreSQL / MySQL） |
+| `INSERT` の列と値の数の違い | 列が 4 個なのに値が 3 個、など |
+| `id = ${id}` | SQL インジェクションのおそれ |
+| Java のメソッドに対応する statement がない | 呼び出すと `BindingException` になる |
+| どこからも使われていない `<sql>`、`<resultMap>` | 消し忘れの可能性 |
+
+このほか、statement ID の重複、`parameterType` / `resultType` と Java の型の不一致、resultMap の `property`
+の誤りなども確認します。[すべてのルールの一覧](https://github.com/goddch/mybatis-lint#rules)
+
+確実に誤りと判断できないものは、誤検知を避けるため報告しません。コンパイル済みのクラスは読み込まず、
+ワークスペース内のソースだけで判定します。
+
+## 編集を助ける機能
+
+- **クイックフィックス**：打ち間違えた名前を、電球アイコンから候補の名前に直せます
+- **定義へ移動**（`F12` / `Ctrl+クリック`）：XML の statement と Java のメソッドの間、`<include>` から `<sql>`、
+  `resultMap` から `<resultMap>` へ移動できます
+- **参照の検索**（`Shift+F12`）と**名前の変更**（`F2`）：id を変えると、参照している箇所もまとめて変わります。
+  statement の id を変えると Java のメソッド名も変わります
+- **ホバー**：`#{name}` や `resultType` にカーソルを合わせると、Java の型やプロパティを表示します
+- **補完**：`#{` の後のパラメータ名、`AS` の後のプロパティ名、`refid` や `resultMap` の id を補完します
+- **CodeLens**：`<sql>` や `<resultMap>` の参照数、statement と Java のメソッドへのリンクを定義の上に表示します
+- **INSERT の列名ヒント**：`VALUES` の値や `SELECT` の項目がどの列に入るかを、行末に薄く表示します
 
 ## 使い方
 
 1. mapper XML を含むフォルダを VS Code で開きます
-2. コマンドパレット（`Ctrl+Shift+P` / `Cmd+Shift+P`）で **MyBatis Lint: Check Workspace** を実行します
+2. mapper XML や Java ファイルを保存すると、チェックが動きます。すぐに確認したいときは、コマンドパレット
+   （`Ctrl+Shift+P` / `Cmd+Shift+P`）で **MyBatis Lint: Check Workspace** を実行します
 3. 結果が Problems パネルに表示されます
-
-以降は、mapper XML や Java ファイルを保存するたびに自動でチェックし直します（`mybatisLint.runOnSave` でオフにできます）。
-チェック中はステータスバーに表示が出ます。
-
-解析したファイル数、かかった時間、飛ばしたフォルダなどの実行ログは、**MyBatis Lint: Show Log** で確認できます。
-うまく動かないときは、このログの内容を不具合の報告に添えてください。
 
 **Java のインストールは不要です。** 解析に必要な Java ランタイムを拡張機能に同梱しています。
 
-警告文は VS Code の表示言語に合わせて日本語か英語で表示します（`mybatisLint.language` で固定できます）。
+警告文などは VS Code の表示言語に合わせて日本語か英語で表示します（`mybatisLint.language` で固定できます）。
 
-## 主な検出内容
-
-- XML の構文エラー、`namespace` の欠落、statement ID の重複
-- `<when>` / `<otherwise>` の誤った使い方
-- 参照先が見つからない `<include refid>`、`resultMap`、`extends`
-- Java の Mapper メソッドに存在しないパラメータの参照（`#{missing}` など）
-- `parameterType` / `resultType` と Java メソッドの型の不一致
-- resultMap の `property` に対応するフィールドや setter がないもの
-- SQL の構文の誤り（`FORM` の綴り間違い、カンマ抜けなど）。Oracle / PostgreSQL / MySQL のうち、
-  プロジェクトの DB が分かったときだけ、その DB の文法でチェックします（下の「SQL の構文チェック」）
-
-確実に誤りと判断できないケースは、誤検知を避けるため報告しません。
-コンパイル済みのクラスは読み込まず、ワークスペース内のソースだけで判定します。
+実行ログは **MyBatis Lint: Show Log** で確認できます。チェックを 1 回実行した後に、解析にかかった時間や飛ばしたフォルダなどが
+表示されます。うまく動かないときは、このログの内容を不具合の報告に添えてください。
 
 ## SQL の構文チェック
 
@@ -61,6 +100,9 @@ MyBatis の mapper XML を静的解析し、実行しないと気づきにくい
 | `mybatisLint.exclude` | 解析しないフォルダやファイル。ワークスペースからの相対パスで、`*` や `**` が使えます（例: `docker`、`modules/*/generated`）。`/` を含まない名前は、どの階層のフォルダ名・ファイル名にも一致します |
 | `mybatisLint.sqlDialect` | SQL の構文チェックに使う DB（`auto` / `oracle` / `postgresql` / `mysql` / `off`）。既定の `auto` は設定ファイルとビルドファイルから推定します |
 | `mybatisLint.language` | 警告文、SQL プレビュー、クイックフィックス、CodeLens の言語（`auto` / `en` / `ja`）。既定の `auto` は VS Code の表示言語に合わせます。ルール ID は英語のままです |
+| `mybatisLint.insertColumnHints` | INSERT の列名ヒントの表示（`all` / `differentNames` / `off`） |
+| `mybatisLint.codeLens` | CodeLens を表示するか（既定はオン） |
+| `mybatisLint.keepAnalyzerRunning` | 解析エンジンを起動したままにして、2 回目以降のチェックを速くするか（既定はオン） |
 | `mybatisLint.disabledRules` | 報告しないルール（例: `unknown-select-alias`）。`mybatis-lint/` は省略できます |
 | `mybatisLint.javaPath` | 解析に使う Java のパス。空なら同梱の Java を使います |
 | `mybatisLint.analyzerJarPath` | 解析エンジンの jar のパス。空なら同梱の jar を使います |
