@@ -66,6 +66,11 @@ CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後�
 4. 続けて `publish` ジョブが `vsce publish --oidc`（OIDC trusted publishing）で Marketplace に公開する
 5. `publish` ジョブが失敗したときは、ユーザーが Release から VSIX をダウンロードし、Marketplace の管理画面（publisher `goddch`）から手動でアップロードする
 
+`darwin-arm64` だけは別のジョブ（`package-darwin-arm64`、`publish-darwin-arm64`）で、先に公開した 3 つのあとから
+同じバージョンに追加する。macOS arm64 のランナーは容量不足で順番がなかなか来ず、割り当てられないまま打ち切られることも
+あるため。打ち切られたら `gh run rerun <run> --failed` でやり直す。Marketplace は公開後に検証があり、利用できるまで
+10 分ほどかかる。
+
 トークン（PAT）による公開は Azure サブスクリプションが必要で、2026-12-01 で廃止されるため使わない。
 OIDC 方式は、Marketplace の管理画面の Trusted Publishing に、このリポジトリの `package.yml` を
 公開元として登録してある（v0.3.3 から自動公開できている）。vsce は 4.1.0 以上が要る（4.0.0 は
