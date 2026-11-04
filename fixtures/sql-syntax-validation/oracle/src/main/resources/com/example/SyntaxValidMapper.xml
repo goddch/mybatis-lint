@@ -23,6 +23,15 @@
     <if test="sort == 'name'">ORDER BY NAME</if>
   </select>
 
+  <select id="concatWithoutSpaces" resultType="map">
+    SELECT * FROM USERS U
+    WHERE (
+      U.NAME LIKE '%'||#{text}||'%'
+      OR
+      U.CD LIKE #{text}||'%'
+    )
+  </select>
+
   <!-- 以下はチェックしない -->
   <select id="dollar" resultType="map">SELECT * FROM ${table} WHRE 1 = 1</select>
   <insert id="returningInto">INSERT INTO USERS (ID) VALUES (#{id}) RETURNING ID INTO #{out}</insert>
