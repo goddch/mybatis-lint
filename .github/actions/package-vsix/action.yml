@@ -1,0 +1,43 @@
+name: Package VSIX
+description: Java ランタイムを同梱した、実行している OS 向けの VSIX を作ってアップロードする。checkout の後に呼ぶ。
+
+inputs:
+  target:
+    description: vsce の --target に渡すプラットフォーム
+    required: true
+  artifact-name:
+    description: VSIX を入れる artifact の名前
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: vscode-extension/package-lock.json
+    - uses: actions/download-artifact@v4
+      with:
+        name: analyzer-jar
+        path: analyzer/build/libs
+    - run: npm ci
+      shell: bash
+      working-directory: vscode-extension
+    - run: npm run compile
+      shell: bash
+      working-directory: vscode-extension
+    - run: npm run bundle
+      shell: bash
+      working-directory: vscode-extension
+    - run: npx vsce package --target "${{ inputs.target }}"
+      shell: bash
+      working-directory: vscode-extension
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: vscode-extension/*.vsix

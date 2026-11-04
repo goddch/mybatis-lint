@@ -8,6 +8,10 @@ name: Package extension
 # 必要で、しかも 2026-12-01 で廃止されるため使わない。Marketplace の管理画面の Trusted Publishing に、
 # このワークフロー(package.yml、environment なし)を登録してある。ファイル名を変えるとポリシーと
 # 合わなくなるので注意。publish ジョブが失敗したときは、Release の VSIX を管理画面から手動でアップロードする。
+#
+# macOS arm64 のランナーは容量不足で、割り当てまで 1 時間近くかかったり、割り当てられないまま打ち切られたりする。
+# 待っている間ほかのプラットフォームも公開できなくなるので、darwin-arm64 だけ別のジョブに分け、先に 3 つを公開してから
+# 同じバージョンに追加で公開する。打ち切られたときは、失敗したジョブだけ再実行すればよい。
 
 on:
   workflow_dispatch:
@@ -19,6 +23,7 @@ on:
     paths:
       - 'vscode-extension/**'
       - '.github/workflows/package.yml'
+      - '.github/actions/package-vsix/**'
 
 permissions:
   contents: read
@@ -53,38 +58,30 @@ jobs:
             os: ubuntu-latest
           - target: win32-x64
             os: windows-latest
-          - target: darwin-arm64
-            os: macos-latest
           - target: darwin-x64
             os: macos-15-intel
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: vscode-extension
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: ./.github/actions/package-vsix
         with:
-          distribution: temurin
-          java-version: '17'
-      - uses: actions/setup-node@v4
+          target: ${{ matrix.target }}
+          artifact-name: vsix-${{ matrix.target }}
+
+  package-darwin-arm64:
+    name: Package darwin-arm64
+    needs: analyzer-jar
+    # PR で順番待ちになると確認がいつまでも終わらないので、タグと手動実行のときだけ作る。
+    # macOS での作り方の確認は、PR でも動く darwin-x64 で足りる。
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/package-vsix
         with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: vscode-extension/package-lock.json
-      - uses: actions/download-artifact@v4
-        with:
-          name: analyzer-jar
-          path: analyzer/build/libs
-      - run: npm ci
-      - run: npm run compile
-      - run: npm run bundle
-      - run: npx vsce package --target ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: vsix-${{ matrix.target }}
-          path: vscode-extension/*.vsix
+          target: darwin-arm64
+          # 名前を vsix-* にしない。release と publish が先に拾うと、あとで二重に公開して失敗する。
+          artifact-name: late-vsix-darwin-arm64
 
   release:
     name: Create GitHub Release
@@ -138,4 +135,33 @@ jobs:
           merge-multiple: true
           path: vsix
       - name: Publish all platform VSIX files
+        run: npx vsce publish --oidc --packagePath ../vsix/*.vsix
+
+  publish-darwin-arm64:
+    name: Publish darwin-arm64
+    needs: [package-darwin-arm64, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: late-vsix-darwin-arm64
+          path: vsix
+      - name: Add the VSIX to the release
+        run: gh release upload "$GITHUB_REF_NAME" ../vsix/*.vsix
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Publish to Marketplace
         run: npx vsce publish --oidc --packagePath ../vsix/*.vsix
