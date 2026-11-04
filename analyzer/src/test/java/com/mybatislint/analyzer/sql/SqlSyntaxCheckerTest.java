@@ -1,9 +1,14 @@
 package com.mybatislint.analyzer.sql;
 
+import net.sf.jsqlparser.parser.CCJSqlParserConstants;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -14,6 +19,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SqlSyntaxCheckerTest {
 
     private static final SqlSyntaxChecker CHECKER = new SqlSyntaxChecker();
+
+    private static final Set<String> ORACLE_RESERVED = Set.of(("ACCESS ADD ALL ALTER AND ANY AS ASC AUDIT BETWEEN BY CHAR "
+            + "CHECK CLUSTER COLUMN COLUMN_VALUE COMMENT COMPRESS CONNECT CREATE CURRENT DATE DECIMAL DEFAULT DELETE DESC "
+            + "DISTINCT DROP ELSE EXCLUSIVE EXISTS FILE FLOAT FOR FROM GRANT GROUP HAVING IDENTIFIED IMMEDIATE IN INCREMENT "
+            + "INDEX INITIAL INSERT INTEGER INTERSECT INTO IS LEVEL LIKE LOCK LONG MAXEXTENTS MINUS MLSLABEL MODE MODIFY "
+            + "NESTED_TABLE_ID NOAUDIT NOCOMPRESS NOT NOWAIT NULL NUMBER OF OFFLINE ON ONLINE OPTION OR ORDER PCTFREE PRIOR "
+            + "PUBLIC RAW RENAME RESOURCE REVOKE ROW ROWID ROWNUM ROWS SELECT SESSION SET SHARE SIZE SMALLINT START "
+            + "SUCCESSFUL SYNONYM SYSDATE TABLE THEN TO TRIGGER UID UNION UNIQUE UPDATE USER VALIDATE VALUES VARCHAR "
+            + "VARCHAR2 VIEW WHENEVER WHERE WITH").split(" "));
+
+    // SQL の構造を作る語と値。引用符で囲むと、誤りが別名として読めてしまう。
+    private static final Set<String> STRUCTURAL = Set.of("BOTH", "TRAILING", "CONNECT_BY_ROOT", "CONSTRAINT", "CROSS",
+            "EXCEPT", "FETCH", "FOREIGN", "FULL", "INNER", "JOIN", "LATERAL", "NATURAL", "NOCYCLE", "ONLY", "OUTER",
+            "PIVOT", "UNPIVOT", "RETURNING", "SEMI", "UNBOUNDED", "USING", "WHEN", "WINDOW", "IGNORE", "LIMIT", "OFFSET",
+            "QUALIFY", "TRUE", "FALSE");
 
     @AfterAll
     static void close() {
@@ -139,11 +159,73 @@ class SqlSyntaxCheckerTest {
         assertNotNull(CHECKER.check("SELECT A.ID FROM T AS OF SCN 12345 A", SqlDialect.POSTGRESQL).error());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT SETTINGS FROM T",
+            "SELECT settings FROM T",
+            "SELECT ID, SETTINGS, NM FROM T WHERE SETTINGS = ? ORDER BY SETTINGS",
+            "SELECT FINAL, OUTPUT, STATEMENT, ERRORS FROM T",
+            "SELECT ID AS SETTINGS FROM T",
+            "SELECT A.ID FROM SETTINGS A",
+            "INSERT INTO T (SETTINGS) VALUES (?)",
+            "UPDATE T SET SETTINGS = ? WHERE ID = ?",
+            "SELECT SETTINGS, B.ID FROM T A INNER JOIN U B ON A.ID = B.ID",
+    })
+    void readsKeywordsThatAreColumnNamesWithoutADot(String sql) {
+        for (SqlDialect dialect : SqlDialect.values()) {
+            SqlSyntaxChecker.Result result = CHECKER.check(sql, dialect);
+            assertTrue(result.checked());
+            assertNull(result.error(), dialect + ": " + sql);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT SETTINGS FORM T",
+            "SELECT SETTINGS, FROM T",
+            "SELECT SETTINGS FROM T WHRE ID = 1",
+            "SELECT SETTINGS FROM T WHERE",
+            "SELECT ID FROM T A JOIN WHERE ID = 1",
+    })
+    void stillReportsRealErrorsWithThoseNames(String sql) {
+        assertNotNull(CHECKER.check(sql, SqlDialect.ORACLE).error(), sql);
+    }
+
+    // JSqlParser の更新で読めない語が増えたら、ここで気づく。増えた語は、列名に使える語なら
+    // KEYWORD_NAMES に足し、SQL の構造を作る語なら STRUCTURAL に足す。
+    @Test
+    void everyKeywordIsReadableAsAColumnUnlessItBuildsTheSqlStructure() {
+        List<String> unreadable = new ArrayList<>();
+        for (String image : CCJSqlParserConstants.tokenImage) {
+            if (!image.matches("<K_[A-Z0-9_]+>")) {
+                continue;
+            }
+            String word = image.substring(3, image.length() - 1);
+            if (ORACLE_RESERVED.contains(word) || STRUCTURAL.contains(word)) {
+                continue;
+            }
+            for (String form : List.of("SELECT %s FROM T", "SELECT X %s FROM T", "SELECT X FROM T WHERE %s = 1",
+                    "UPDATE T SET %s = 1")) {
+                if (CHECKER.check(String.format(form, word), SqlDialect.ORACLE).error() != null) {
+                    unreadable.add(String.format(form, word));
+                }
+            }
+        }
+        assertEquals(List.of(), unreadable);
+    }
+
+    @Test
+    void quotesKeywordsButNotFunctionsOrText() {
+        assertEquals("SELECT \"SETTINGS\", \"settings\", SETTINGS(1), 'SETTINGS' /* SETTINGS */, \"SETTINGS\" FROM T",
+                SqlSyntaxChecker.quoteNames(
+                        "SELECT SETTINGS, settings, SETTINGS(1), 'SETTINGS' /* SETTINGS */, \"SETTINGS\" FROM T"));
+    }
+
     @Test
     void quotesOnlyDottedNamesOutsideStringsAndComments() {
         assertEquals("SELECT \"A\".\"FINAL\", 'x.y', \"B\".\"C\" /* d.e */ FROM T A -- f.g\nWHERE 1.5 > ?",
-                SqlSyntaxChecker.quoteDottedNames(
+                SqlSyntaxChecker.quoteNames(
                         "SELECT A.FINAL, 'x.y', \"B\".\"C\" /* d.e */ FROM T A -- f.g\nWHERE 1.5 > ?"));
-        assertEquals("SELECT \"A\".* FROM \"S\".\"T\" A", SqlSyntaxChecker.quoteDottedNames("SELECT A.* FROM S.T A"));
+        assertEquals("SELECT \"A\".* FROM \"S\".\"T\" A", SqlSyntaxChecker.quoteNames("SELECT A.* FROM S.T A"));
     }
 }

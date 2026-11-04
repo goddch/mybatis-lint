@@ -32,6 +32,10 @@
     )
   </select>
 
+  <select id="keywordColumnName" resultType="map">
+    SELECT ID, SETTINGS FROM USERS WHERE SETTINGS = #{settings}
+  </select>
+
   <!-- 以下はチェックしない -->
   <select id="dollar" resultType="map">SELECT * FROM ${table} WHRE 1 = 1</select>
   <insert id="returningInto">INSERT INTO USERS (ID) VALUES (#{id}) RETURNING ID INTO #{out}</insert>
