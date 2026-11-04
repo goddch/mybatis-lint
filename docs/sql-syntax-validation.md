@@ -67,6 +67,13 @@ PostgreSQL のプロジェクトで誤りになることはありません。DB 
 - 見つからない `<include>` がある statement
 - `statementType="CALLABLE"`、`BEGIN` / `DECLARE` で始まる PL/SQL ブロック、`CALL` / `{call ...}`
 - Oracle の `RETURNING ... INTO`(JSqlParser が読めない)
+- 読めなかった statement のうち、次の Oracle の書き方を含むもの(正しい SQL だが JSqlParser が読めない)。
+  同じ statement の別の誤りも報告されなくなる
+  - `PARTITION (...)`、`PARTITION FOR (...)`、`SUBPARTITION (...)`、パーティション外部結合の `PARTITION BY`
+  - `AS OF TIMESTAMP` / `SCN`、`VERSIONS BETWEEN`、`SAMPLE (...)`
+  - `MODEL`、`MATCH_RECOGNIZE`、`WITH FUNCTION` / `PROCEDURE`
+  - `TREAT(...)`、`NEW 型名(...)`、`IS NAN` / `INFINITE` / `OF` / `A SET` / `EMPTY` / `PRESENT`、`LIKEC` / `LIKE2` / `LIKE4`
+  - 副問い合わせへの `INSERT` / `UPDATE` / `DELETE`、`LOG ERRORS`、`CURRENT OF`
 - 末尾以外に `;` があり、複数の SQL をつないでいるもの(末尾の `;` 1 つは外して読む)
 - パーサーが時間内に読み終わらなかったもの、字句の段階で読めなかったもの
 - `.` でつないだ名前を `"A"."FINAL"` のように引用符で囲むと読めるもの。JSqlParser は `FINAL`、`OUTPUT`、

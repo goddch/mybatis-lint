@@ -25,6 +25,25 @@ public final class SqlSyntaxChecker implements AutoCloseable {
     // Oracle の RETURNING ... INTO :out は JSqlParser が読めない。
     private static final Pattern RETURNING_INTO = Pattern.compile("(?is).*\\bRETURNING\\b.+\\bINTO\\b.*");
 
+    // Oracle では正しいが JSqlParser が読めない書き方。読めなかったときだけ見るので、たまたま
+    // 文字列の中などに一致しても、その statement のチェックを諦めるだけで誤検知にはならない。
+    private static final Pattern ORACLE_UNSUPPORTED = Pattern.compile("(?is)"
+            + "\\b(SUB)?PARTITION\\s*(\\(|FOR\\b)"            // FROM T PARTITION (P1) A
+            + "|[^(\\s]\\s+PARTITION\\s+BY\\b"                // パーティション外部結合(OVER (PARTITION BY は読める)
+            + "|\\bAS\\s+OF\\s+(TIMESTAMP|SCN|PERIOD)\\b"       // フラッシュバック問い合わせ
+            + "|\\bVERSIONS\\s+(BETWEEN|PERIOD)\\b"
+            + "|\\bSAMPLE(\\s+BLOCK)?\\s*\\("
+            + "|\\bMODEL\\s+(DIMENSION|PARTITION|MAIN|UNIQUE|IGNORE|KEEP|RETURN|REFERENCE)\\b"
+            + "|\\bMATCH_RECOGNIZE\\s*\\("
+            + "|^\\s*WITH\\s+(FUNCTION|PROCEDURE)\\b"
+            + "|\\bTREAT\\s*\\("
+            + "|\\bNEW\\s+[\\w.$#]+\\s*\\("                   // オブジェクト型のコンストラクタ
+            + "|\\bIS\\s+(NOT\\s+)?(NAN|INFINITE|OF|A\\s+SET|EMPTY|PRESENT)\\b"
+            + "|\\bLIKE[C24]\\b"
+            + "|^\\s*(INSERT\\s+(/\\*.*?\\*/\\s*)?INTO|(UPDATE|DELETE)\\s+(/\\*.*?\\*/\\s*)?(FROM\\s+)?)\\s*\\("  // 副問い合わせへの DML
+            + "|\\bLOG\\s+ERRORS\\b"
+            + "|\\bCURRENT\\s+OF\\b");
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "mybatis-lint-sql-parser");
         // 打ち切ったパーサーが残っていても、解析エンジンの終了を妨げないようにする。
@@ -71,6 +90,9 @@ public final class SqlSyntaxChecker implements AutoCloseable {
             if (retry.checked() && retry.error() == null) {
                 return Result.OK;
             }
+        }
+        if (dialect == SqlDialect.ORACLE && ORACLE_UNSUPPORTED.matcher(sql).find()) {
+            return Result.SKIPPED;
         }
         return result;
     }
