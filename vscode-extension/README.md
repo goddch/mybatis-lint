@@ -27,6 +27,10 @@ mapper XML の statement の中にカーソルを置いて `Ctrl+Shift+V`（Mac 
 ## 静的解析
 
 mapper XML や Java ファイルを保存するたびに自動でチェックし、結果を Problems パネルとエディタに表示します。
+名前の打ち間違いには、正しい名前の候補とクイックフィックスも出します。
+
+![警告を確認してクイックフィックスで直す様子](https://raw.githubusercontent.com/goddch/mybatis-lint/main/vscode-extension/images/static-analysis.gif)
+
 たとえば次のような誤りを見つけます。
 
 | 書いたもの | 見つける内容 |
