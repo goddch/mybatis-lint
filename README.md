@@ -281,6 +281,11 @@ publisher has a Trusted Publishing policy for this repository's
 `package.yml`). If that job fails, the VSIX files on the Release can be
 uploaded manually on the Marketplace management page.
 
+`darwin-arm64` is built and published by separate jobs, after the other three,
+because macOS arm64 runners can wait a long time or never be assigned. It is
+added to the same Release and Marketplace version when its build finishes; if
+GitHub cancels the job, re-run the failed jobs. It is not built for pull requests.
+
 ## License
 
 [Apache License 2.0](LICENSE). The analyzer jar includes JavaParser and
