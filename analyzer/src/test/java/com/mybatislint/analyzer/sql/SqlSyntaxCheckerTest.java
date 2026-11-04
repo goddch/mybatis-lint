@@ -46,6 +46,50 @@ class SqlSyntaxCheckerTest {
         assertNotNull(CHECKER.check(sql, SqlDialect.ORACLE).error(), sql);
     }
 
+    // JSqlParser は ?| を PostgreSQL の JSON 演算子として読むので、詰めて書いた連結が読めなくなっていた。
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT * FROM T WHERE X LIKE '%'||?||'%'",
+            "SELECT * FROM T WHERE X LIKE ?||'%'",
+            "SELECT * FROM T WHERE X = ?||?",
+            "SELECT ?||A.X FROM T A",
+            "SELECT F(?||'x', ?||'y') FROM T",
+            "INSERT INTO T (A) VALUES (?||'x')",
+            "UPDATE T SET A=?||'x' WHERE B=?",
+            "SELECT * FROM T WHERE (A.N LIKE '%'||?||'%' OR\n A.C LIKE '%'||?||'%')",
+    })
+    void readsParametersConcatenatedWithoutSpaces(String sql) {
+        for (SqlDialect dialect : SqlDialect.values()) {
+            SqlSyntaxChecker.Result result = CHECKER.check(sql, dialect);
+            assertTrue(result.checked());
+            assertNull(result.error(), dialect + ": " + sql);
+        }
+    }
+
+    @Test
+    void stillReportsErrorsNextToConcatenatedParameters() {
+        SqlSyntaxChecker.SyntaxError error =
+                CHECKER.check("SELECT * FROM T WHERE A.IDLIKE '%'||?||'%'", SqlDialect.ORACLE).error();
+        assertEquals("'%'", error.near());
+        assertEquals(32, error.column());
+    }
+
+    @Test
+    void showsTheOriginalParameterWhenTheErrorIsAtIt() {
+        SqlSyntaxChecker.SyntaxError error = CHECKER.check("SELECT 1 FROM T WHERE\nA ?||'x' = 1", SqlDialect.ORACLE).error();
+        assertEquals("?", error.near());
+        assertEquals(2, error.line());
+    }
+
+    @Test
+    void keepsPostgresqlJsonOperatorsAndText() {
+        assertEquals("SELECT A ?| B, A ?& B, 0||'x'",
+                SqlSyntaxChecker.separateParameters("SELECT A ?| B, A ?& B, ?||'x'", SqlDialect.POSTGRESQL));
+        assertEquals("SELECT 0|1, 0&1", SqlSyntaxChecker.separateParameters("SELECT ?|1, ?&1", SqlDialect.MYSQL));
+        assertEquals("SELECT '?||' /* ?|| */ FROM T",
+                SqlSyntaxChecker.separateParameters("SELECT '?||' /* ?|| */ FROM T", SqlDialect.ORACLE));
+    }
+
     // Oracle では正しいが JSqlParser が読めない書き方は、読まなかったものとして扱う。
     @ParameterizedTest
     @ValueSource(strings = {

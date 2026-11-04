@@ -77,15 +77,16 @@ public final class SqlSyntaxChecker implements AutoCloseable {
         if (sql.isBlank() || isKnownUnsupported(sql, dialect)) {
             return Result.SKIPPED;
         }
-        Result result = parse(sql);
+        String readable = separateParameters(sql, dialect);
+        Result result = parse(readable);
         if (result.error() == null) {
             return result;
         }
         // JSqlParser は FINAL、OUTPUT、STATEMENT、INT、MAP など、Oracle では列名や別名に使える語の一部を
         // 予約語として扱い、A.FINAL や INT.ID の「.」で読めなくなる。どの語が当たるかは版によって変わるので、
         // 「.」でつないだ名前をすべて引用符で囲んで読み直し、読めたら名前のせいだったとして報告しない。
-        String quoted = quoteDottedNames(sql);
-        if (!quoted.equals(sql)) {
+        String quoted = quoteDottedNames(readable);
+        if (!quoted.equals(readable)) {
             Result retry = parse(quoted);
             if (retry.checked() && retry.error() == null) {
                 return Result.OK;
@@ -94,7 +95,46 @@ public final class SqlSyntaxChecker implements AutoCloseable {
         if (dialect == SqlDialect.ORACLE && ORACLE_UNSUPPORTED.matcher(sql).find()) {
             return Result.SKIPPED;
         }
-        return result;
+        return new Result(result.checked(), originalNear(result.error(), sql));
+    }
+
+    /**
+     * {@code ?||'%'} の {@code ?} を {@code 0} にする。JSqlParser は {@code ?|} と {@code ?&} を PostgreSQL の
+     * JSON 演算子として 1 語に読むので、{@code '%'||#{x}||'%'} のような正しい SQL が読めなくなる。
+     * 長さを変えないので、誤りの位置はそのまま使える。PostgreSQL では {@code a ?| b} が本物の演算子なので、
+     * 演算子としてはありえない {@code ?||} だけを置き換える。
+     */
+    static String separateParameters(String sql, SqlDialect dialect) {
+        StringBuilder out = new StringBuilder(sql);
+        int i = 0;
+        while (i < sql.length() - 1) {
+            int skipTo = skipQuotedOrComment(sql, i);
+            if (skipTo > i) {
+                i = skipTo;
+                continue;
+            }
+            if (sql.charAt(i) == '?' && (sql.startsWith("||", i + 1)
+                    || dialect != SqlDialect.POSTGRESQL && (sql.charAt(i + 1) == '|' || sql.charAt(i + 1) == '&'))) {
+                out.setCharAt(i, '0');
+            }
+            i++;
+        }
+        return out.toString();
+    }
+
+    /** 置き換えた {@code ?} で読めなくなったときは、警告に {@code 0} ではなく元の {@code ?} を出す。 */
+    private static SyntaxError originalNear(SyntaxError error, String sql) {
+        if (error == null || !error.near().equals("0")) {
+            return error;
+        }
+        int index = 0;
+        for (int line = 1; line < error.line(); line++) {
+            index = sql.indexOf('\n', index) + 1;
+        }
+        index += error.column() - 1;
+        return index < sql.length() && sql.charAt(index) == '?'
+                ? new SyntaxError(error.line(), error.column(), "?")
+                : error;
     }
 
     private Result parse(String sql) {
