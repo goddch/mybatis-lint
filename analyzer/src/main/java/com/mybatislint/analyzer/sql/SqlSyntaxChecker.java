@@ -5,6 +5,8 @@ import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.parser.ParseException;
 import net.sf.jsqlparser.parser.Token;
 
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
@@ -44,6 +46,16 @@ public final class SqlSyntaxChecker implements AutoCloseable {
             + "|\\bLOG\\s+ERRORS\\b"
             + "|\\bCURRENT\\s+OF\\b");
 
+    // JSqlParser が予約語として扱うが、Oracle、PostgreSQL、MySQL では列名や別名に使える語。
+    // JOIN、USING、WHEN のように SQL の構造を作る語は入れない。囲むと、カンマ抜けなどの誤りが別名として読めてしまう。
+    // JSqlParser を更新して語が増えたら SqlSyntaxCheckerTest が落ちるので、そのときにここへ足す。
+    private static final Set<String> KEYWORD_NAMES = Set.of(
+            "ABSENT", "CSV", "DISTINCTROW", "DIV", "ERRORS", "EXCLUDES", "EXTEND", "FBV", "FINAL", "FORCE", "GLOBAL",
+            "ILIKE", "IMPORT", "INCLUDES", "MATCH_ALL", "MATCH_ANY", "MATCH_PHRASE", "MATCH_PHRASE_PREFIX",
+            "MATCH_REGEXP", "MEMBER", "OUTPUT", "OVERLAPS", "PREFERRING", "PREWHERE", "REGEXP", "REGEXP_LIKE",
+            "RETURNS", "RLIKE", "SAMPLE", "SCRIPT", "SETTINGS", "SIMILAR", "SQL_CACHE", "SQL_CALC_FOUND_ROWS",
+            "SQL_NO_CACHE", "STATEMENT", "TABLESAMPLE", "UNKNOWN", "USE", "VERIFY", "XMLSERIALIZE", "XOR");
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "mybatis-lint-sql-parser");
         // 打ち切ったパーサーが残っていても、解析エンジンの終了を妨げないようにする。
@@ -82,10 +94,10 @@ public final class SqlSyntaxChecker implements AutoCloseable {
         if (result.error() == null) {
             return result;
         }
-        // JSqlParser は FINAL、OUTPUT、STATEMENT、INT、MAP など、Oracle では列名や別名に使える語の一部を
-        // 予約語として扱い、A.FINAL や INT.ID の「.」で読めなくなる。どの語が当たるかは版によって変わるので、
-        // 「.」でつないだ名前をすべて引用符で囲んで読み直し、読めたら名前のせいだったとして報告しない。
-        String quoted = quoteDottedNames(readable);
+        // JSqlParser は SETTINGS、FINAL、OUTPUT、INT、MAP など、Oracle では列名や別名に使える語の一部を
+        // 予約語として扱い、SETTINGS や A.FINAL、INT.ID の周りで読めなくなる。「.」でつないだ名前と
+        // KEYWORD_NAMES の語を引用符で囲んで読み直し、読めたら名前のせいだったとして報告しない。
+        String quoted = quoteNames(readable);
         if (!quoted.equals(readable)) {
             Result retry = parse(quoted);
             if (retry.checked() && retry.error() == null) {
@@ -151,10 +163,11 @@ public final class SqlSyntaxChecker implements AutoCloseable {
     }
 
     /**
-     * {@code A.FINAL} を {@code "A"."FINAL"} のように、「.」でつないだ名前を引用符で囲む。
+     * {@code A.FINAL} を {@code "A"."FINAL"} のように、「.」でつないだ名前と {@link #KEYWORD_NAMES} の語を
+     * 引用符で囲む。後ろに {@code (} が続く語は関数や構文の一部なので囲まない。
      * 文字列、引用符で囲んだ名前、コメントの中は変えない。
      */
-    static String quoteDottedNames(String sql) {
+    static String quoteNames(String sql) {
         StringBuilder out = new StringBuilder(sql.length() + 16);
         int i = 0;
         while (i < sql.length()) {
@@ -169,7 +182,9 @@ public final class SqlSyntaxChecker implements AutoCloseable {
                 int next = skipSpaces(sql, end);
                 boolean before = next < sql.length() && sql.charAt(next) == '.';
                 boolean after = precededByDot(out);
-                out.append(before || after ? '"' + name + '"' : name);
+                boolean keyword = KEYWORD_NAMES.contains(name.toUpperCase(Locale.ROOT))
+                        && !(next < sql.length() && sql.charAt(next) == '(');
+                out.append(before || after || keyword ? '"' + name + '"' : name);
                 i = end;
             } else {
                 out.append(c);
