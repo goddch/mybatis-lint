@@ -1,7 +1,7 @@
 {
   "name": "mybatis-lint",
   "displayName": "MyBatis Lint",
-  "description": "Static analysis diagnostics for MyBatis mapper XML files.",
+  "description": "Static analysis and SQL preview for MyBatis mapper XML files.",
   "version": "0.5.4",
   "publisher": "goddch",
   "preview": true,

@@ -6,6 +6,7 @@ out/e2e/**
 e2e/**
 .vscode-test/**
 scripts/**
+images/**
 **/*.map
 **/*.ts
 tsconfig.json
