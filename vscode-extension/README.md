@@ -1,4 +1,4 @@
-# MyBatis Lint（プレビュー版）
+# MyBatis SQL Preview & Lint（プレビュー版）
 
 MyBatis の mapper XML を静的解析して、**実行しないと気づきにくい誤りをエディタ上に表示**します。
 `<if>` や `<foreach>` を組み立てた後の SQL を確認できる **SQL プレビュー**も付いています。
