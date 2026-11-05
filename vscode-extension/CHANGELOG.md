@@ -3,6 +3,8 @@
 ## 未リリース
 
 - 表示名を「MyBatis SQL Preview & Lint」に変えました（拡張機能の ID `goddch.mybatis-lint` とコマンド名は変わりません）
+- Problems パネルのルール名が `mybatis-lint(mybatis-lint/...)` と二重に表示されていたのを直しました
+- README の冒頭で、SQL プレビューと静的解析を最初に紹介するようにしました
 
 ## 0.5.6
 
