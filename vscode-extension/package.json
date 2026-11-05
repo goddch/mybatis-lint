@@ -2,7 +2,7 @@
   "name": "mybatis-lint",
   "displayName": "MyBatis SQL Preview & Lint",
   "description": "See the SQL your MyBatis mapper XML builds, and catch mistakes in it as you save.",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "publisher": "goddch",
   "preview": true,
   "icon": "images/icon.png",
