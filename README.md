@@ -23,7 +23,8 @@ database.
 The VS Code extension ships with its own Java runtime, so Java does not need
 to be installed. Platform-specific VSIX files are attached to each
 [GitHub Release](https://github.com/goddch/mybatis-lint/releases) and are
-also uploaded to the VS Code Marketplace (publisher `goddch`). After
+also uploaded to the VS Code Marketplace as **MyBatis SQL Preview & Lint**
+(publisher `goddch`, ID `goddch.mybatis-lint`). After
 installing, open a folder containing mapper XML and run
 **MyBatis Lint: Check Workspace** from the Command Palette. Results appear in
 the Problems panel, and the workspace is checked again whenever a mapper XML

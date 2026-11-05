@@ -1,5 +1,9 @@
 # 変更履歴
 
+## 未リリース
+
+- 表示名を「MyBatis SQL Preview & Lint」に変えました（拡張機能の ID `goddch.mybatis-lint` とコマンド名は変わりません）
+
 ## 0.5.6
 
 - 拡張機能のアイコンを追加しました

@@ -1,12 +1,23 @@
 {
   "name": "mybatis-lint",
-  "displayName": "MyBatis Lint",
-  "description": "Static analysis and SQL preview for MyBatis mapper XML files.",
+  "displayName": "MyBatis SQL Preview & Lint",
+  "description": "See the SQL your MyBatis mapper XML builds, and catch mistakes in it as you save.",
   "version": "0.5.6",
   "publisher": "goddch",
   "preview": true,
   "icon": "images/icon.png",
   "license": "Apache-2.0",
+  "keywords": [
+    "mybatis",
+    "sql",
+    "sql preview",
+    "mapper",
+    "dynamic sql",
+    "lint",
+    "oracle",
+    "postgresql",
+    "mysql"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/goddch/mybatis-lint.git"
