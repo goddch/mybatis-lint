@@ -6,6 +6,9 @@ dynamic SQL.
 This is an **early-stage preview**. It deliberately does **not**
 attempt full MyBatis/Oracle support yet, and false positives are possible.
 
+This is an independent project. It is not an official MyBatis tool and is
+not affiliated with or endorsed by the MyBatis project.
+
 The analyzer favors silence over false positives: whenever something cannot be
 decided statically (`${...}` values, unresolved or ambiguous Java types,
 references to mappers that are not in the opened folder, and so on) it reports
