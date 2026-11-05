@@ -33,9 +33,14 @@ test('maps severities to vscode-compatible numeric values', () => {
   assert.equal(group.diagnostics[0].severity, PlainDiagnosticSeverity.Warning);
 });
 
-test('carries the rule id through as the diagnostic code', () => {
-  const [group] = groupDiagnosticsByUri([diagnostic()]);
-  assert.equal(group.diagnostics[0].code, 'mybatis-lint/duplicate-statement-id');
+test('uses the rule id without its prefix as the diagnostic code', () => {
+  const [group] = groupDiagnosticsByUri([diagnostic({ severity: 'error' })]);
+  assert.equal(group.diagnostics[0].code, 'duplicate-statement-id');
+});
+
+test('keeps a rule id that has no prefix as it is', () => {
+  const [group] = groupDiagnosticsByUri([diagnostic({ ruleId: 'other-rule' })]);
+  assert.equal(group.diagnostics[0].code, 'other-rule');
 });
 
 test('groups diagnostics from multiple files by uri', () => {

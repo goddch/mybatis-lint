@@ -32,6 +32,14 @@ function toPlainSeverity(severity: AnalyzerDiagnostic['severity']): PlainDiagnos
   return severity === 'error' ? PlainDiagnosticSeverity.Error : PlainDiagnosticSeverity.Warning;
 }
 
+// Problems パネルは「source(code)」と表示する。source が mybatis-lint なので、code にも接頭辞があると
+// mybatis-lint(mybatis-lint/...) と二重になる。接頭辞なしは disabledRules や抑制コメントに書く形と同じ。
+const RULE_ID_PREFIX = 'mybatis-lint/';
+
+function displayCode(ruleId: string): string {
+  return ruleId.startsWith(RULE_ID_PREFIX) ? ruleId.slice(RULE_ID_PREFIX.length) : ruleId;
+}
+
 function toPlainDiagnostic(diagnostic: AnalyzerDiagnostic): PlainDiagnostic {
   // The analyzer reports 1-based line/character; vscode.Position is 0-based.
   return {
@@ -43,7 +51,7 @@ function toPlainDiagnostic(diagnostic: AnalyzerDiagnostic): PlainDiagnostic {
     },
     message: diagnostic.message,
     severity: toPlainSeverity(diagnostic.severity),
-    code: diagnostic.ruleId,
+    code: displayCode(diagnostic.ruleId),
     ...(typeof diagnostic.suggestion === 'string' ? { suggestion: diagnostic.suggestion } : {}),
   };
 }

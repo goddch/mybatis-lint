@@ -28,6 +28,9 @@ analyzer/build/
 analyzer/.gradle/
 !analyzer/gradle/wrapper/gradle-wrapper.jar
 
+# fixtures の pom.xml を見て Java 拡張などが作るビルド結果
+target/
+
 # Node / TypeScript
 vscode-extension/node_modules/
 # VS Code downloaded by the end-to-end tests.
