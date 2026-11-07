@@ -62,7 +62,7 @@ CI（`.github/workflows/ci.yml`）は上記をすべて実行する。変更後�
 
 1. PR で `vscode-extension/package.json` の `version` を上げ、`vscode-extension/CHANGELOG.md` の「未リリース」をそのバージョンの見出しに変えてマージする
 2. main の最新コミットに `vX.Y.Z` タグを付けて push する（`package.json` の version と一致しないと失敗する）
-3. `package.yml` が全プラットフォームの VSIX を作り、GitHub Release（プレリリース）に添付する
+3. `package.yml` が全プラットフォームの VSIX を作り、GitHub Release に添付する
 4. 続けて `publish` ジョブが `vsce publish --oidc`（OIDC trusted publishing）で Marketplace に公開する
 5. `publish` ジョブが失敗したときは、ユーザーが Release から VSIX をダウンロードし、Marketplace の管理画面（publisher `goddch`）から手動でアップロードする
 

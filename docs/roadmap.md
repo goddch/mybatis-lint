@@ -20,8 +20,8 @@ extension descriptions never overstate current capabilities.
 - Packaging with a bundled Java 17 runtime. `v*` tags attach
   platform-specific VSIX files to a GitHub Release and then try to publish them
   to the Marketplace with OIDC trusted publishing (working since v0.3.3; the
-  fallback is a manual upload of the Release files). v0.1.0 is the first
-  preview release.
+  fallback is a manual upload of the Release files). v0.1.0 was the first
+  preview release, and v1.0.0 is the first non-preview release.
 
 ## Not yet implemented (roadmap)
 

@@ -3,8 +3,8 @@
 Static analysis engine and VS Code extension for MyBatis mapper XML and
 dynamic SQL.
 
-This is an **early-stage preview**. It deliberately does **not**
-attempt full MyBatis/Oracle support yet, and false positives are possible.
+It deliberately does **not** attempt full MyBatis/Oracle support, and false
+positives are still possible.
 
 This is an independent project. It is not an official MyBatis tool and is
 not affiliated with or endorsed by the MyBatis project.

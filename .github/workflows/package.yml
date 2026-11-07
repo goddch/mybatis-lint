@@ -105,7 +105,7 @@ jobs:
           merge-multiple: true
           path: vsix
       - name: Create release with VSIX files
-        run: gh release create "$GITHUB_REF_NAME" vsix/*.vsix --prerelease --generate-notes --title "$GITHUB_REF_NAME"
+        run: gh release create "$GITHUB_REF_NAME" vsix/*.vsix --generate-notes --title "$GITHUB_REF_NAME"
         env:
           GH_TOKEN: ${{ github.token }}
 
